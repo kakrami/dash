@@ -174,7 +174,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
       <section class="setup-hero">
         <div class="brand">
           <span class="logo">◆</span>
-          <div><h1>Coin Dash</h1><p>Simple setup first. Gameplay stays clean.</p></div>
+          <div><h1>Coin Dash</h1><p>Start solo or add a player.</p></div>
         </div>
         <div class="setup-actions">
           <button type="button" id="startBtn" class="btn btn-primary">Start Game</button>
@@ -210,7 +210,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
                 <div class="field-top">
                   <label id="codeLabel" for="code">Invite code</label>
                 </div>
-                <textarea id="code" placeholder="Code goes here."></textarea>
+                <textarea id="code" placeholder="Code goes here." spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
                 <div class="field-actions" id="inviteActions">
                   <button type="button" id="useBtn" class="btn btn-primary hide">Make Answer</button>
                   <button type="button" id="copyInviteBtn" class="btn btn-secondary hide">Copy Invite</button>
@@ -221,7 +221,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
                 <div class="field-top">
                   <label id="answerLabel" for="answerCode">Answer code</label>
                 </div>
-                <textarea id="answerCode" placeholder="Answer code goes here."></textarea>
+                <textarea id="answerCode" placeholder="Answer code goes here." spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
                 <div class="field-actions" id="answerActions">
                   <button type="button" id="answerBtn" class="btn btn-primary hide">Connect</button>
                   <button type="button" id="copyAnswerBtn" class="btn btn-secondary hide">Copy Answer</button>
@@ -539,9 +539,33 @@ function writeNano(d){let s=d.sdp,c=pickCand(s),p=c.split(/\s+/),addr=p[4]||'',p
   if(!ub||port<49152||port>65535||!isHex(uf)||!isHex(pw)||!isHex(fp)||uf.length!==8||pw.length!==32||fp.length!==64)throw Error('fallback');
   return glyphPack(put=>{put(d.type==='answer'?1:0,1);for(const x of uf+pw)put(parseInt(x,16),4);for(const x of hexBytes(fp))put(x,8);for(const x of ub)put(x,8);put(port-49152,14)})}
 function readNano(s){let g=glyphRead(s),type=g(1)?'answer':'offer',setup=type==='answer'?'active':'actpass',hex=n=>{let h='';while(n--)h+=g(4).toString(16);return h},uf=hex(8),pw=hex(32),fp=hex(64),ub=[];for(let i=0;i<16;i++)ub.push(g(8));return makeSdp(type,setup,uf,pw,fp,bytesUuid(ub),49152+g(14))}
-async function encodeDesc(d){try{return writeNano(d)}catch(e){try{return 'U'+writeUltra(d)}catch(e2){return 'M'+dense(writeDesc(d))}}}
-function cleanCode(s){return String(s||'').replace(/\s+/g,'').trim()}
-async function decodeDesc(s){s=cleanCode(s);if(!s)throw Error('Missing code');if(s.codePointAt(0)>=0x10000)return readNano(s);if(s[0]==='U')return readUltra(s.slice(1));if(s[0]==='M')return readDesc(undense(s.slice(1)));return unpack(s)}
+function b64UrlBytes(bytes){
+  let bin='';
+  for(const b of bytes)bin+=String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function bytesFromB64Url(s){
+  s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');
+  s+= '='.repeat((4-s.length%4)%4);
+  let bin=atob(s),out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);
+  return out;
+}
+async function encodeDesc(d){return 'CD'+b64UrlBytes(writeDesc(d))}
+function cleanCode(s){
+  s=String(s||'').replace(/[\s\u200B-\u200D\uFEFF]+/g,'').trim();
+  let m=s.match(/CD[0-9A-Za-z_-]+/);
+  return m?m[0]:s;
+}
+async function decodeDesc(s){
+  s=cleanCode(s);
+  if(!s)throw Error('Missing code');
+  if(s.startsWith('CD'))return readDesc(bytesFromB64Url(s.slice(2)));
+  if(s.codePointAt(0)>=0x10000)return readNano(s);
+  if(s[0]==='U')return readUltra(s.slice(1));
+  if(s[0]==='M')return readDesc(undense(s.slice(1)));
+  return unpack(s);
+}
 function visibleLen(s){return [...s].length}
 function pc(){return new RTCPeerConnection({iceServers:[]})}
 function iceDone(p){return new Promise(res=>{if(p.iceGatheringState==='complete')return res();
@@ -618,7 +642,7 @@ setStatus('Player disconnected.')}}
 async function safePair(btn,working,fn){
   if(btn){btn.disabled=true;btn.dataset.oldText=btn.textContent;btn.textContent=working}
   try{await fn()}
-  catch(e){setStatus(e&&e.message==='Missing code'?'Enter the code first.':'That code did not work. Try copying it again.');console.error(e)}
+  catch(e){setStatus(e&&e.message==='Missing code'?'Enter the code first.':'Code could not be read. Copy the full code again.');console.error(e)}
   finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.oldText||btn.textContent}}
 }
 async function invite(){return safePair(els.invite,'Making invite...',async()=>{
