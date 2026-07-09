@@ -273,7 +273,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
       </div>
     </section>
   </section>
-  <div class="version-tag">v1.0.1</div>
+  <div class="version-tag">v1.0.2</div>
 </main>
 <script>
 
@@ -313,22 +313,31 @@ function isGoodNum(v){return typeof v==='number'&&Number.isFinite(v)}
 function repairGameState(){
   if(!game||!Array.isArray(game.players))return;
   for(const p of game.players){
-    let r=isGoodNum(p.r)?p.r:15;
-    if(!isGoodNum(p.x)||!isGoodNum(p.y)){p.x=clamp(isGoodNum(p.x)?p.x:W/2,r+24,W-r-24);p.y=clamp(isGoodNum(p.y)?p.y:H/2,r+24,H-r-24)}
-    p.vx=isGoodNum(p.vx)?p.vx:0;p.vy=isGoodNum(p.vy)?p.vy:0;
-    p.dx=isGoodNum(p.dx)?p.dx:1;p.dy=isGoodNum(p.dy)?p.dy:0;
-    p.faceX=isGoodNum(p.faceX)?p.faceX:p.dx;p.faceY=isGoodNum(p.faceY)?p.faceY:p.dy;
-    p.dt=isGoodNum(p.dt)?p.dt:0;p.cd=isGoodNum(p.cd)?p.cd:0;
+    p.id=Math.max(0,Math.round(num(p.id,0)));
+    p.r=clamp(num(p.r,15),6,30);
+    p.x=clamp(num(p.x,spawnPoint(p.id).x),p.r+24,W-p.r-24);
+    p.y=clamp(num(p.y,spawnPoint(p.id).y),p.r+24,H-p.r-24);
+    p.vx=num(p.vx);p.vy=num(p.vy);
+    p.dx=num(p.dx,1);p.dy=num(p.dy,0);
+    let dl=hypot(p.dx,p.dy);if(dl>.001){p.dx/=dl;p.dy/=dl}else{p.dx=1;p.dy=0}
+    p.faceX=num(p.faceX,p.dx);p.faceY=num(p.faceY,p.dy);
+    p.dt=clamp(num(p.dt),0,.25);p.cd=clamp(num(p.cd),0,1);
+    p.dashHit=clamp(num(p.dashHit),0,.25);p.inv=clamp(num(p.inv),0,2);
+    p.hp=clamp(Math.round(num(p.hp,5)),0,5);p.score=Math.max(0,Math.round(num(p.score,0)));
+    p.alive=p.alive!==false&&p.hp>0;
+    if(p.control!=='remote')p.control='local';
     if(!Array.isArray(p.trail))p.trail=[];
     p.trail=p.trail.filter(t=>isGoodNum(t.x)&&isGoodNum(t.y));
   }
 }
+function spawnPoint(id){let spots=[[92,92],[122,112],[92,148],[150,92],[150,148],[116,188]];let s=spots[id%spots.length],row=Math.floor(id/spots.length);return{x:s[0]+row*18,y:s[1]+row*14}}
+function resetPlayerState(p,id,control){let s=spawnPoint(id);Object.assign(p,{id,x:s.x,y:s.y,vx:0,vy:0,r:15,hp:5,score:0,alive:true,control,cd:0,dt:0,dx:1,dy:0,faceX:1,faceY:0,inv:0,bob:Math.random()*9,trail:[],dashHit:0});return p}
 function player(id,x,y,control='local'){return{id,x,y,vx:0,vy:0,r:15,hp:5,score:0,alive:true,control,cd:0,dt:0,dx:1,dy:0,faceX:1,faceY:0,inv:0,bob:Math.random()*9,trail:[],dashHit:0}}
 function enemy(x,y){let a=Math.random()*6.28;
 return{x,y,vx:Math.cos(a)*70,vy:Math.sin(a)*70,r:14,stun:0}}
-function makeGame(){let coins=coinPos.map((p,i)=>({x:p[0],y:p[1],r:9,taken:false,pulse:i*.3}));
-return{players:[player(0,92,92)],coins,enemies:[enemy(520,86),enemy(760,275),enemy(535,470)],phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:{x:W-68,y:H/2,r:28},shake:0,total:coins.length}}
-function netState(){return{role:'solo',pc:null,dc:null,channels:new Map(),localId:0,nextId:1,timer:0}}
+function makeGame(){let coins=coinPos.map((p,i)=>({x:p[0],y:p[1],r:9,taken:false,pulse:i*.3})),s=spawnPoint(0);
+return{players:[player(0,s.x,s.y)],coins,enemies:[enemy(520,86),enemy(760,275),enemy(535,470)],phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:{x:W-68,y:H/2,r:28},shake:0,total:coins.length}}
+function netState(){return{role:'solo',pc:null,dc:null,channels:new Map(),knownIds:new Set(),localId:0,nextId:1,timer:0}}
 function control(p){if(p.control==='remote')return inputSafe(remoteInputs.get(p.id));
 let x=0,y=0;
 if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;
@@ -363,8 +372,21 @@ function startGame(){if(net.role==='client'){hideGameMenu();showPlay();return se
 function openGameMenu(){if(game.phase==='menu')return;if(!game.over)game.paused=true;syncGameMenu();broadcast();ui()}
 function resumeGame(){if(game.over)return;game.paused=false;hideGameMenu();broadcast();ui()}
 function restartRun(){if(net.role==='client')return startGame();beginRun()}
-function restoreRemotes(){if(net.role!=='host')return;
-for(const [id] of net.channels){if(!game.players.some(p=>p.id===id))game.players.push(player(id,90+id*30,110+id*20,'remote'))}}
+function restoreRemotes(){ensureHostPlayers(true)}
+function ensureHostPlayers(reset=false){if(net.role!=='host'||!game||!Array.isArray(game.players))return;
+  let ids=new Set([...(net.knownIds||new Set()),...net.channels.keys()]);
+  for(const id of ids){
+    if(id===0)continue;
+    let p=game.players.find(x=>x.id===id);
+    if(!p){let s=spawnPoint(id);game.players.push(player(id,s.x,s.y,'remote'))}
+    else{p.control='remote';if(reset)resetPlayerState(p,id,'remote')}
+  }
+  repairGameState();
+}
+function ensureClientPlayer(){if(net.role!=='client'||!net.localId||!game||!Array.isArray(game.players))return;
+  if(!game.players.some(p=>p.id===net.localId)){let s=spawnPoint(net.localId);game.players.push(player(net.localId,s.x,s.y,'local'))}
+  repairGameState();
+}
 
 function startDash(p,c){c=inputSafe(c);let l=hypot(c.x,c.y);if(l<.001)return;c.x/=l;c.y/=l;p.dt=.2;
 	p.cd=.45;
@@ -695,13 +717,15 @@ async function copyTextFrom(el,label){
   }
 }
 function open(ch,id){ch.onopen=()=>{setStatus('Connected. Host starts game.');
-if(net.role==='host'){net.channels.set(id,ch);
-if(!game.players.some(p=>p.id===id))game.players.push(player(id,110+id*24,120+id*18,'remote'));
+if(net.role==='host'){
+net.channels.set(id,ch);
+net.knownIds.add(id);
+ensureHostPlayers(game.phase==='menu'||game.over);
 ch.send(pack({t:'welcome',id}));
 broadcast()}
 else send({t:'join'})};
 ch.onmessage=e=>msgNet(unpack(e.data),ch,id);
-ch.onclose=()=>{net.channels.delete(id);
+ch.onclose=()=>{net.channels.delete(id);if(net.knownIds)net.knownIds.delete(id);
 setStatus('Player disconnected.')}}
 async function safePair(btn,working,fn){
   if(btn){btn.disabled=true;btn.dataset.oldText=btn.textContent;btn.textContent=working}
@@ -781,18 +805,19 @@ remoteInputs.clear()}
 function send(o){let ch=net.dc;
 if(ch&&ch.readyState==='open')ch.send(pack(o))}
 function msgNet(o,ch,id){if(o.t==='input'&&net.role==='host')remoteInputs.set(id,inputSafe(o.v));
-if(o.t==='snap'&&net.role==='client'){game=o.g;repairGameState();
+if(o.t==='snap'&&net.role==='client'){game=o.g;repairGameState();ensureClientPlayer();
 if(game.phase!=='menu')showPlay();
 syncGameMenu();
 ui()}
-if(o.t==='welcome'&&net.role==='client'){net.localId=o.id;
+if(o.t==='welcome'&&net.role==='client'){net.localId=o.id;ensureClientPlayer();
 setStatus('Joined as P'+(o.id+1)+'. Wait for Host.')}
 if(o.t==='start'&&net.role==='host')startGame();
-if(o.t==='join'&&net.role==='host')broadcast()}
+if(o.t==='join'&&net.role==='host'){net.knownIds.add(id);ensureHostPlayers(game.phase==='menu'||game.over);broadcast()}}
 function broadcast(dt=1){if(net.role!=='host')return;
 net.timer+=dt;
 if(dt&&net.timer<.05)return;
 net.timer=0;
+ensureHostPlayers(false);
 repairGameState();
 let data=pack({t:'snap',g:game});
 for(const c of net.channels.values())if(c.readyState==='open')c.send(data)}
