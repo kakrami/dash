@@ -182,7 +182,7 @@
     position: fixed;
     right: 8px;
     top: 48px;
-    width: min(300px, calc(100vw - 16px));
+    width: min(340px, calc(100vw - 16px));
     display: none;
     z-index: 3;
   }
@@ -226,8 +226,8 @@
     border-color: rgba(114,211,255,.62);
   }
   #qrCanvas {
-    width: 170px;
-    height: 170px;
+    width: min(250px, calc(100vw - 56px));
+    height: min(250px, calc(100vw - 56px));
     margin: 8px auto;
     background: #fff;
     border-radius: 8px;
@@ -257,7 +257,7 @@
   #scanVideo {
     display: block;
     width: 100%;
-    max-height: 190px;
+    max-height: 240px;
     object-fit: cover;
   }
   @media (hover: hover) and (pointer: fine) {
@@ -315,7 +315,7 @@
     .scoreLine strong { display: none; }
     #netPanel {
       top: 78px;
-      width: min(300px, calc(100vw - 16px));
+      width: min(330px, calc(100vw - 16px));
     }
   }
 </style>
@@ -351,7 +351,7 @@
     <button id="inviteBtn" class="netHoldBtn">Invite</button>
     <button id="joinBtn" class="netHoldBtn">Join</button>
   </div>
-  <canvas id="qrCanvas" class="hidden" width="380" height="380"></canvas>
+  <canvas id="qrCanvas" class="hidden" width="620" height="620"></canvas>
   <textarea id="outCode" class="netField hidden" readonly aria-label="connection code"></textarea>
   <div id="netOutgoingActions" class="netBtns hidden">
     <button id="scanCodeBtn">Scan Answer</button>
@@ -2421,14 +2421,72 @@ module.exports = QRCode;
     throw new Error("Bad code");
   }
 
+  const sdpTokens = [
+    ["a=candidate:", "~A"],
+    [" UDP ", "~B"],
+    [" TCP ", "~C"],
+    [" typ host", "~D"],
+    [" typ srflx", "~E"],
+    [" typ relay", "~F"],
+    [" generation 0", "~G"],
+    [" network-id ", "~H"],
+    [" network-cost ", "~I"],
+    ["a=ice-ufrag:", "~J"],
+    ["a=ice-pwd:", "~K"],
+    ["a=fingerprint:sha-256 ", "~L"],
+    ["a=setup:", "~M"],
+    ["a=mid:", "~N"],
+    ["a=sctp-port:", "~O"],
+    ["a=max-message-size:", "~P"],
+    ["a=ice-options:trickle", "~Q"],
+    ["a=end-of-candidates", "~R"],
+    ["m=application 9 UDP/DTLS/SCTP webrtc-datachannel", "~S"],
+    ["c=IN IP4 0.0.0.0", "~T"],
+    ["a=group:BUNDLE ", "~U"]
+  ];
+
+  function compactSdp(sdp) {
+    let compact = sdp.replace(/\r\n/g, "\n").split("\n").filter(Boolean).join("\n");
+    for (const [from, to] of sdpTokens) compact = compact.split(from).join(to);
+    return compact;
+  }
+
+  function expandSdp(compact) {
+    let sdp = compact;
+    for (let i = sdpTokens.length - 1; i >= 0; i--) {
+      const [from, to] = sdpTokens[i];
+      sdp = sdp.split(to).join(from);
+    }
+    return `${sdp.replace(/\n/g, "\r\n")}\r\n`;
+  }
+
+  function makeCompactSignal(packet) {
+    return {
+      t: packet.type === "offer" ? "o" : "a",
+      s: compactSdp(packet.sdp)
+    };
+  }
+
+  function readCompactSignal(packet) {
+    if (Array.isArray(packet)) {
+      return { type: packet[0] === "o" ? "offer" : "answer", sdp: expandSdp(packet[1]) };
+    }
+    return {
+      type: packet.t === "o" ? "offer" : "answer",
+      sdp: expandSdp(packet.s)
+    };
+  }
+
   async function encodeSignal(packet) {
-    return `KICKLAN1.${await packText(JSON.stringify(packet))}`;
+    const compact = makeCompactSignal(packet);
+    return `K2.${await packText(JSON.stringify([compact.t, compact.s]))}`;
   }
 
   async function decodeSignal(code) {
     const clean = code.trim().replace(/\s+/g, "");
     if (!clean) throw new Error("Paste or scan a code first.");
     if (clean.startsWith("{")) return JSON.parse(code);
+    if (clean.startsWith("K2.")) return readCompactSignal(JSON.parse(await unpackText(clean.slice(3))));
     if (!clean.startsWith("KICKLAN1.")) throw new Error("That is not a game invite code.");
     return JSON.parse(await unpackText(clean.slice("KICKLAN1.".length)));
   }
@@ -2704,8 +2762,21 @@ module.exports = QRCode;
     try {
       stopScan();
       const detector = new BarcodeDetector({ formats: ["qr_code"] });
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
       net.scanStream = stream;
+      const track = stream.getVideoTracks()[0];
+      if (track && track.applyConstraints) {
+        try {
+          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+        } catch {}
+      }
       scanVideo.srcObject = stream;
       setHidden(scanBox, false);
       await scanVideo.play();
