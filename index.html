@@ -248,6 +248,7 @@
     font: 700 11px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   #scanBox {
+    position: relative;
     margin-top: 8px;
     overflow: hidden;
     border-radius: 8px;
@@ -261,6 +262,19 @@
     object-fit: contain;
     touch-action: manipulation;
     cursor: pointer;
+  }
+  #switchCameraBtn {
+    pointer-events: auto;
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    color: #fff;
+    background: rgba(0,0,0,.62);
+    border: 1px solid rgba(255,255,255,.34);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 900;
   }
   @media (hover: hover) and (pointer: fine) {
     #touchControls { display: none; }
@@ -364,7 +378,10 @@
     <button id="useCodeBtn">Use Code</button>
     <button id="cancelManualBtn">Cancel</button>
   </div>
-  <div id="scanBox" class="hidden"><video id="scanVideo" playsinline muted></video></div>
+  <div id="scanBox" class="hidden">
+    <video id="scanVideo" playsinline muted></video>
+    <button id="switchCameraBtn" class="hidden" type="button">Switch Camera</button>
+  </div>
   <div id="netStatus">Ready.</div>
 </div>
 
@@ -1668,6 +1685,7 @@ module.exports = QRCode;
   const cancelManualBtn = document.getElementById("cancelManualBtn");
   const scanBox = document.getElementById("scanBox");
   const scanVideo = document.getElementById("scanVideo");
+  const switchCameraBtn = document.getElementById("switchCameraBtn");
   const netStatus = document.getElementById("netStatus");
   const startBtn = document.getElementById("startBtn");
   const pauseBtn = document.getElementById("pauseBtn");
@@ -1800,6 +1818,9 @@ module.exports = QRCode;
       stream: null,
       runId: 0,
       preferredDeviceId: null,
+      manualDeviceId: null,
+      currentDeviceId: null,
+      cameraChoices: [],
       detector: null,
       lastScanAt: 0
     };
@@ -2756,25 +2777,54 @@ module.exports = QRCode;
   function stopScan() {
     net.scanner.runId++;
     setHidden(scanBox, true);
+    setHidden(switchCameraBtn, true);
     try { scanVideo.pause(); } catch {}
     if (scanVideo.srcObject) scanVideo.srcObject = null;
     if (net.scanner.stream) {
       for (const track of net.scanner.stream.getTracks()) track.stop();
       net.scanner.stream = null;
     }
+    net.scanner.currentDeviceId = null;
   }
 
   function cameraScore(device) {
-    const label = (device.label || "").toLowerCase();
+    const label = normalizeCameraLabel(device);
+    const ultraWide = cameraLooksUltraWide(device);
     let score = 0;
-    if (/back|rear|environment/.test(label)) score += 80;
-    if (/front|user|selfie/.test(label)) score -= 120;
-    if (/ultra[\s-]?wide|0\.5x?|0,5x?/.test(label)) score -= 180;
-    if (/macro|depth|tof|infrared|ir camera/.test(label)) score -= 160;
-    if (/tele|telephoto/.test(label)) score -= 45;
-    if (/main|standard|normal|wide|1x|1\.0x?|1,0x?/.test(label)) score += 45;
-    if (/back camera|rear camera/.test(label)) score += 25;
+
+    if (!label) return 0;
+    if (/(^|\b)(front|user|selfie|face ?time)(\b|$)|facing front/.test(label)) score -= 320;
+    if (/(^|\b)(back|rear|environment)(\b|$)|facing back/.test(label)) score += 120;
+
+    if (ultraWide) score -= 360;
+    if (/(^|\b)(macro|depth|tof|infrared|ir camera|auxiliary)(\b|$)/.test(label)) score -= 240;
+    if (/(^|\b)(tele|telephoto|zoom)(\b|$)/.test(label)) score -= 70;
+
+    if (!ultraWide && /(^|\b)(main|standard|normal|default|primary)(\b|$)/.test(label)) score += 130;
+    if (!ultraWide && /(^|[^0-9])1(?:[.,]0)?\s*x(\b|$)/.test(label)) score += 115;
+    if (!ultraWide && /(back|rear)\s+(wide\s+)?camera$/.test(label)) score += 80;
+    if (!ultraWide && /camera2\s*0\b.*facing back/.test(label)) score += 65;
+    if (!ultraWide && /\bwide\b/.test(label)) score += 25;
+
     return score;
+  }
+
+  function normalizeCameraLabel(device) {
+    return (device && device.label ? device.label : "")
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function cameraLooksUltraWide(device) {
+    const label = normalizeCameraLabel(device);
+    return /ultra\s*wide|ultrawide|super\s*wide|0\s*[.,]\s*5\s*x?|\b\.5\s*x\b|wide\s*angle/.test(label);
+  }
+
+  function cameraDebugName(device) {
+    const label = device && device.label ? device.label.trim() : "";
+    return label || "unnamed camera";
   }
 
   function getCameraSettings(track) {
@@ -2786,10 +2836,21 @@ module.exports = QRCode;
     for (const track of stream.getTracks()) track.stop();
   }
 
-  function bestCameraDevice(devices) {
+  function rankedCameraDevices(devices, options = {}) {
+    const preferredId = options.preferredDeviceId || null;
     return devices
-      .map((device, index) => ({ device, score: cameraScore(device) - index * 0.01 }))
-      .sort((a, b) => b.score - a.score)[0] || null;
+      .filter(device => device.kind === "videoinput")
+      .map((device, index) => {
+        const baseScore = cameraScore(device);
+        const preferredBonus = preferredId && device.deviceId === preferredId && baseScore >= 80 ? 12 : 0;
+        return { device, score: baseScore + preferredBonus, baseScore, index };
+      })
+      .filter(choice => choice.score > -260)
+      .sort((a, b) => (b.score - a.score) || (a.index - b.index));
+  }
+
+  function bestCameraDevice(devices, options = {}) {
+    return rankedCameraDevices(devices, options)[0] || null;
   }
 
   async function openCameraStream(videoConstraints) {
@@ -2840,16 +2901,6 @@ module.exports = QRCode;
   }
 
   async function getBestScanStream() {
-    if (net.scanner.preferredDeviceId) {
-      try {
-        const preferred = await openCameraStream({ deviceId: { exact: net.scanner.preferredDeviceId } });
-        await configureScanTrack(preferred.getVideoTracks()[0], "continuous");
-        return preferred;
-      } catch {
-        net.scanner.preferredDeviceId = null;
-      }
-    }
-
     let stream = await openCameraStream({ facingMode: { ideal: "environment" } });
     let selectedTrack = stream.getVideoTracks()[0];
 
@@ -2858,24 +2909,74 @@ module.exports = QRCode;
       const currentSettings = getCameraSettings(selectedTrack);
       const currentDevice = devices.find(device => device.deviceId === currentSettings.deviceId);
       const currentScore = currentDevice ? cameraScore(currentDevice) : -20;
-      const best = bestCameraDevice(devices);
+      const ranked = rankedCameraDevices(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
+      net.scanner.cameraChoices = ranked;
 
-      if (best && best.device.deviceId && best.score > currentScore + 15 && best.device.deviceId !== currentSettings.deviceId) {
-        stopStream(stream);
+      const manual = ranked.find(choice => choice.device.deviceId === net.scanner.manualDeviceId);
+      const best = manual || bestCameraDevice(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
+      const currentIsBad = !currentDevice || currentScore < 80 || cameraLooksUltraWide(currentDevice);
+      const shouldSwitch = best && best.device.deviceId && best.device.deviceId !== currentSettings.deviceId &&
+        (manual || currentIsBad || best.score > currentScore);
+
+      if (shouldSwitch) {
         try {
+          const oldStream = stream;
           stream = await openCameraStream({ deviceId: { exact: best.device.deviceId } });
+          stopStream(oldStream);
         } catch {
-          stream = await openCameraStream({ facingMode: { ideal: "environment" } });
+          net.scanner.manualDeviceId = null;
         }
         selectedTrack = stream.getVideoTracks()[0];
-        net.scanner.preferredDeviceId = getCameraSettings(selectedTrack).deviceId || best.device.deviceId;
-      } else if (currentSettings.deviceId) {
-        net.scanner.preferredDeviceId = currentSettings.deviceId;
       }
+
+      selectedTrack = stream.getVideoTracks()[0];
+      const selectedSettings = getCameraSettings(selectedTrack);
+      let selectedDevice = devices.find(device => device.deviceId === selectedSettings.deviceId);
+      let selectedScore = selectedDevice ? cameraScore(selectedDevice) : -20;
+
+      if ((!selectedDevice || selectedScore < 0 || cameraLooksUltraWide(selectedDevice)) && ranked.length) {
+        for (const choice of ranked) {
+          if (!choice.device.deviceId || choice.device.deviceId === selectedSettings.deviceId || cameraLooksUltraWide(choice.device)) continue;
+          try {
+            const oldStream = stream;
+            stream = await openCameraStream({ deviceId: { exact: choice.device.deviceId } });
+            stopStream(oldStream);
+            selectedTrack = stream.getVideoTracks()[0];
+            selectedDevice = choice.device;
+            selectedScore = cameraScore(choice.device);
+            break;
+          } catch {}
+        }
+      }
+
+      const finalSettings = getCameraSettings(selectedTrack);
+      const finalDevice = devices.find(device => device.deviceId === finalSettings.deviceId) || selectedDevice;
+      const finalScore = finalDevice ? cameraScore(finalDevice) : selectedScore;
+      net.scanner.currentDeviceId = finalSettings.deviceId || (finalDevice && finalDevice.deviceId) || null;
+      net.scanner.preferredDeviceId = finalScore >= 80 ? net.scanner.currentDeviceId : null;
     } catch {}
 
     await configureScanTrack(selectedTrack, "continuous");
     return stream;
+  }
+
+  function currentScannerCameraText() {
+    const current = net.scanner.cameraChoices.find(choice => choice.device.deviceId === net.scanner.currentDeviceId);
+    if (!current) return "";
+    return ` Camera: ${cameraDebugName(current.device)} (${Math.round(current.baseScore)}).`;
+  }
+
+  async function switchScannerCamera() {
+    const choices = net.scanner.cameraChoices.length
+      ? net.scanner.cameraChoices
+      : rankedCameraDevices(await navigator.mediaDevices.enumerateDevices(), { preferredDeviceId: net.scanner.preferredDeviceId });
+    if (choices.length < 2) return;
+    const currentIndex = Math.max(0, choices.findIndex(choice => choice.device.deviceId === net.scanner.currentDeviceId));
+    const next = choices[(currentIndex + 1) % choices.length];
+    if (!next || !next.device.deviceId) return;
+    net.scanner.manualDeviceId = next.device.deviceId;
+    setNetStatus(`Switching to ${cameraDebugName(next.device)}...`);
+    await scanIncomingCode();
   }
 
   async function refocusScanner() {
@@ -2935,12 +3036,13 @@ module.exports = QRCode;
       net.scanner.stream = stream;
       scanVideo.srcObject = stream;
       setHidden(scanBox, false);
+      setHidden(switchCameraBtn, net.scanner.cameraChoices.length < 2);
       await scanVideo.play();
       await waitForVideoReady(scanVideo);
       net.scanner.lastScanAt = 0;
       const run = ++net.scanner.runId;
       const scanText = net.mode === "host" ? "Scan answer QR." : "Scan host QR.";
-      setNetStatus(`${scanText} Tap video to refocus.`);
+      setNetStatus(`${scanText}${currentScannerCameraText()} Tap video to refocus.`);
       requestAnimationFrame(() => detectQrFrame(net.scanner.detector, run));
     } catch {
       stopScan();
@@ -3101,6 +3203,14 @@ module.exports = QRCode;
   useCodeBtn.addEventListener("click", useIncomingCode);
   scanCodeBtn.addEventListener("click", scanIncomingCode);
   scanVideo.addEventListener("pointerdown", refocusScanner);
+  switchCameraBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    switchScannerCamera().catch(() => {
+      setNetPanelMode("manual");
+      setNetStatus("Paste code. Other player can tap their QR to show it.");
+    });
+  });
   qrCanvas.addEventListener("click", () => {
     if (!outCode.value) return;
     setHidden(outCode, !outCode.classList.contains("hidden"));
