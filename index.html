@@ -217,11 +217,59 @@
     #touchControls { display: none; }
   }
   @media (max-width: 760px) {
-    #hud { font-size: 12px; gap: 6px; }
-    #players { max-width: 260px; }
-    .badge { font-size: 11px; padding: 4px 6px; }
-    #scorePanel { min-width: 0; }
+    #wrap {
+      align-items: flex-start;
+      padding-top: 78px;
+    }
+    canvas {
+      width: 100vw;
+      height: auto;
+      border-left: 0;
+      border-right: 0;
+      box-shadow: none;
+    }
+    #hud {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: start;
+      gap: 4px 6px;
+      font-size: 12px;
+    }
+    #scorePanel {
+      grid-column: 1;
+      grid-row: 1;
+      min-width: 0;
+      padding: 5px 7px;
+    }
+    #players {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      max-width: 100%;
+      overflow: hidden;
+    }
+    #hudActions {
+      grid-column: 2;
+      grid-row: 1;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+    #hudActions button {
+      border-radius: 8px;
+      padding: 5px 7px;
+      font-size: 12px;
+    }
+    .badge {
+      max-width: 100%;
+      overflow: hidden;
+      font-size: 11px;
+      padding: 4px 6px;
+    }
+    .scoreMeta { font-size: 12px; }
     .scoreLine strong { display: none; }
+    #netPanel {
+      top: 78px;
+      width: min(230px, calc(100vw - 16px));
+    }
   }
 </style>
 </head>
