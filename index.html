@@ -257,8 +257,10 @@
   #scanVideo {
     display: block;
     width: 100%;
-    max-height: 240px;
-    object-fit: cover;
+    max-height: 260px;
+    object-fit: contain;
+    touch-action: manipulation;
+    cursor: pointer;
   }
   @media (hover: hover) and (pointer: fine) {
     #touchControls { display: none; }
@@ -2745,6 +2747,43 @@ module.exports = QRCode;
     }
   }
 
+  async function applyCameraFocus(track, mode = "continuous") {
+    if (!track || !track.applyConstraints) return false;
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    const advanced = [];
+    if (Array.isArray(caps.focusMode)) {
+      if (caps.focusMode.includes(mode)) advanced.push({ focusMode: mode });
+      else if (caps.focusMode.includes("continuous")) advanced.push({ focusMode: "continuous" });
+      else if (caps.focusMode.includes("single-shot")) advanced.push({ focusMode: "single-shot" });
+    }
+    if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes("continuous")) {
+      advanced.push({ exposureMode: "continuous" });
+    }
+    if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes("continuous")) {
+      advanced.push({ whiteBalanceMode: "continuous" });
+    }
+    if (!advanced.length) return false;
+    try {
+      await track.applyConstraints({ advanced });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function refocusScanner() {
+    const track = net.scanStream && net.scanStream.getVideoTracks()[0];
+    if (!track) return;
+    const focused = await applyCameraFocus(track, "single-shot");
+    if (focused) {
+      setNetStatus("Refocusing...");
+      setTimeout(() => {
+        applyCameraFocus(track, "continuous");
+        setNetStatus(net.mode === "host" ? "Scan answer QR. Tap video to refocus." : "Scan host QR. Tap video to refocus.");
+      }, 700);
+    }
+  }
+
   async function scanIncomingCode() {
     setNetPanelMode("scanning");
     setHidden(qrCanvas, true);
@@ -2772,11 +2811,7 @@ module.exports = QRCode;
       });
       net.scanStream = stream;
       const track = stream.getVideoTracks()[0];
-      if (track && track.applyConstraints) {
-        try {
-          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-        } catch {}
-      }
+      await applyCameraFocus(track, "continuous");
       scanVideo.srcObject = stream;
       setHidden(scanBox, false);
       await scanVideo.play();
@@ -2794,7 +2829,7 @@ module.exports = QRCode;
         } catch {}
         requestAnimationFrame(scan);
       };
-      setNetStatus(net.mode === "host" ? "Scan friend's answer QR." : "Scan host QR.");
+      setNetStatus(net.mode === "host" ? "Scan answer QR. Tap video to refocus." : "Scan host QR. Tap video to refocus.");
       scan();
     } catch {
       stopScan();
@@ -2954,6 +2989,7 @@ module.exports = QRCode;
   });
   useCodeBtn.addEventListener("click", useIncomingCode);
   scanCodeBtn.addEventListener("click", scanIncomingCode);
+  scanVideo.addEventListener("pointerdown", refocusScanner);
   qrCanvas.addEventListener("click", () => {
     if (!outCode.value) return;
     setHidden(outCode, !outCode.classList.contains("hidden"));
