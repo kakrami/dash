@@ -1,3293 +1,773 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash</title>
 <style>
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #10141f;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    color: #fff;
-    touch-action: none;
+:root{
+  --bg:#070b14;--panel:#101a2e;--panel2:#08101e;--line:#7edcff33;--text:#f8fbff;--muted:#aebbd2;
+  --primary:#48b8ff;--danger:#ff5a73;--ok:#80ff72;--radius:18px;
+  --safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif;touch-action:none;overscroll-behavior:none;-webkit-text-size-adjust:100%}
+button,textarea{font:inherit}
+button{appearance:none;border:0}
+.hide{display:none!important}
+
+.app{position:fixed;inset:0;height:100dvh;background:radial-gradient(circle at 50% -8%,#2553a333,#070b14 46%,#03050b 100%)}
+.screen{position:absolute;inset:0;width:100%;height:100%}
+
+/* SETUP: one normal menu page, no game controls mixed into the field */
+.setup-screen{overflow:auto;padding:calc(var(--safe-top) + 20px) 16px calc(var(--safe-bottom) + 20px);display:grid;place-items:center}
+.setup-card{width:min(720px,100%);display:grid;gap:14px}
+.setup-hero,.setup-panel,.game-hud,.touch-deck{background:linear-gradient(180deg,#101a2eee,#060914ee);border:1px solid var(--line);box-shadow:0 12px 34px #0008,inset 0 1px #ffffff16;border-radius:var(--radius);backdrop-filter:blur(10px)}
+.setup-hero{padding:18px;display:grid;gap:16px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(180deg,#48b8ff77,#1475c555);box-shadow:inset 0 1px #fff4,0 0 22px #48b8ff44;font-weight:1000;font-size:20px;flex:0 0 auto}
+.brand h1{margin:0;font-size:28px;letter-spacing:.03em;text-transform:uppercase}
+.brand p{margin:3px 0 0;color:var(--muted);font-weight:800}
+.setup-actions{display:grid;grid-template-columns:1fr auto;gap:10px}
+.setup-panel{padding:14px;display:grid;gap:12px}
+.optional-panel{padding:0;overflow:hidden}
+.optional-panel details{display:grid}
+.optional-panel summary{list-style:none;cursor:pointer;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"title icon" "hint icon";align-items:center;column-gap:12px;row-gap:2px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em;font-size:12px;color:var(--text)}
+.optional-panel summary::-webkit-details-marker{display:none}
+.optional-panel summary span{grid-area:title}
+.optional-panel summary small{grid-area:hint;text-transform:none;letter-spacing:0;font-size:12px;font-weight:800;color:var(--muted)}
+.optional-panel summary::after{grid-area:icon;content:'+';width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:#ffffff12;border:1px solid #ffffff1f;color:var(--text);font-size:16px}
+.optional-panel details[open] summary::after{content:'–'}
+.pairing-body{padding:0 14px 14px;display:grid;gap:12px}
+.pair-intro{display:grid;gap:10px}
+.pair-intro p{margin:0;color:var(--muted);font-size:13px;font-weight:900;line-height:1.35}
+.pair-flow{display:grid;gap:10px}
+.pair-head{display:flex;align-items:start;justify-content:space-between;gap:10px;padding:10px;border-radius:14px;background:#ffffff0b;border:1px solid #ffffff12}
+.pair-title{font-size:15px;font-weight:1000;color:var(--text)}
+.pair-hint{margin-top:2px;color:var(--muted);font-size:12px;font-weight:900;line-height:1.3}
+.code-field textarea[readonly]{color:#eaf7ff;background:#06111f}
+.section-title{font-size:12px;color:var(--muted);font-weight:1000;text-transform:uppercase;letter-spacing:.08em}
+.button-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.code-field{display:grid;gap:7px;padding:10px;border-radius:14px;background:#ffffff09;border:1px solid #ffffff12}
+.field-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.code-field label{font-size:12px;color:var(--muted);font-weight:1000;text-transform:uppercase;letter-spacing:.04em}
+.field-actions{display:grid;grid-template-columns:1fr;gap:7px}
+.field-actions.two{grid-template-columns:1fr 1fr}
+.field-actions .btn{width:100%;min-height:36px;padding:0 10px;border-radius:10px;font-size:13px}
+.code-field textarea{width:100%;min-height:78px;resize:vertical;border:1px solid #ffffff2d;border-radius:12px;background:#0008;color:#fff;padding:9px;font:800 12px/1.25 ui-monospace,Menlo,Consolas,monospace}
+.status{font-size:12px;line-height:1.35;color:var(--muted);background:#ffffff0b;border:1px solid #ffffff12;border-radius:12px;padding:9px}
+
+/* GAME: header, field, controls. Nothing overlays the play area. */
+.play-screen{display:flex;flex-direction:column;gap:8px;padding:calc(var(--safe-top) + 8px) 8px calc(var(--safe-bottom) + 8px);overflow:hidden;min-height:0}
+.game-hud{flex:0 0 auto;min-height:54px;padding:8px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"score players actions";align-items:center;gap:8px}
+.score-card{grid-area:score;display:flex;align-items:center;gap:10px;min-width:0}
+.score-card .logo{width:32px;height:32px;border-radius:10px;font-size:15px}
+.score-title{font-weight:1000;text-transform:uppercase;letter-spacing:.06em;font-size:13px}
+.stats-row{display:flex;gap:8px;color:#e9f5ff;font-size:12px;font-weight:900;white-space:nowrap}
+.player-strip{grid-area:players;min-width:0;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.player-strip::-webkit-scrollbar,.action-row::-webkit-scrollbar{display:none}
+.badge{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:999px;background:#ffffff14;border:1px solid #ffffff18;font-size:12px;font-weight:900;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;box-shadow:0 0 10px currentColor}
+.action-row{grid-area:actions;display:flex;justify-content:flex-end;gap:6px;overflow-x:auto;scrollbar-width:none;min-width:0}
+
+.btn{min-height:38px;padding:0 14px;border-radius:12px;color:var(--text);font-size:14px;font-weight:1000;cursor:pointer;border:1px solid #ffffff2e;background:linear-gradient(180deg,#ffffff22,#ffffff10);box-shadow:inset 0 1px #ffffff24,0 4px 12px #0005;white-space:nowrap}
+.btn:active{transform:translateY(1px)}
+.btn-primary{border-color:#72d3ff70;background:linear-gradient(180deg,#48b8ff66,#1475c546)}
+.btn-secondary{background:linear-gradient(180deg,#ffffff1e,#ffffff0c)}
+.btn-danger{border-color:#ff8da066;background:linear-gradient(180deg,#ff5a7355,#c5163638)}
+.btn-icon{width:42px;padding:0;font-size:18px}
+.btn-wide{width:100%}
+
+.game-stage{flex:1 1 auto;min-height:0;display:grid;place-items:center;overflow:hidden;background:linear-gradient(180deg,#0b1222,#060913);border:1px solid #ffffff10;border-radius:18px;padding:3px}
+canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #67d7ff45;border-radius:16px;box-shadow:0 20px 70px #000b,0 0 34px #49c7ff1c;max-width:100%;max-height:100%}
+.game-menu{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:calc(var(--safe-top) + 14px) 14px calc(var(--safe-bottom) + 14px);background:#020713bf;backdrop-filter:blur(6px)}
+.game-menu-card{width:min(360px,92vw);display:grid;gap:10px;padding:16px;border-radius:20px;background:linear-gradient(180deg,#101a2ef5,#060914f5);border:1px solid #7edcff55;box-shadow:0 22px 70px #000b,inset 0 1px #ffffff18;text-align:center}
+.menu-kicker{font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.game-menu h2{margin:0;font-size:30px;line-height:1;text-transform:uppercase;letter-spacing:.03em}
+.game-menu p{margin:0 0 4px;color:var(--muted);font-size:13px;font-weight:800}
+.menu-buttons{display:grid;gap:8px}
+
+/* Touch controls live in their own dock, never on the field. */
+.touch-deck{flex:0 0 112px;display:none;align-items:center;justify-content:space-between;padding:8px 18px;gap:16px}
+.touch-group{display:grid;gap:5px;place-items:center}
+.control-label{color:var(--muted);font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;text-align:center}
+.joy{position:relative;width:86px;height:86px;border-radius:50%;background:#ffffff17;border:1px solid #ffffff2e;touch-action:none;box-shadow:0 10px 24px #0006,inset 0 1px #ffffff20}
+.stick{position:absolute;left:26px;top:26px;width:34px;height:34px;border-radius:50%;background:#ffffff59;border:1px solid #ffffff47}
+.dash{width:68px;height:68px;border-radius:50%;display:grid;place-items:center;touch-action:none;background:radial-gradient(circle at 35% 28%,#fff9,#55d7ff55 38%,#ffffff18 70%);border:1px solid #9eeaff66;font-weight:1000;box-shadow:0 10px 24px #0006,inset 0 0 18px #ffffff1c;text-shadow:0 2px 0 #0008}
+.down{background:radial-gradient(circle at 35% 28%,#fff,#5df2ffaa 44%,#ffffff30)!important;box-shadow:0 0 22px #55eaff99,0 10px 24px #0008!important}
+
+@media (hover:none),(pointer:coarse),(max-width:900px){
+  .touch-deck{display:flex}
+  .game-hud{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"score actions" "players players";align-items:start}
+  .score-card{min-width:0}
+  .action-row{max-width:52vw}
+  .btn{min-height:36px;padding-inline:10px}
+  .brand h1{font-size:24px}
+  .setup-actions{grid-template-columns:1fr}
+  .setup-screen{place-items:start center}
+}
+@media (max-width:520px){
+  .play-screen{gap:6px;padding-left:6px;padding-right:6px}
+  .game-hud{padding:7px}
+  .score-title{display:none}
+  .stats-row{font-size:12px}
+  .badge{font-size:11px;padding:5px 7px}
+  .button-grid{grid-template-columns:1fr}
+  .field-top{display:grid;grid-template-columns:1fr;align-items:start}
+  .field-actions{justify-content:stretch;display:grid;grid-template-columns:1fr 1fr}
+  .field-actions .btn{width:100%}
+  .brand h1{font-size:22px}
+  .touch-deck{flex-basis:104px;padding-inline:14px}
+  .joy{width:78px;height:78px}
+  .stick{width:32px;height:32px}
+  .dash{width:62px;height:62px;font-size:12px}
+}
+@media (orientation:landscape) and (max-height:560px){
+  .play-screen{
+    display:grid;
+    grid-template-rows:42px minmax(0,1fr);
+    grid-template-columns:92px minmax(0,1fr) 92px;
+    grid-template-areas:"hud hud hud" "move stage action";
+    gap:5px;
+    padding:4px;
   }
-  #wrap {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background:
-      radial-gradient(circle at top, rgba(60, 120, 255, .18), transparent 35%),
-      linear-gradient(180deg, #0c1020, #10141f 55%, #090b10);
+  .game-hud{
+    grid-area:hud;
+    min-height:0;
+    padding:5px 6px;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:"score players actions";
+    align-items:center;
+    border-radius:14px;
   }
-  canvas {
-    width: min(100vw, 177.777vh);
-    height: min(56.25vw, 100vh);
-    max-width: 100vw;
-    max-height: 100vh;
-    image-rendering: pixelated;
-    background: #18213a;
-    border: 2px solid rgba(255,255,255,.16);
-    box-shadow: 0 20px 90px rgba(0,0,0,.45);
-  }
-  #hud {
-    position: fixed;
-    top: 8px;
-    left: 8px;
-    right: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    pointer-events: none;
-    font-weight: 800;
-    text-shadow: 0 2px 2px rgba(0,0,0,.6);
-  }
-  .panel {
-    background: rgba(7, 10, 18, .70);
-    border: 1px solid rgba(255,255,255,.16);
-    border-radius: 8px;
-    padding: 6px 8px;
-    backdrop-filter: blur(7px);
-  }
-  #scorePanel {
-    min-width: 186px;
-  }
-  .scoreLine {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    white-space: nowrap;
-  }
-  .scoreLine strong {
-    font-size: 13px;
-    letter-spacing: .02em;
-  }
-  .scoreMeta {
-    font-size: 12px;
-    opacity: .86;
-  }
-  #players {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    max-width: 420px;
-  }
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 7px;
-    border-radius: 999px;
-    background: rgba(255,255,255,.10);
-    font-size: 13px;
-    white-space: nowrap;
-  }
-  .dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    display: inline-block;
-  }
-  #touchControls {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-  }
-  .touchBtn {
-    pointer-events: auto;
-    position: absolute;
-    border: 1px solid rgba(255,255,255,.20);
-    background: rgba(255,255,255,.10);
-    color: #fff;
-    border-radius: 999px;
-    font-weight: 900;
-    user-select: none;
-    touch-action: none;
-    text-align: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: inset 0 0 20px rgba(255,255,255,.04), 0 6px 18px rgba(0,0,0,.25);
-  }
-  .touchBtn.down { background: rgba(255,255,255,.28); }
-  #joyBase {
-    pointer-events: auto;
-    position: absolute;
-    left: 24px;
-    bottom: 34px;
-    width: 112px;
-    height: 112px;
-    border-radius: 50%;
-    background: rgba(255,255,255,.09);
-    border: 1px solid rgba(255,255,255,.18);
-    touch-action: none;
-  }
-  #joyStick {
-    position: absolute;
-    left: 34px;
-    top: 34px;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: rgba(255,255,255,.35);
-    border: 1px solid rgba(255,255,255,.28);
-  }
-  #dashBtn {
-    right: 28px;
-    bottom: 78px;
-    width: 66px;
-    height: 66px;
-    font-size: 12px;
-  }
-  #pauseBtn,
-  #fullBtn,
-  #resetBtn,
-  #startBtn,
-  #scanCodeBtn,
-  #useCodeBtn,
-  #cancelNetBtn,
-  #cancelManualBtn {
-    pointer-events: auto;
-    cursor: pointer;
-    color: #fff;
-    background: rgba(255,255,255,.12);
-    border: 1px solid rgba(255,255,255,.18);
-    border-radius: 10px;
-    padding: 6px 9px;
-    font-weight: 800;
-  }
-  #netBtn {
-    pointer-events: auto;
-    cursor: pointer;
-    color: #fff;
-    background: rgba(72, 184, 255, .16);
-    border: 1px solid rgba(114, 211, 255, .32);
-    border-radius: 10px;
-    padding: 6px 9px;
-    font-weight: 800;
-  }
-  #hudActions {
-    display: flex;
-    gap: 8px;
-    pointer-events: auto;
-  }
-  #netPanel {
-    position: fixed;
-    right: 8px;
-    top: 48px;
-    width: min(340px, calc(100vw - 16px));
-    display: none;
-    z-index: 3;
-  }
-  #netPanel.show { display: block; }
-  .netTitle {
-    margin-bottom: 6px;
-    font-size: 13px;
-    font-weight: 900;
-  }
-  #netStatus {
-    min-height: 18px;
-    margin-top: 6px;
-    color: rgba(255,255,255,.86);
-    font-size: 11px;
-    line-height: 1.25;
-  }
-  .netBtns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  #netOutgoingActions,
-  #netIncomingActions {
-    margin-top: 8px;
-  }
-  .netBtns.hidden,
-  .netField.hidden,
-  .hidden { display: none !important; }
-  .netHoldBtn {
-    border: 1px solid rgba(255,255,255,.20);
-    background: rgba(255,255,255,.10);
-    color: #fff;
-    border-radius: 8px;
-    padding: 9px 8px;
-    font-weight: 900;
-    user-select: none;
-    touch-action: none;
-  }
-  .netHoldBtn.down {
-    background: rgba(72,184,255,.28);
-    border-color: rgba(114,211,255,.62);
-  }
-  #qrCanvas {
-    width: min(250px, calc(100vw - 56px));
-    height: min(250px, calc(100vw - 56px));
-    margin: 8px auto;
-    background: #fff;
-    border-radius: 8px;
-    image-rendering: pixelated;
-    cursor: pointer;
-  }
-  #outCode,
-  #inCode {
-    width: 100%;
-    min-height: 58px;
-    margin-top: 8px;
-    resize: vertical;
-    border: 1px solid rgba(255,255,255,.18);
-    border-radius: 8px;
-    background: rgba(0,0,0,.28);
-    color: #fff;
-    padding: 7px;
-    font: 700 11px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  }
-  #scanBox {
-    position: relative;
-    margin-top: 8px;
-    width: 100%;
-    height: min(62vh, 560px);
-    min-height: 360px;
-    overflow: hidden;
-    border-radius: 8px;
-    border: 1px solid rgba(255,255,255,.18);
-    background: #000;
-  }
-  #scanVideo {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    touch-action: manipulation;
-    cursor: pointer;
-  }
-  #switchCameraBtn {
-    pointer-events: auto;
-    position: absolute;
-    right: 8px;
-    bottom: 8px;
-    color: #fff;
-    background: rgba(0,0,0,.62);
-    border: 1px solid rgba(255,255,255,.34);
-    border-radius: 8px;
-    padding: 6px 8px;
-    font-size: 12px;
-    font-weight: 900;
-  }
-  @media (hover: hover) and (pointer: fine) {
-    #touchControls { display: none; }
-  }
-  @media (max-width: 760px) {
-    #wrap {
-      align-items: flex-start;
-      padding-top: 78px;
-    }
-    canvas {
-      width: 100vw;
-      height: auto;
-      border-left: 0;
-      border-right: 0;
-      box-shadow: none;
-    }
-    #hud {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      align-items: start;
-      gap: 4px 6px;
-      font-size: 12px;
-    }
-    #scorePanel {
-      grid-column: 1;
-      grid-row: 1;
-      min-width: 0;
-      padding: 5px 7px;
-    }
-    #players {
-      grid-column: 1 / -1;
-      grid-row: 2;
-      max-width: 100%;
-      overflow: hidden;
-    }
-    #hudActions {
-      grid-column: 2;
-      grid-row: 1;
-      justify-content: flex-end;
-      gap: 4px;
-    }
-    #hudActions button {
-      border-radius: 8px;
-      padding: 5px 7px;
-      font-size: 12px;
-    }
-    .badge {
-      max-width: 100%;
-      overflow: hidden;
-      font-size: 11px;
-      padding: 4px 6px;
-    }
-    .scoreMeta { font-size: 12px; }
-    .scoreLine strong { display: none; }
-    #netPanel {
-      top: 78px;
-      left: 8px;
-      right: 8px;
-      width: auto;
-    }
-    #scanBox {
-      height: min(58vh, 520px);
-      min-height: 390px;
-    }
-  }
+  .score-card{gap:8px}
+  .score-card .logo{width:28px;height:28px;border-radius:9px;font-size:13px}
+  .score-title{font-size:12px;line-height:1}
+  .stats-row{font-size:11px;line-height:1.1;gap:6px}
+  .player-strip{align-items:center;max-width:none}
+  .badge{font-size:11px;padding:4px 7px;gap:5px}
+  .dot{width:8px;height:8px}
+  .action-row{max-width:none;gap:5px}
+  .btn{min-height:30px;padding-inline:9px;border-radius:10px;font-size:12px}
+  .game-stage{grid-area:stage;border-radius:14px;padding:2px}
+  canvas{border-radius:12px}
+  .touch-deck{display:contents}
+  .touch-group{background:linear-gradient(180deg,#101a2eee,#060914ee);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 22px #0007,inset 0 1px #ffffff16;min-height:0;align-content:center;justify-content:center;padding:6px;gap:4px}
+  .touch-group:first-child{grid-area:move}
+  .touch-group:last-child{grid-area:action}
+  .joy{width:72px;height:72px}
+  .stick{width:28px;height:28px}
+  .dash{width:62px;height:62px;font-size:12px}
+  .control-label{display:none}
+  .game-menu{grid-area:stage;padding:8px;background:#020713cc}
+  .game-menu-card{width:min(320px,90%);padding:12px;border-radius:16px;gap:8px}
+  .game-menu h2{font-size:24px}
+  .game-menu p{font-size:12px}
+  .menu-buttons{gap:6px}
+}
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="game" width="960" height="540"></canvas></div>
+<main class="app">
+  <section id="setupScreen" class="screen setup-screen" aria-label="Game setup">
+    <div class="setup-card">
+      <section class="setup-hero">
+        <div class="brand">
+          <span class="logo">◆</span>
+          <div><h1>Coin Dash</h1><p>Simple setup first. Gameplay stays clean.</p></div>
+        </div>
+        <div class="setup-actions">
+          <button type="button" id="startBtn" class="btn btn-primary">Start Game</button>
+          <button type="button" id="fullBtn" class="btn btn-secondary">Fullscreen</button>
+        </div>
+      </section>
 
-<div id="hud">
-  <div class="panel" id="scorePanel">
-    <div class="scoreLine">
-      <strong>COIN DASH</strong>
-      <span class="scoreMeta"><span id="coinHud">0</span>/<span id="coinMaxHud">0</span> · <span id="timeHud">0:00</span></span>
+      <section id="net" class="setup-panel optional-panel" aria-label="Player setup">
+        <details>
+          <summary>
+            <span>Multiplayer</span>
+            <small>Host or Join</small>
+          </summary>
+          <div class="pairing-body">
+            <div id="pairIntro" class="pair-intro">
+              <p>Simple setup</p>
+              <div class="button-grid pair-choices">
+                <button type="button" id="inviteBtn" class="btn btn-primary">Host</button>
+                <button type="button" id="joinBtn" class="btn btn-secondary">Join</button>
+              </div>
+            </div>
+
+            <div id="pairFlow" class="pair-flow hide">
+              <div class="pair-head">
+                <div>
+                  <div id="pairTitle" class="pair-title">Multiplayer</div>
+                  <div id="pairHint" class="pair-hint">Setup</div>
+                </div>
+                <button type="button" id="cancelPairBtn" class="btn btn-secondary">Back</button>
+              </div>
+
+              <div id="inviteField" class="code-field">
+                <div class="field-top">
+                  <label id="codeLabel" for="code">Invite code</label>
+                </div>
+                <textarea id="code" placeholder="Code goes here."></textarea>
+                <div class="field-actions" id="inviteActions">
+                  <button type="button" id="useBtn" class="btn btn-primary hide">Make Answer</button>
+                  <button type="button" id="copyInviteBtn" class="btn btn-secondary hide">Copy Invite</button>
+                </div>
+              </div>
+
+              <div id="answerField" class="code-field hide">
+                <div class="field-top">
+                  <label id="answerLabel" for="answerCode">Answer code</label>
+                </div>
+                <textarea id="answerCode" placeholder="Answer code goes here."></textarea>
+                <div class="field-actions" id="answerActions">
+                  <button type="button" id="answerBtn" class="btn btn-primary hide">Connect</button>
+                  <button type="button" id="copyAnswerBtn" class="btn btn-secondary hide">Copy Answer</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="status" class="status">Ready.</div>
+          </div>
+        </details>
+      </section>
     </div>
-  </div>
-  <div id="players"></div>
-  <div id="hudActions">
-    <button id="netBtn">Players</button>
-    <button id="startBtn">Start</button>
-    <button id="pauseBtn">Pause</button>
-    <button id="fullBtn">Full</button>
-    <button id="resetBtn">Reset</button>
-  </div>
-</div>
+  </section>
 
-<div id="touchControls">
-  <div id="joyBase"><div id="joyStick"></div></div>
-  <div id="dashBtn" class="touchBtn">DASH</div>
-</div>
+  <section id="playScreen" class="screen play-screen hide" aria-label="Gameplay">
+    <header class="game-hud" aria-label="Game status">
+      <section class="score-card">
+        <span class="logo">◆</span>
+        <div>
+          <div class="score-title">Coin Dash</div>
+          <div class="stats-row"><span><span id="coins">0</span>/<span id="coinMax">0</span> coins</span><span id="clock">0:00</span></div>
+        </div>
+      </section>
+      <section id="players" class="player-strip" aria-label="Players"></section>
+      <nav class="action-row" aria-label="Game actions">
+        <button type="button" id="pauseBtn" class="btn btn-secondary btn-icon" aria-label="Pause menu" title="Pause menu">☰</button>
+      </nav>
+    </header>
 
-<div id="netPanel" class="panel">
-  <div class="netTitle">Players</div>
-  <div id="netStartActions" class="netBtns">
-    <button id="inviteBtn" class="netHoldBtn">Invite</button>
-    <button id="joinBtn" class="netHoldBtn">Join</button>
-  </div>
-  <canvas id="qrCanvas" class="hidden" width="620" height="620"></canvas>
-  <textarea id="outCode" class="netField hidden" readonly aria-label="connection code"></textarea>
-  <div id="netOutgoingActions" class="netBtns hidden">
-    <button id="scanCodeBtn">Scan Answer</button>
-    <button id="cancelNetBtn">Cancel</button>
-  </div>
-  <textarea id="inCode" class="netField hidden" aria-label="paste connection code" placeholder="Paste code here"></textarea>
-  <div id="netIncomingActions" class="netBtns hidden">
-    <button id="useCodeBtn">Use Code</button>
-    <button id="cancelManualBtn">Cancel</button>
-  </div>
-  <div id="scanBox" class="hidden">
-    <video id="scanVideo" playsinline muted></video>
-    <button id="switchCameraBtn" class="hidden" type="button">Switch Camera</button>
-  </div>
-  <div id="netStatus">Ready.</div>
-</div>
+    <section id="stage" class="game-stage" aria-label="Game area"><canvas id="game" width="960" height="540"></canvas></section>
 
+    <section class="touch-deck" aria-label="Touch controls">
+      <div class="touch-group"><div id="joy" class="joy"><div id="stick" class="stick"></div></div><div class="control-label">Move</div></div>
+      <div class="touch-group"><div id="dash" class="dash">Dash</div><div class="control-label">Dash</div></div>
+    </section>
+
+    <section id="pauseOverlay" class="game-menu hide" role="dialog" aria-modal="true" aria-label="Game menu">
+      <div class="game-menu-card">
+        <div class="menu-kicker" id="menuKicker">Game Menu</div>
+        <h2 id="menuTitle">Paused</h2>
+        <p id="menuSubtitle">Game paused.</p>
+        <div class="menu-buttons">
+          <button type="button" id="resumeBtn" class="btn btn-primary btn-wide">Resume</button>
+          <button type="button" id="restartBtn" class="btn btn-secondary btn-wide">Restart Run</button>
+          <button type="button" id="setupBtn" class="btn btn-secondary btn-wide">Players / Setup</button>
+          <button type="button" id="fullGameBtn" class="btn btn-secondary btn-wide">Fullscreen</button>
+        </div>
+      </div>
+    </section>
+  </section>
+</main>
 <script>
-/* MIT QRCode encoder, bundled from qrcode-terminal vendor/QRCode. */
-(function(){
-  var modules = {};
-  modules["./QR8bitByte"] = function(module, exports, require) {
-var QRMode = require('./QRMode');
 
-function QR8bitByte(data) {
-	this.mode = QRMode.MODE_8BIT_BYTE;
-	this.data = data;
-}
 
-QR8bitByte.prototype = {
-
-	getLength : function() {
-		return this.data.length;
-	},
-	
-	write : function(buffer) {
-		for (var i = 0; i < this.data.length; i++) {
-			// not JIS ...
-			buffer.put(this.data.charCodeAt(i), 8);
-		}
-	}
-};
-
-module.exports = QR8bitByte;
-
-  };
-  modules["./QRBitBuffer"] = function(module, exports, require) {
-function QRBitBuffer() {
-	this.buffer = [];
-	this.length = 0;
-}
-
-QRBitBuffer.prototype = {
-
-	get : function(index) {
-		var bufIndex = Math.floor(index / 8);
-		return ( (this.buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
-	},
-	
-	put : function(num, length) {
-		for (var i = 0; i < length; i++) {
-			this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
-		}
-	},
-	
-	getLengthInBits : function() {
-		return this.length;
-	},
-	
-	putBit : function(bit) {
-	
-		var bufIndex = Math.floor(this.length / 8);
-		if (this.buffer.length <= bufIndex) {
-			this.buffer.push(0);
-		}
-	
-		if (bit) {
-			this.buffer[bufIndex] |= (0x80 >>> (this.length % 8) );
-		}
-	
-		this.length++;
-	}
-};
-
-module.exports = QRBitBuffer;
-
-  };
-  modules["./QRErrorCorrectLevel"] = function(module, exports, require) {
-module.exports = {
-	L : 1,
-	M : 0,
-	Q : 3,
-	H : 2
-};
-
-
-  };
-  modules["./QRMaskPattern"] = function(module, exports, require) {
-module.exports = {
-	PATTERN000 : 0,
-	PATTERN001 : 1,
-	PATTERN010 : 2,
-	PATTERN011 : 3,
-	PATTERN100 : 4,
-	PATTERN101 : 5,
-	PATTERN110 : 6,
-	PATTERN111 : 7
-};
-
-  };
-  modules["./QRMath"] = function(module, exports, require) {
-var QRMath = {
-
-	glog : function(n) {
-	
-		if (n < 1) {
-			throw new Error("glog(" + n + ")");
-		}
-		
-		return QRMath.LOG_TABLE[n];
-	},
-	
-	gexp : function(n) {
-	
-		while (n < 0) {
-			n += 255;
-		}
-	
-		while (n >= 256) {
-			n -= 255;
-		}
-	
-		return QRMath.EXP_TABLE[n];
-	},
-	
-	EXP_TABLE : new Array(256),
-	
-	LOG_TABLE : new Array(256)
-
-};
-	
-for (var i = 0; i < 8; i++) {
-	QRMath.EXP_TABLE[i] = 1 << i;
-}
-for (var i = 8; i < 256; i++) {
-	QRMath.EXP_TABLE[i] = QRMath.EXP_TABLE[i - 4]
-		^ QRMath.EXP_TABLE[i - 5]
-		^ QRMath.EXP_TABLE[i - 6]
-		^ QRMath.EXP_TABLE[i - 8];
-}
-for (var i = 0; i < 255; i++) {
-	QRMath.LOG_TABLE[QRMath.EXP_TABLE[i] ] = i;
-}
-
-module.exports = QRMath;
-
-  };
-  modules["./QRMode"] = function(module, exports, require) {
-module.exports = {
-    MODE_NUMBER :       1 << 0,
-    MODE_ALPHA_NUM :    1 << 1,
-    MODE_8BIT_BYTE :    1 << 2,
-    MODE_KANJI :        1 << 3
-};
-
-  };
-  modules["./QRPolynomial"] = function(module, exports, require) {
-var QRMath = require('./QRMath');
-
-function QRPolynomial(num, shift) {
-	if (num.length === undefined) {
-		throw new Error(num.length + "/" + shift);
-	}
-
-	var offset = 0;
-
-	while (offset < num.length && num[offset] === 0) {
-		offset++;
-	}
-
-	this.num = new Array(num.length - offset + shift);
-	for (var i = 0; i < num.length - offset; i++) {
-		this.num[i] = num[i + offset];
-	}
-}
-
-QRPolynomial.prototype = {
-
-	get : function(index) {
-		return this.num[index];
-	},
-	
-	getLength : function() {
-		return this.num.length;
-	},
-	
-	multiply : function(e) {
-	
-		var num = new Array(this.getLength() + e.getLength() - 1);
-	
-		for (var i = 0; i < this.getLength(); i++) {
-			for (var j = 0; j < e.getLength(); j++) {
-				num[i + j] ^= QRMath.gexp(QRMath.glog(this.get(i) ) + QRMath.glog(e.get(j) ) );
-			}
-		}
-	
-		return new QRPolynomial(num, 0);
-	},
-	
-	mod : function(e) {
-	
-		if (this.getLength() - e.getLength() < 0) {
-			return this;
-		}
-	
-		var ratio = QRMath.glog(this.get(0) ) - QRMath.glog(e.get(0) );
-	
-		var num = new Array(this.getLength() );
-		
-		for (var i = 0; i < this.getLength(); i++) {
-			num[i] = this.get(i);
-		}
-		
-		for (var x = 0; x < e.getLength(); x++) {
-			num[x] ^= QRMath.gexp(QRMath.glog(e.get(x) ) + ratio);
-		}
-	
-		// recursive call
-		return new QRPolynomial(num, 0).mod(e);
-	}
-};
-
-module.exports = QRPolynomial;
-
-  };
-  modules["./QRRSBlock"] = function(module, exports, require) {
-var QRErrorCorrectLevel = require('./QRErrorCorrectLevel');
-
-function QRRSBlock(totalCount, dataCount) {
-	this.totalCount = totalCount;
-	this.dataCount  = dataCount;
-}
-
-QRRSBlock.RS_BLOCK_TABLE = [
-
-	// L
-	// M
-	// Q
-	// H
-
-	// 1
-	[1, 26, 19],
-	[1, 26, 16],
-	[1, 26, 13],
-	[1, 26, 9],
-	
-	// 2
-	[1, 44, 34],
-	[1, 44, 28],
-	[1, 44, 22],
-	[1, 44, 16],
-
-	// 3
-	[1, 70, 55],
-	[1, 70, 44],
-	[2, 35, 17],
-	[2, 35, 13],
-
-	// 4		
-	[1, 100, 80],
-	[2, 50, 32],
-	[2, 50, 24],
-	[4, 25, 9],
-	
-	// 5
-	[1, 134, 108],
-	[2, 67, 43],
-	[2, 33, 15, 2, 34, 16],
-	[2, 33, 11, 2, 34, 12],
-	
-	// 6
-	[2, 86, 68],
-	[4, 43, 27],
-	[4, 43, 19],
-	[4, 43, 15],
-	
-	// 7		
-	[2, 98, 78],
-	[4, 49, 31],
-	[2, 32, 14, 4, 33, 15],
-	[4, 39, 13, 1, 40, 14],
-	
-	// 8
-	[2, 121, 97],
-	[2, 60, 38, 2, 61, 39],
-	[4, 40, 18, 2, 41, 19],
-	[4, 40, 14, 2, 41, 15],
-	
-	// 9
-	[2, 146, 116],
-	[3, 58, 36, 2, 59, 37],
-	[4, 36, 16, 4, 37, 17],
-	[4, 36, 12, 4, 37, 13],
-	
-	// 10		
-	[2, 86, 68, 2, 87, 69],
-	[4, 69, 43, 1, 70, 44],
-	[6, 43, 19, 2, 44, 20],
-	[6, 43, 15, 2, 44, 16],
-
-	// 11
-	[4, 101, 81],
-	[1, 80, 50, 4, 81, 51],
-	[4, 50, 22, 4, 51, 23],
-	[3, 36, 12, 8, 37, 13],
-
-	// 12
-	[2, 116, 92, 2, 117, 93],
-	[6, 58, 36, 2, 59, 37],
-	[4, 46, 20, 6, 47, 21],
-	[7, 42, 14, 4, 43, 15],
-
-	// 13
-	[4, 133, 107],
-	[8, 59, 37, 1, 60, 38],
-	[8, 44, 20, 4, 45, 21],
-	[12, 33, 11, 4, 34, 12],
-
-	// 14
-	[3, 145, 115, 1, 146, 116],
-	[4, 64, 40, 5, 65, 41],
-	[11, 36, 16, 5, 37, 17],
-	[11, 36, 12, 5, 37, 13],
-
-	// 15
-	[5, 109, 87, 1, 110, 88],
-	[5, 65, 41, 5, 66, 42],
-	[5, 54, 24, 7, 55, 25],
-	[11, 36, 12],
-
-	// 16
-	[5, 122, 98, 1, 123, 99],
-	[7, 73, 45, 3, 74, 46],
-	[15, 43, 19, 2, 44, 20],
-	[3, 45, 15, 13, 46, 16],
-
-	// 17
-	[1, 135, 107, 5, 136, 108],
-	[10, 74, 46, 1, 75, 47],
-	[1, 50, 22, 15, 51, 23],
-	[2, 42, 14, 17, 43, 15],
-
-	// 18
-	[5, 150, 120, 1, 151, 121],
-	[9, 69, 43, 4, 70, 44],
-	[17, 50, 22, 1, 51, 23],
-	[2, 42, 14, 19, 43, 15],
-
-	// 19
-	[3, 141, 113, 4, 142, 114],
-	[3, 70, 44, 11, 71, 45],
-	[17, 47, 21, 4, 48, 22],
-	[9, 39, 13, 16, 40, 14],
-
-	// 20
-	[3, 135, 107, 5, 136, 108],
-	[3, 67, 41, 13, 68, 42],
-	[15, 54, 24, 5, 55, 25],
-	[15, 43, 15, 10, 44, 16],
-
-	// 21
-	[4, 144, 116, 4, 145, 117],
-	[17, 68, 42],
-	[17, 50, 22, 6, 51, 23],
-	[19, 46, 16, 6, 47, 17],
-
-	// 22
-	[2, 139, 111, 7, 140, 112],
-	[17, 74, 46],
-	[7, 54, 24, 16, 55, 25],
-	[34, 37, 13],
-
-	// 23
-	[4, 151, 121, 5, 152, 122],
-	[4, 75, 47, 14, 76, 48],
-	[11, 54, 24, 14, 55, 25],
-	[16, 45, 15, 14, 46, 16],
-
-	// 24
-	[6, 147, 117, 4, 148, 118],
-	[6, 73, 45, 14, 74, 46],
-	[11, 54, 24, 16, 55, 25],
-	[30, 46, 16, 2, 47, 17],
-
-	// 25
-	[8, 132, 106, 4, 133, 107],
-	[8, 75, 47, 13, 76, 48],
-	[7, 54, 24, 22, 55, 25],
-	[22, 45, 15, 13, 46, 16],
-
-	// 26
-	[10, 142, 114, 2, 143, 115],
-	[19, 74, 46, 4, 75, 47],
-	[28, 50, 22, 6, 51, 23],
-	[33, 46, 16, 4, 47, 17],
-
-	// 27
-	[8, 152, 122, 4, 153, 123],
-	[22, 73, 45, 3, 74, 46],
-	[8, 53, 23, 26, 54, 24],
-	[12, 45, 15, 28, 46, 16],
-
-	// 28
-	[3, 147, 117, 10, 148, 118],
-	[3, 73, 45, 23, 74, 46],
-	[4, 54, 24, 31, 55, 25],
-	[11, 45, 15, 31, 46, 16],
-
-	// 29
-	[7, 146, 116, 7, 147, 117],
-	[21, 73, 45, 7, 74, 46],
-	[1, 53, 23, 37, 54, 24],
-	[19, 45, 15, 26, 46, 16],
-
-	// 30
-	[5, 145, 115, 10, 146, 116],
-	[19, 75, 47, 10, 76, 48],
-	[15, 54, 24, 25, 55, 25],
-	[23, 45, 15, 25, 46, 16],
-
-	// 31
-	[13, 145, 115, 3, 146, 116],
-	[2, 74, 46, 29, 75, 47],
-	[42, 54, 24, 1, 55, 25],
-	[23, 45, 15, 28, 46, 16],
-
-	// 32
-	[17, 145, 115],
-	[10, 74, 46, 23, 75, 47],
-	[10, 54, 24, 35, 55, 25],
-	[19, 45, 15, 35, 46, 16],
-
-	// 33
-	[17, 145, 115, 1, 146, 116],
-	[14, 74, 46, 21, 75, 47],
-	[29, 54, 24, 19, 55, 25],
-	[11, 45, 15, 46, 46, 16],
-
-	// 34
-	[13, 145, 115, 6, 146, 116],
-	[14, 74, 46, 23, 75, 47],
-	[44, 54, 24, 7, 55, 25],
-	[59, 46, 16, 1, 47, 17],
-
-	// 35
-	[12, 151, 121, 7, 152, 122],
-	[12, 75, 47, 26, 76, 48],
-	[39, 54, 24, 14, 55, 25],
-	[22, 45, 15, 41, 46, 16],
-
-	// 36
-	[6, 151, 121, 14, 152, 122],
-	[6, 75, 47, 34, 76, 48],
-	[46, 54, 24, 10, 55, 25],
-	[2, 45, 15, 64, 46, 16],
-
-	// 37
-	[17, 152, 122, 4, 153, 123],
-	[29, 74, 46, 14, 75, 47],
-	[49, 54, 24, 10, 55, 25],
-	[24, 45, 15, 46, 46, 16],
-
-	// 38
-	[4, 152, 122, 18, 153, 123],
-	[13, 74, 46, 32, 75, 47],
-	[48, 54, 24, 14, 55, 25],
-	[42, 45, 15, 32, 46, 16],
-
-	// 39
-	[20, 147, 117, 4, 148, 118],
-	[40, 75, 47, 7, 76, 48],
-	[43, 54, 24, 22, 55, 25],
-	[10, 45, 15, 67, 46, 16],
-
-	// 40
-	[19, 148, 118, 6, 149, 119],
-	[18, 75, 47, 31, 76, 48],
-	[34, 54, 24, 34, 55, 25],
-	[20, 45, 15, 61, 46, 16]
-];
-
-QRRSBlock.getRSBlocks = function(typeNumber, errorCorrectLevel) {
-	
-	var rsBlock = QRRSBlock.getRsBlockTable(typeNumber, errorCorrectLevel);
-	
-	if (rsBlock === undefined) {
-		throw new Error("bad rs block @ typeNumber:" + typeNumber + "/errorCorrectLevel:" + errorCorrectLevel);
-	}
-
-	var length = rsBlock.length / 3;
-	
-	var list = [];
-	
-	for (var i = 0; i < length; i++) {
-
-		var count = rsBlock[i * 3 + 0];
-		var totalCount = rsBlock[i * 3 + 1];
-		var dataCount  = rsBlock[i * 3 + 2];
-
-		for (var j = 0; j < count; j++) {
-			list.push(new QRRSBlock(totalCount, dataCount) );	
-		}
-	}
-	
-	return list;
-};
-
-QRRSBlock.getRsBlockTable = function(typeNumber, errorCorrectLevel) {
-
-	switch(errorCorrectLevel) {
-	case QRErrorCorrectLevel.L :
-		return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
-	case QRErrorCorrectLevel.M :
-		return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
-	case QRErrorCorrectLevel.Q :
-		return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
-	case QRErrorCorrectLevel.H :
-		return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
-	default :
-		return undefined;
-	}
-};
-
-module.exports = QRRSBlock;
-
-  };
-  modules["./QRUtil"] = function(module, exports, require) {
-var QRMode = require('./QRMode');
-var QRPolynomial = require('./QRPolynomial');
-var QRMath = require('./QRMath');
-var QRMaskPattern = require('./QRMaskPattern');
-
-var QRUtil = {
-
-    PATTERN_POSITION_TABLE : [
-        [],
-        [6, 18],
-        [6, 22],
-        [6, 26],
-        [6, 30],
-        [6, 34],
-        [6, 22, 38],
-        [6, 24, 42],
-        [6, 26, 46],
-        [6, 28, 50],
-        [6, 30, 54],        
-        [6, 32, 58],
-        [6, 34, 62],
-        [6, 26, 46, 66],
-        [6, 26, 48, 70],
-        [6, 26, 50, 74],
-        [6, 30, 54, 78],
-        [6, 30, 56, 82],
-        [6, 30, 58, 86],
-        [6, 34, 62, 90],
-        [6, 28, 50, 72, 94],
-        [6, 26, 50, 74, 98],
-        [6, 30, 54, 78, 102],
-        [6, 28, 54, 80, 106],
-        [6, 32, 58, 84, 110],
-        [6, 30, 58, 86, 114],
-        [6, 34, 62, 90, 118],
-        [6, 26, 50, 74, 98, 122],
-        [6, 30, 54, 78, 102, 126],
-        [6, 26, 52, 78, 104, 130],
-        [6, 30, 56, 82, 108, 134],
-        [6, 34, 60, 86, 112, 138],
-        [6, 30, 58, 86, 114, 142],
-        [6, 34, 62, 90, 118, 146],
-        [6, 30, 54, 78, 102, 126, 150],
-        [6, 24, 50, 76, 102, 128, 154],
-        [6, 28, 54, 80, 106, 132, 158],
-        [6, 32, 58, 84, 110, 136, 162],
-        [6, 26, 54, 82, 110, 138, 166],
-        [6, 30, 58, 86, 114, 142, 170]
-    ],
-
-    G15 : (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0),
-    G18 : (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0),
-    G15_MASK : (1 << 14) | (1 << 12) | (1 << 10)    | (1 << 4) | (1 << 1),
-
-    getBCHTypeInfo : function(data) {
-        var d = data << 10;
-        while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) >= 0) {
-            d ^= (QRUtil.G15 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G15) ) );    
-        }
-        return ( (data << 10) | d) ^ QRUtil.G15_MASK;
-    },
-
-    getBCHTypeNumber : function(data) {
-        var d = data << 12;
-        while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) >= 0) {
-            d ^= (QRUtil.G18 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(QRUtil.G18) ) );    
-        }
-        return (data << 12) | d;
-    },
-
-    getBCHDigit : function(data) {
-
-        var digit = 0;
-
-        while (data !== 0) {
-            digit++;
-            data >>>= 1;
-        }
-
-        return digit;
-    },
-
-    getPatternPosition : function(typeNumber) {
-        return QRUtil.PATTERN_POSITION_TABLE[typeNumber - 1];
-    },
-
-    getMask : function(maskPattern, i, j) {
-        
-        switch (maskPattern) {
-            
-        case QRMaskPattern.PATTERN000 : return (i + j) % 2 === 0;
-        case QRMaskPattern.PATTERN001 : return i % 2 === 0;
-        case QRMaskPattern.PATTERN010 : return j % 3 === 0;
-        case QRMaskPattern.PATTERN011 : return (i + j) % 3 === 0;
-        case QRMaskPattern.PATTERN100 : return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 === 0;
-        case QRMaskPattern.PATTERN101 : return (i * j) % 2 + (i * j) % 3 === 0;
-        case QRMaskPattern.PATTERN110 : return ( (i * j) % 2 + (i * j) % 3) % 2 === 0;
-        case QRMaskPattern.PATTERN111 : return ( (i * j) % 3 + (i + j) % 2) % 2 === 0;
-
-        default :
-            throw new Error("bad maskPattern:" + maskPattern);
-        }
-    },
-
-    getErrorCorrectPolynomial : function(errorCorrectLength) {
-
-        var a = new QRPolynomial([1], 0);
-
-        for (var i = 0; i < errorCorrectLength; i++) {
-            a = a.multiply(new QRPolynomial([1, QRMath.gexp(i)], 0) );
-        }
-
-        return a;
-    },
-
-    getLengthInBits : function(mode, type) {
-
-        if (1 <= type && type < 10) {
-
-            // 1 - 9
-
-            switch(mode) {
-            case QRMode.MODE_NUMBER     : return 10;
-            case QRMode.MODE_ALPHA_NUM  : return 9;
-            case QRMode.MODE_8BIT_BYTE  : return 8;
-            case QRMode.MODE_KANJI      : return 8;
-            default :
-                throw new Error("mode:" + mode);
-            }
-
-        } else if (type < 27) {
-
-            // 10 - 26
-
-            switch(mode) {
-            case QRMode.MODE_NUMBER     : return 12;
-            case QRMode.MODE_ALPHA_NUM  : return 11;
-            case QRMode.MODE_8BIT_BYTE  : return 16;
-            case QRMode.MODE_KANJI      : return 10;
-            default :
-                throw new Error("mode:" + mode);
-            }
-
-        } else if (type < 41) {
-
-            // 27 - 40
-
-            switch(mode) {
-            case QRMode.MODE_NUMBER     : return 14;
-            case QRMode.MODE_ALPHA_NUM  : return 13;
-            case QRMode.MODE_8BIT_BYTE  : return 16;
-            case QRMode.MODE_KANJI      : return 12;
-            default :
-                throw new Error("mode:" + mode);
-            }
-
-        } else {
-            throw new Error("type:" + type);
-        }
-    },
-
-    getLostPoint : function(qrCode) {
-        
-        var moduleCount = qrCode.getModuleCount();
-        var lostPoint = 0;
-        var row = 0; 
-        var col = 0;
-
-        
-        // LEVEL1
-        
-        for (row = 0; row < moduleCount; row++) {
-
-            for (col = 0; col < moduleCount; col++) {
-
-                var sameCount = 0;
-                var dark = qrCode.isDark(row, col);
-
-                for (var r = -1; r <= 1; r++) {
-
-                    if (row + r < 0 || moduleCount <= row + r) {
-                        continue;
-                    }
-
-                    for (var c = -1; c <= 1; c++) {
-
-                        if (col + c < 0 || moduleCount <= col + c) {
-                            continue;
-                        }
-
-                        if (r === 0 && c === 0) {
-                            continue;
-                        }
-
-                        if (dark === qrCode.isDark(row + r, col + c) ) {
-                            sameCount++;
-                        }
-                    }
-                }
-
-                if (sameCount > 5) {
-                    lostPoint += (3 + sameCount - 5);
-                }
-            }
-        }
-
-        // LEVEL2
-
-        for (row = 0; row < moduleCount - 1; row++) {
-            for (col = 0; col < moduleCount - 1; col++) {
-                var count = 0;
-                if (qrCode.isDark(row,     col    ) ) count++;
-                if (qrCode.isDark(row + 1, col    ) ) count++;
-                if (qrCode.isDark(row,     col + 1) ) count++;
-                if (qrCode.isDark(row + 1, col + 1) ) count++;
-                if (count === 0 || count === 4) {
-                    lostPoint += 3;
-                }
-            }
-        }
-
-        // LEVEL3
-
-        for (row = 0; row < moduleCount; row++) {
-            for (col = 0; col < moduleCount - 6; col++) {
-                if (qrCode.isDark(row, col) && 
-                        !qrCode.isDark(row, col + 1) && 
-                         qrCode.isDark(row, col + 2) && 
-                         qrCode.isDark(row, col + 3) && 
-                         qrCode.isDark(row, col + 4) && 
-                        !qrCode.isDark(row, col + 5) && 
-                         qrCode.isDark(row, col + 6) ) {
-                    lostPoint += 40;
-                }
-            }
-        }
-
-        for (col = 0; col < moduleCount; col++) {
-            for (row = 0; row < moduleCount - 6; row++) {
-                if (qrCode.isDark(row, col) &&
-                        !qrCode.isDark(row + 1, col) &&
-                         qrCode.isDark(row + 2, col) &&
-                         qrCode.isDark(row + 3, col) &&
-                         qrCode.isDark(row + 4, col) &&
-                        !qrCode.isDark(row + 5, col) &&
-                         qrCode.isDark(row + 6, col) ) {
-                    lostPoint += 40;
-                }
-            }
-        }
-
-        // LEVEL4
-        
-        var darkCount = 0;
-
-        for (col = 0; col < moduleCount; col++) {
-            for (row = 0; row < moduleCount; row++) {
-                if (qrCode.isDark(row, col) ) {
-                    darkCount++;
-                }
-            }
-        }
-        
-        var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
-        lostPoint += ratio * 10;
-
-        return lostPoint;       
-    }
-
-};
-
-module.exports = QRUtil;
-
-  };
-  modules["./index"] = function(module, exports, require) {
-//---------------------------------------------------------------------
-// QRCode for JavaScript
-//
-// Copyright (c) 2009 Kazuhiko Arase
-//
-// URL: http://www.d-project.com/
-//
-// Licensed under the MIT license:
-//   http://www.opensource.org/licenses/mit-license.php
-//
-// The word "QR Code" is registered trademark of 
-// DENSO WAVE INCORPORATED
-//   http://www.denso-wave.com/qrcode/faqpatent-e.html
-//
-//---------------------------------------------------------------------
-// Modified to work in node for this project (and some refactoring)
-//---------------------------------------------------------------------
-
-var QR8bitByte = require('./QR8bitByte');
-var QRUtil = require('./QRUtil');
-var QRPolynomial = require('./QRPolynomial');
-var QRRSBlock = require('./QRRSBlock');
-var QRBitBuffer = require('./QRBitBuffer');
-
-function QRCode(typeNumber, errorCorrectLevel) {
-	this.typeNumber = typeNumber;
-	this.errorCorrectLevel = errorCorrectLevel;
-	this.modules = null;
-	this.moduleCount = 0;
-	this.dataCache = null;
-	this.dataList = [];
-}
-
-QRCode.prototype = {
-	
-	addData : function(data) {
-		var newData = new QR8bitByte(data);
-		this.dataList.push(newData);
-		this.dataCache = null;
-	},
-	
-	isDark : function(row, col) {
-		if (row < 0 || this.moduleCount <= row || col < 0 || this.moduleCount <= col) {
-			throw new Error(row + "," + col);
-		}
-		return this.modules[row][col];
-	},
-
-	getModuleCount : function() {
-		return this.moduleCount;
-	},
-	
-	make : function() {
-		// Calculate automatically typeNumber if provided is < 1
-		if (this.typeNumber < 1 ){
-			var typeNumber = 1;
-			for (typeNumber = 1; typeNumber < 40; typeNumber++) {
-				var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, this.errorCorrectLevel);
-
-				var buffer = new QRBitBuffer();
-				var totalDataCount = 0;
-				for (var i = 0; i < rsBlocks.length; i++) {
-					totalDataCount += rsBlocks[i].dataCount;
-				}
-
-				for (var x = 0; x < this.dataList.length; x++) {
-					var data = this.dataList[x];
-					buffer.put(data.mode, 4);
-					buffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber) );
-					data.write(buffer);
-				}
-				if (buffer.getLengthInBits() <= totalDataCount * 8)
-					break;
-			}
-			this.typeNumber = typeNumber;
-		}
-		this.makeImpl(false, this.getBestMaskPattern() );
-	},
-	
-	makeImpl : function(test, maskPattern) {
-		
-		this.moduleCount = this.typeNumber * 4 + 17;
-		this.modules = new Array(this.moduleCount);
-		
-		for (var row = 0; row < this.moduleCount; row++) {
-			
-			this.modules[row] = new Array(this.moduleCount);
-			
-			for (var col = 0; col < this.moduleCount; col++) {
-				this.modules[row][col] = null;//(col + row) % 3;
-			}
-		}
-	
-		this.setupPositionProbePattern(0, 0);
-		this.setupPositionProbePattern(this.moduleCount - 7, 0);
-		this.setupPositionProbePattern(0, this.moduleCount - 7);
-		this.setupPositionAdjustPattern();
-		this.setupTimingPattern();
-		this.setupTypeInfo(test, maskPattern);
-		
-		if (this.typeNumber >= 7) {
-			this.setupTypeNumber(test);
-		}
-	
-		if (this.dataCache === null) {
-			this.dataCache = QRCode.createData(this.typeNumber, this.errorCorrectLevel, this.dataList);
-		}
-	
-		this.mapData(this.dataCache, maskPattern);
-	},
-
-	setupPositionProbePattern : function(row, col)  {
-		
-		for (var r = -1; r <= 7; r++) {
-			
-			if (row + r <= -1 || this.moduleCount <= row + r) continue;
-			
-			for (var c = -1; c <= 7; c++) {
-				
-				if (col + c <= -1 || this.moduleCount <= col + c) continue;
-				
-				if ( (0 <= r && r <= 6 && (c === 0 || c === 6) ) || 
-                     (0 <= c && c <= 6 && (r === 0 || r === 6) ) || 
-                     (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
-					this.modules[row + r][col + c] = true;
-				} else {
-					this.modules[row + r][col + c] = false;
-				}
-			}		
-		}		
-	},
-	
-	getBestMaskPattern : function() {
-	
-		var minLostPoint = 0;
-		var pattern = 0;
-	
-		for (var i = 0; i < 8; i++) {
-			
-			this.makeImpl(true, i);
-	
-			var lostPoint = QRUtil.getLostPoint(this);
-	
-			if (i === 0 || minLostPoint >  lostPoint) {
-				minLostPoint = lostPoint;
-				pattern = i;
-			}
-		}
-	
-		return pattern;
-	},
-	
-	createMovieClip : function(target_mc, instance_name, depth) {
-	
-		var qr_mc = target_mc.createEmptyMovieClip(instance_name, depth);
-		var cs = 1;
-	
-		this.make();
-
-		for (var row = 0; row < this.modules.length; row++) {
-			
-			var y = row * cs;
-			
-			for (var col = 0; col < this.modules[row].length; col++) {
-	
-				var x = col * cs;
-				var dark = this.modules[row][col];
-			
-				if (dark) {
-					qr_mc.beginFill(0, 100);
-					qr_mc.moveTo(x, y);
-					qr_mc.lineTo(x + cs, y);
-					qr_mc.lineTo(x + cs, y + cs);
-					qr_mc.lineTo(x, y + cs);
-					qr_mc.endFill();
-				}
-			}
-		}
-		
-		return qr_mc;
-	},
-
-	setupTimingPattern : function() {
-		
-		for (var r = 8; r < this.moduleCount - 8; r++) {
-			if (this.modules[r][6] !== null) {
-				continue;
-			}
-			this.modules[r][6] = (r % 2 === 0);
-		}
-	
-		for (var c = 8; c < this.moduleCount - 8; c++) {
-			if (this.modules[6][c] !== null) {
-				continue;
-			}
-			this.modules[6][c] = (c % 2 === 0);
-		}
-	},
-	
-	setupPositionAdjustPattern : function() {
-	
-		var pos = QRUtil.getPatternPosition(this.typeNumber);
-		
-		for (var i = 0; i < pos.length; i++) {
-		
-			for (var j = 0; j < pos.length; j++) {
-			
-				var row = pos[i];
-				var col = pos[j];
-				
-				if (this.modules[row][col] !== null) {
-					continue;
-				}
-				
-				for (var r = -2; r <= 2; r++) {
-				
-					for (var c = -2; c <= 2; c++) {
-					
-						if (Math.abs(r) === 2 || 
-                            Math.abs(c) === 2 ||
-                            (r === 0 && c === 0) ) {
-							this.modules[row + r][col + c] = true;
-						} else {
-							this.modules[row + r][col + c] = false;
-						}
-					}
-				}
-			}
-		}
-	},
-	
-	setupTypeNumber : function(test) {
-	
-		var bits = QRUtil.getBCHTypeNumber(this.typeNumber);
-        var mod;
-	
-		for (var i = 0; i < 18; i++) {
-			mod = (!test && ( (bits >> i) & 1) === 1);
-			this.modules[Math.floor(i / 3)][i % 3 + this.moduleCount - 8 - 3] = mod;
-		}
-	
-		for (var x = 0; x < 18; x++) {
-			mod = (!test && ( (bits >> x) & 1) === 1);
-			this.modules[x % 3 + this.moduleCount - 8 - 3][Math.floor(x / 3)] = mod;
-		}
-	},
-	
-	setupTypeInfo : function(test, maskPattern) {
-	
-		var data = (this.errorCorrectLevel << 3) | maskPattern;
-		var bits = QRUtil.getBCHTypeInfo(data);
-        var mod;
-	
-		// vertical		
-		for (var v = 0; v < 15; v++) {
-	
-			mod = (!test && ( (bits >> v) & 1) === 1);
-	
-			if (v < 6) {
-				this.modules[v][8] = mod;
-			} else if (v < 8) {
-				this.modules[v + 1][8] = mod;
-			} else {
-				this.modules[this.moduleCount - 15 + v][8] = mod;
-			}
-		}
-	
-		// horizontal
-		for (var h = 0; h < 15; h++) {
-	
-			mod = (!test && ( (bits >> h) & 1) === 1);
-			
-			if (h < 8) {
-				this.modules[8][this.moduleCount - h - 1] = mod;
-			} else if (h < 9) {
-				this.modules[8][15 - h - 1 + 1] = mod;
-			} else {
-				this.modules[8][15 - h - 1] = mod;
-			}
-		}
-	
-		// fixed module
-		this.modules[this.moduleCount - 8][8] = (!test);
-	
-	},
-	
-	mapData : function(data, maskPattern) {
-		
-		var inc = -1;
-		var row = this.moduleCount - 1;
-		var bitIndex = 7;
-		var byteIndex = 0;
-		
-		for (var col = this.moduleCount - 1; col > 0; col -= 2) {
-	
-			if (col === 6) col--;
-	
-			while (true) {
-	
-				for (var c = 0; c < 2; c++) {
-					
-					if (this.modules[row][col - c] === null) {
-						
-						var dark = false;
-	
-						if (byteIndex < data.length) {
-							dark = ( ( (data[byteIndex] >>> bitIndex) & 1) === 1);
-						}
-	
-						var mask = QRUtil.getMask(maskPattern, row, col - c);
-	
-						if (mask) {
-							dark = !dark;
-						}
-						
-						this.modules[row][col - c] = dark;
-						bitIndex--;
-	
-						if (bitIndex === -1) {
-							byteIndex++;
-							bitIndex = 7;
-						}
-					}
-				}
-								
-				row += inc;
-	
-				if (row < 0 || this.moduleCount <= row) {
-					row -= inc;
-					inc = -inc;
-					break;
-				}
-			}
-		}
-		
-	}
-
-};
-
-QRCode.PAD0 = 0xEC;
-QRCode.PAD1 = 0x11;
-
-QRCode.createData = function(typeNumber, errorCorrectLevel, dataList) {
-	
-	var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectLevel);
-	
-	var buffer = new QRBitBuffer();
-	
-	for (var i = 0; i < dataList.length; i++) {
-		var data = dataList[i];
-		buffer.put(data.mode, 4);
-		buffer.put(data.getLength(), QRUtil.getLengthInBits(data.mode, typeNumber) );
-		data.write(buffer);
-	}
-
-	// calc num max data.
-	var totalDataCount = 0;
-	for (var x = 0; x < rsBlocks.length; x++) {
-		totalDataCount += rsBlocks[x].dataCount;
-	}
-
-	if (buffer.getLengthInBits() > totalDataCount * 8) {
-		throw new Error("code length overflow. (" + 
-            buffer.getLengthInBits() + 
-            ">" +  
-            totalDataCount * 8 + 
-            ")");
-	}
-
-	// end code
-	if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
-		buffer.put(0, 4);
-	}
-
-	// padding
-	while (buffer.getLengthInBits() % 8 !== 0) {
-		buffer.putBit(false);
-	}
-
-	// padding
-	while (true) {
-		
-		if (buffer.getLengthInBits() >= totalDataCount * 8) {
-			break;
-		}
-		buffer.put(QRCode.PAD0, 8);
-		
-		if (buffer.getLengthInBits() >= totalDataCount * 8) {
-			break;
-		}
-		buffer.put(QRCode.PAD1, 8);
-	}
-
-	return QRCode.createBytes(buffer, rsBlocks);
-};
-
-QRCode.createBytes = function(buffer, rsBlocks) {
-
-	var offset = 0;
-	
-	var maxDcCount = 0;
-	var maxEcCount = 0;
-	
-	var dcdata = new Array(rsBlocks.length);
-	var ecdata = new Array(rsBlocks.length);
-	
-	for (var r = 0; r < rsBlocks.length; r++) {
-
-		var dcCount = rsBlocks[r].dataCount;
-		var ecCount = rsBlocks[r].totalCount - dcCount;
-
-		maxDcCount = Math.max(maxDcCount, dcCount);
-		maxEcCount = Math.max(maxEcCount, ecCount);
-		
-		dcdata[r] = new Array(dcCount);
-		
-		for (var i = 0; i < dcdata[r].length; i++) {
-			dcdata[r][i] = 0xff & buffer.buffer[i + offset];
-		}
-		offset += dcCount;
-		
-		var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
-		var rawPoly = new QRPolynomial(dcdata[r], rsPoly.getLength() - 1);
-
-		var modPoly = rawPoly.mod(rsPoly);
-		ecdata[r] = new Array(rsPoly.getLength() - 1);
-		for (var x = 0; x < ecdata[r].length; x++) {
-            var modIndex = x + modPoly.getLength() - ecdata[r].length;
-			ecdata[r][x] = (modIndex >= 0)? modPoly.get(modIndex) : 0;
-		}
-
-	}
-	
-	var totalCodeCount = 0;
-	for (var y = 0; y < rsBlocks.length; y++) {
-		totalCodeCount += rsBlocks[y].totalCount;
-	}
-
-	var data = new Array(totalCodeCount);
-	var index = 0;
-
-	for (var z = 0; z < maxDcCount; z++) {
-		for (var s = 0; s < rsBlocks.length; s++) {
-			if (z < dcdata[s].length) {
-				data[index++] = dcdata[s][z];
-			}
-		}
-	}
-
-	for (var xx = 0; xx < maxEcCount; xx++) {
-		for (var t = 0; t < rsBlocks.length; t++) {
-			if (xx < ecdata[t].length) {
-				data[index++] = ecdata[t][xx];
-			}
-		}
-	}
-
-	return data;
-
-};
-
-module.exports = QRCode;
-
-  };
-  var cache = {};
-  function localRequire(id) {
-    id = id.replace(/\.js$/, '');
-    if (!modules[id]) throw new Error('Missing QR module ' + id);
-    if (cache[id]) return cache[id].exports;
-    var module = { exports: {} };
-    cache[id] = module;
-    modules[id](module, module.exports, localRequire);
-    return module.exports;
+(()=>{'use strict';
+
+const $=id=>document.getElementById(id),cv=$('game'),cx=cv.getContext('2d');
+cx.imageSmoothingEnabled=true;
+cx.lineJoin='round';
+cx.lineCap='round';
+
+const W=cv.width,H=cv.height,colors=['#46d0ff','#ff595e','#8ac926','#ffca3a','#c77dff','#ff9f1c'];
+
+const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),clock:$('clock'),players:$('players'),net:$('net'),start:$('startBtn'),pause:$('pauseBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),fullGame:$('fullGameBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),answerField:$('answerField'),answerCode:$('answerCode'),codeLabel:$('codeLabel'),answerLabel:$('answerLabel'),copyInvite:$('copyInviteBtn'),copyAnswer:$('copyAnswerBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),answer:$('answerBtn'),use:$('useBtn'),code:$('code'),status:$('status'),joy:$('joy'),stick:$('stick'),dash:$('dash')};
+
+const walls=[r(0,0,W,24),r(0,H-24,W,24),r(0,0,24,H),r(W-24,0,24,H),r(170,118,110,36),r(380,90,42,120),r(610,124,150,32),r(145,345,150,36),r(470,330,40,120),r(675,340,105,36)];
+
+const coinPos=[[145,90],[335,78],[550,85],[815,86],[90,210],[300,220],[660,225],[875,240],[108,330],[320,315],[615,315],[860,340],[230,455],[430,455],[635,455],[805,455]];
+
+const G={floorA:'#13203b',floorB:'#1c315a',grid:'#79d8ff14',wall:'#2c3f6f',wallTop:'#536ba7',wallEdge:'#111a31',coin:'#ffd166',coinHot:'#fff0a3',enemy:'#ef476f',enemyDark:'#35091a',exit:'#80ff72'};
+function rr(x,y,w,h,r,fill,stroke){cx.beginPath();cx.roundRect(x,y,w,h,r);if(fill){cx.fillStyle=fill;cx.fill()}if(stroke){cx.strokeStyle=stroke;cx.stroke()}}
+function lg(x0,y0,x1,y1,a,b){let g=cx.createLinearGradient(x0,y0,x1,y1);g.addColorStop(0,a);g.addColorStop(1,b);return g}
+function rg(x,y,r,a,b){let g=cx.createRadialGradient(x,y,1,x,y,r);g.addColorStop(0,a);g.addColorStop(1,b);return g}
+function shadow(x,y,w,h,a=.35){cx.fillStyle=`rgba(0,0,0,${a})`;cx.beginPath();cx.ellipse(x,y,w,h,0,0,7);cx.fill()}
+
+
+const keys=new Set(),touch={x:0,y:0,dash:false,on:false,id:null},remoteInputs=new Map();
+
+let game=makeGame(),last=performance.now(),net=netState(),audio=null;
+
+function r(x,y,w,h){return{x,y,w,h}}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function hypot(x,y){return Math.hypot(x,y)}
+function player(id,x,y,control='local'){return{id,x,y,vx:0,vy:0,r:15,hp:5,score:0,alive:true,control,cd:0,dt:0,dx:1,dy:0,faceX:1,faceY:0,inv:0,bob:Math.random()*9,trail:[],dashHit:0}}
+function enemy(x,y){let a=Math.random()*6.28;
+return{x,y,vx:Math.cos(a)*70,vy:Math.sin(a)*70,r:14,stun:0}}
+function makeGame(){let coins=coinPos.map((p,i)=>({x:p[0],y:p[1],r:9,taken:false,pulse:i*.3}));
+return{players:[player(0,92,92)],coins,enemies:[enemy(520,86),enemy(760,275),enemy(535,470)],phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:{x:W-68,y:H/2,r:28},shake:0,total:coins.length}}
+function netState(){return{role:'solo',pc:null,dc:null,channels:new Map(),localId:0,nextId:1,timer:0}}
+function control(p){if(p.control==='remote')return remoteInputs.get(p.id)||{x:0,y:0,dash:false};
+let x=0,y=0;
+if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;
+if(keys.has('KeyD')||keys.has('ArrowRight'))x++;
+if(keys.has('KeyW')||keys.has('ArrowUp'))y--;
+if(keys.has('KeyS')||keys.has('ArrowDown'))y++;
+if(touch.on){x+=touch.x;
+y+=touch.y}
+let l=hypot(x,y);
+if(l>1){x/=l;
+y/=l}return{x,y,dash:keys.has('Space')||touch.dash}}
+function circleRect(o,b){let cx0=clamp(o.x,b.x,b.x+b.w),cy0=clamp(o.y,b.y,b.y+b.h),dx=o.x-cx0,dy=o.y-cy0,d=hypot(dx,dy);
+if(d>=o.r)return false;
+if(d<.001){let a=[Math.abs(o.x-b.x),Math.abs(o.x-b.x-b.w),Math.abs(o.y-b.y),Math.abs(o.y-b.y-b.h)],m=Math.min(...a);
+dx=m===a[0]?-1:m===a[1]?1:0;
+dy=m===a[2]?-1:m===a[3]?1:0;
+d=1}
+let push=o.r-d;
+o.x+=dx/d*push;
+o.y+=dy/d*push;
+if(Math.abs(dx)>Math.abs(dy))o.vx*=-.25;
+else o.vy*=-.25;
+return true}
+function collideWorld(o){for(const w of walls)circleRect(o,w);
+o.x=clamp(o.x,o.r+24,W-o.r-24);
+o.y=clamp(o.y,o.r+24,H-o.r-24)}
+function hideGameMenu(){els.pauseOverlay.classList.add('hide')}
+function showSetup(){game.paused=true;hideGameMenu();els.play.classList.add('hide');els.setup.classList.remove('hide');ui()}
+function showPlay(){els.setup.classList.add('hide');els.play.classList.remove('hide');setTimeout(()=>{fitCanvas();centerStick()},0)}
+function beginRun(){game=makeGame();restoreRemotes();game.phase='count';game.count=3;game.paused=false;hideGameMenu();showPlay();beep('start');broadcast();ui()}
+function startGame(){if(net.role==='client'){hideGameMenu();showPlay();return send({t:'start'})}beginRun()}
+function openGameMenu(){if(game.phase==='menu')return;if(!game.over)game.paused=true;syncGameMenu();broadcast();ui()}
+function resumeGame(){if(game.over)return;game.paused=false;hideGameMenu();broadcast();ui()}
+function restartRun(){if(net.role==='client')return startGame();beginRun()}
+function restoreRemotes(){if(net.role!=='host')return;
+for(const [id] of net.channels){if(!game.players.some(p=>p.id===id))game.players.push(player(id,90+id*30,110+id*20,'remote'))}}
+
+function startDash(p,c){p.dt=.2;
+	p.cd=.45;
+	p.dx=c.x;
+	p.dy=c.y;
+	p.dashHit=.2;
+	game.shake=Math.max(game.shake,.06);
+	p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:performance.now(),life:420,ring:true});
+	beep('dash')}
+function dashSmash(p,e){if(e.stun>.35)return;
+	e.stun=.75;
+	e.vx=p.dx*270;
+	e.vy=p.dy*270;
+	p.dashHit=.16;
+	game.shake=.14;
+	p.trail.push({x:e.x,y:e.y,dx:p.dx,dy:p.dy,at:performance.now(),life:360,hit:true});
+	beep('hit')}
+function update(dt){if(game.over)return;
+if(net.role==='client'){sendInput(dt);
+return ui()}
+if(game.phase==='menu'||game.paused){broadcast(dt);
+return ui()}
+if(game.phase==='count'){game.count=Math.max(0,game.count-dt);
+if(!game.count){game.phase='play';
+beep('go')}broadcast(dt);
+return ui()}
+game.time+=dt;
+for(const p of game.players){p.bob+=dt*7;
+p.inv=Math.max(0,p.inv-dt);
+p.cd=Math.max(0,p.cd-dt);
+p.dt=Math.max(0,p.dt-dt);
+p.trail=p.trail.filter(t=>performance.now()-t.at<(t.life||280));
+	p.dashHit=Math.max(0,p.dashHit-dt);
+if(!p.alive)continue;
+let c=control(p),sp=178;
+if(c.x||c.y){p.faceX=c.x;
+p.faceY=c.y}
+if(c.dash&&p.cd<=0&&(c.x||c.y))startDash(p,c);
+	if(p.dt>0){p.vx=p.dx*520;
+	p.vy=p.dy*520;
+	p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:performance.now(),life:280})}
+	else{p.vx=c.x*sp;
+	p.vy=c.y*sp}
+	p.x+=p.vx*dt;
+	p.y+=p.vy*dt;
+collideWorld(p);
+for(const coin of game.coins)if(!coin.taken&&hypot(p.x-coin.x,p.y-coin.y)<p.r+coin.r){coin.taken=true;
+p.score++;
+beep('coin')}
+for(const e of game.enemies){let d=hypot(p.x-e.x,p.y-e.y);
+	if(d<p.r+e.r){if(p.dt>0)dashSmash(p,e);else if(p.inv<=0){p.hp--;
+	p.inv=1.45;
+	game.shake=.18;
+	beep('hit');
+	let nx=(p.x-e.x)/(d||1),ny=(p.y-e.y)/(d||1);
+	p.x+=nx*28;
+	p.y+=ny*28;
+	if(p.hp<=0)p.alive=false}}}}
+
+for(const e of game.enemies){if(e.stun>0){e.stun-=dt;
+continue}
+let target=nearestAlive(e),speed=58;
+if(target){let dx=target.x-e.x,dy=target.y-e.y,l=hypot(dx,dy)||1;
+e.vx+=dx/l*34*dt;
+e.vy+=dy/l*34*dt}
+let l=hypot(e.vx,e.vy);
+if(l>speed){e.vx=e.vx/l*speed;
+e.vy=e.vy/l*speed}
+e.x+=e.vx*dt;
+e.y+=e.vy*dt;
+collideWorld(e)}
+let taken=game.coins.filter(c=>c.taken).length;
+if(!game.players.some(p=>p.alive)){end(false)}
+else if(taken===game.total&&game.players.some(p=>p.alive&&hypot(p.x-game.exit.x,p.y-game.exit.y)<p.r+game.exit.r)){end(true)}
+game.shake=Math.max(0,game.shake-dt);
+broadcast(dt);
+ui()}
+function nearestAlive(e){let best=null,bd=1e9;
+for(const p of game.players)if(p.alive){let d=hypot(p.x-e.x,p.y-e.y);
+if(d<bd){bd=d;
+best=p}}return best}
+function end(won){game.over=true;
+game.won=won;
+game.phase='over';
+game.paused=true;
+beep(won?'win':'lose');
+syncGameMenu();
+broadcast()}
+function draw(){let sx=game.shake?(Math.random()-.5)*8:0,sy=game.shake?(Math.random()-.5)*8:0;
+cx.save();cx.translate(sx,sy);cx.clearRect(-10,-10,W+20,H+20);field();for(const coin of game.coins)drawCoin(coin);exitGate();for(const p of game.players)drawPlayer(p);for(const e of game.enemies)drawEnemy(e);overlay();cx.restore();requestAnimationFrame(loop)}
+function field(){let t=performance.now()/1000;
+cx.fillStyle=lg(0,0,0,H,G.floorB,G.floorA);cx.fillRect(0,0,W,H);
+cx.fillStyle=rg(W*.5,H*.42,520,'#49c7ff12','#0000');cx.fillRect(0,0,W,H);
+for(let y=36;y<H;y+=48){cx.strokeStyle=y%96?'#ffffff08':G.grid;cx.lineWidth=1;cx.beginPath();cx.moveTo(28,y+.5);cx.lineTo(W-28,y+.5);cx.stroke()}
+for(let x=36;x<W;x+=48){cx.strokeStyle=x%96?'#ffffff07':G.grid;cx.beginPath();cx.moveTo(x+.5,28);cx.lineTo(x+.5,H-28);cx.stroke()}
+for(let i=0;i<22;i++){let x=(i*97+t*8)%W,y=54+(i*71)%430;cx.fillStyle='#ffffff08';cx.fillRect(x,y,18,2)}
+for(const w of walls)wall(w);
+cx.strokeStyle='#67d7ff26';cx.lineWidth=3;rr(24,24,W-48,H-48,18,null,'#67d7ff26')}
+function wall(w){shadow(w.x+w.w/2,w.y+w.h+8,w.w*.46,9,.25);cx.lineWidth=2;rr(w.x,w.y,w.w,w.h,8,lg(w.x,w.y,w.x,w.y+w.h,G.wallTop,G.wall),G.wallEdge);cx.fillStyle='#ffffff18';rr(w.x+5,w.y+4,w.w-10,5,4,'#ffffff18');cx.fillStyle='#00000018';rr(w.x+5,w.y+w.h-8,w.w-10,4,3,'#00000018')}
+function drawCoin(c){if(c.taken)return;let t=performance.now()/260+c.pulse,p=Math.sin(t)*2,spin=Math.cos(t)*.45;
+shadow(c.x,c.y+14,12,4,.32);cx.save();cx.shadowColor=G.coin;cx.shadowBlur=14;cx.fillStyle=G.coin;cx.beginPath();cx.ellipse(c.x,c.y,c.r+p,Math.max(4,c.r*(.65+spin)),0,0,7);cx.fill();cx.shadowBlur=0;cx.strokeStyle='#7a4b00';cx.lineWidth=2;cx.stroke();cx.fillStyle=G.coinHot;cx.beginPath();cx.ellipse(c.x-3,c.y-4,4,2,0,0,7);cx.fill();cx.fillStyle='#8a5a00';cx.font='900 11px system-ui';cx.textAlign='center';cx.fillText('$',c.x,c.y+4);cx.restore()}
+function exitGate(){let all=game.coins.every(c=>c.taken),t=performance.now()/700,r=game.exit.r+(all?Math.sin(t)*2:0);
+cx.save();cx.translate(game.exit.x,game.exit.y);cx.rotate(t*.8);cx.shadowColor=all?G.exit:'#ffffff55';cx.shadowBlur=all?24:8;cx.strokeStyle=all?G.exit:'#ffffff35';cx.lineWidth=6;cx.beginPath();cx.arc(0,0,r,0,7);cx.stroke();cx.setLineDash([10,7]);cx.lineWidth=2;cx.strokeStyle=all?'#d7ffd2':'#ffffff45';cx.beginPath();cx.arc(0,0,r+9,0,7);cx.stroke();cx.setLineDash([]);cx.rotate(-t*.8);cx.fillStyle=all?'#d7ffd2':'#ffffff9a';cx.font='900 12px system-ui';cx.textAlign='center';cx.fillText(all?'OPEN':'EXIT',0,4);cx.restore()}
+function drawPlayer(p){let col=colors[p.id%colors.length],b=Math.sin(p.bob)*1.6,now=performance.now();
+	for(const t of p.trail)drawDashFx(p,t,col,now);
+	cx.globalAlpha=1;if(!p.alive)cx.globalAlpha=.35;if(p.inv>0&&Math.floor(now/90)%2)cx.globalAlpha=.48;
+	if(p.dt>0){cx.save();cx.translate(p.x,p.y);cx.rotate(Math.atan2(p.dy,p.dx));cx.globalAlpha=.28;cx.fillStyle=lg(-55,0,18,0,'#ffffff00',col);cx.beginPath();cx.moveTo(-58,-18);cx.lineTo(18,0);cx.lineTo(-58,18);cx.closePath();cx.fill();cx.restore();cx.globalAlpha=1}
+	shadow(p.x,p.y+p.r+3,22,7,.46);cx.save();cx.translate(p.x,p.y+b);cx.shadowColor=col;cx.shadowBlur=p.dt>0?22:10;cx.fillStyle=lg(-10,-14,10,16,'#ffffff',col);cx.strokeStyle=p.dt>0?'#e9fbff':'#08101f';cx.lineWidth=p.dt>0?4:3;cx.beginPath();cx.arc(0,0,p.r+(p.dt>0?2:0),0,7);cx.fill();cx.stroke();cx.shadowBlur=0;cx.fillStyle='#07111f';cx.beginPath();cx.arc(p.faceX*7,p.faceY*6,4,0,7);cx.fill();cx.strokeStyle=p.dt>0?'#fff':'#ffffffaa';cx.lineWidth=2;cx.beginPath();cx.moveTo(0,0);cx.lineTo(p.faceX*20,p.faceY*20);cx.stroke();cx.restore();cx.globalAlpha=1;
+	cx.fillStyle='#fff';cx.font='900 11px system-ui';cx.textAlign='center';cx.fillText('P'+(p.id+1),p.x,p.y-24);for(let i=0;i<p.hp;i++){rr(p.x-14+i*10,p.y+20,7,5,2,'#ff4d6d','#ffffff22')}}
+function drawDashFx(p,t,col,now){let age=now-t.at,life=t.life||280,a=Math.max(0,1-age/life),ang=Math.atan2(t.dy||p.faceY,t.dx||p.faceX);
+	cx.save();cx.translate(t.x,t.y);cx.rotate(ang);cx.globalAlpha=a;
+	if(t.ring){cx.strokeStyle=col;cx.lineWidth=3*a;cx.shadowColor=col;cx.shadowBlur=18;cx.beginPath();cx.ellipse(0,0,36*(1-a)+10,18*(1-a)+6,0,0,7);cx.stroke()}
+	else if(t.hit){cx.strokeStyle='#fff';cx.lineWidth=3;cx.shadowColor=col;cx.shadowBlur=18;for(let i=-2;i<=2;i++){cx.beginPath();cx.moveTo(-18,i*7);cx.lineTo(24,i*3);cx.stroke()}}
+	else{shadow(0,15,18,5,.35*a);cx.shadowColor=col;cx.shadowBlur=14;cx.fillStyle=col;cx.beginPath();cx.ellipse(-8,0,24*a,9*a,0,0,7);cx.fill();cx.fillStyle='#ffffffaa';cx.beginPath();cx.ellipse(4,-2,10*a,3*a,0,0,7);cx.fill()}
+	cx.restore();cx.globalAlpha=1}
+function drawEnemy(e){let t=performance.now()/350;shadow(e.x,e.y+17,17,6,.45);cx.save();cx.translate(e.x,e.y);cx.rotate(Math.sin(t)*.12);cx.shadowColor=G.enemy;cx.shadowBlur=12;cx.fillStyle=lg(-12,-14,12,14,'#ff8fab',G.enemy);cx.strokeStyle=G.enemyDark;cx.lineWidth=3;cx.beginPath();for(let i=0;i<8;i++){let a=i*Math.PI/4,rad=i%2?e.r:e.r+5;cx.lineTo(Math.cos(a)*rad,Math.sin(a)*rad)}cx.closePath();cx.fill();cx.stroke();cx.shadowBlur=0;cx.fillStyle=G.enemyDark;rr(-8,-4,16,8,4,G.enemyDark);cx.fillStyle='#ffccd5';cx.fillRect(-5,-1,4,2);cx.fillRect(2,-1,4,2);cx.restore()}
+function overlay(){if(game.phase==='menu')msg('COIN DASH','Collect every coin, dodge drones, then escape.');else if(game.phase==='count')msg(String(Math.ceil(game.count)),'Get ready')}
+function msg(a,b){cx.fillStyle='#020713b8';cx.fillRect(0,0,W,H);cx.fillStyle=rg(W/2,H/2,260,'#49c7ff2a','#0000');cx.fillRect(0,0,W,H);rr(W/2-210,H/2-78,420,138,22,'#081021d9','#7edcff55');cx.fillStyle='#fff';cx.textAlign='center';cx.shadowColor='#49c7ff';cx.shadowBlur=18;cx.font='1000 50px system-ui';cx.fillText(a,W/2,H/2-10);cx.shadowBlur=0;cx.fillStyle='#d7e9ff';cx.font='800 17px system-ui';cx.fillText(b,W/2,H/2+30)}
+function ui(){let got=game.coins.filter(c=>c.taken).length;
+els.coins.textContent=got;
+els.coinMax.textContent=game.total;
+let m=Math.floor(game.time/60),s=Math.floor(game.time%60).toString().padStart(2,'0');
+els.clock.textContent=m+':'+s;
+els.players.innerHTML=game.players.map(p=>`<span class="badge"><span class="dot" style="background:${colors[p.id%colors.length]}"></span>P${p.id+1} ${p.alive?'♥'.repeat(p.hp):'OUT'} · ${p.score}</span>`).join('');
+syncGameMenu()}
+function syncGameMenu(){
+  if(game.over){
+    els.menuKicker.textContent=game.won?'Run Complete':'Run Ended';
+    els.menuTitle.textContent=game.won?'You Win':'Game Over';
+    els.menuSubtitle.textContent=game.won?'Restart for a new run or return to setup.':'Restart and try again, or return to setup.';
+    els.resume.classList.add('hide');
+    els.setupBack.textContent='Main Menu';
+    els.pauseOverlay.classList.remove('hide');
+    return;
   }
-  window.QRCodeLite = localRequire('./index');
-  window.QRErrorCorrectLevelLite = localRequire('./QRErrorCorrectLevel');
+  els.resume.classList.remove('hide');
+  els.setupBack.textContent='Players / Setup';
+  if(game.paused&&game.phase!=='menu'){
+    els.menuKicker.textContent='Game Menu';
+    els.menuTitle.textContent='Paused';
+    els.menuSubtitle.textContent='Resume, restart, or adjust players.';
+    els.pauseOverlay.classList.remove('hide');
+  }else hideGameMenu();
+}
+function beep(type){try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();
+let o=audio.createOscillator(),g=audio.createGain(),f={coin:880,dash:180,hit:110,start:440,go:660,win:990,lose:90}[type]||440,t=audio.currentTime;
+	o.frequency.value=f;
+	if(type==='dash')o.frequency.exponentialRampToValueAtTime(720,t+.12);
+	o.type=type==='hit'||type==='lose'?'sawtooth':'square';
+	g.gain.setValueAtTime(type==='dash'?.075:.05,t);
+	g.gain.exponentialRampToValueAtTime(.001,t+(type==='dash'?.18:.13));
+o.connect(g);
+g.connect(audio.destination);
+o.start();
+o.stop(audio.currentTime+(type==='dash'?.19:.14))}catch(e){}}
+function pack(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))))}
+function unpack(s){return JSON.parse(decodeURIComponent(escape(atob(s.trim()))))}
+
+const te=new TextEncoder(),td=new TextDecoder();
+function putVar(a,n){while(n>127){a.push(n&127|128);n>>=7}a.push(n)}
+function getVar(r){let n=0,s=0,b;do{b=r.a[r.i++];n|=(b&127)<<s;s+=7}while(b&128);return n}
+function putStr(a,s){let b=te.encode(s);putVar(a,b.length);for(const x of b)a.push(x)}
+function getStr(r){let n=getVar(r),b=r.a.slice(r.i,r.i+n);r.i+=n;return td.decode(b)}
+function hexBytes(h){let a=[];for(let i=0;i<h.length;i+=2)a.push(parseInt(h.slice(i,i+2),16));return a}
+function toHex(a){return [...a].map(x=>x.toString(16).padStart(2,'0')).join('').toLowerCase()}
+function colons(h){return h.match(/../g).join(':').toUpperCase()}
+function sdpLine(s,re){let m=s.match(re);return m?m[1].trim():''}
+function setupId(s){return s==='active'?1:s==='passive'?2:0}
+function setupName(n){return ['actpass','active','passive'][n]||'actpass'}
+function uuidBytes(host){let m=host.match(/^([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})\.local$/i);return m?hexBytes(m.slice(1).join('')):null}
+function bytesUuid(a){let h=toHex(a);return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20)+'.local'}
+function ipBytes(ip){let p=ip.split('.').map(Number);return p.length===4&&p.every(x=>x>=0&&x<256)?p:null}
+function bytesIp(a){return a.join('.')}
+function isHex(s){return /^[0-9a-f]+$/i.test(s)}
+function glyphPack(write){let out='',acc=0,bits=0,put=(v,n)=>{for(;n;){let take=Math.min(n,20-bits);acc=(acc<<take)|((v>>(n-take))&((1<<take)-1));bits+=take;n-=take;if(bits===20){out+=String.fromCodePoint(0x10000+acc);acc=bits=0}}};write(put);if(bits)out+=String.fromCodePoint(0x10000+(acc<<(20-bits)));return out}
+function glyphRead(s){let vals=[...s].map(c=>c.codePointAt(0)-0x10000),i=0,acc=0,bits=0;return n=>{let v=0;for(;n;){if(!bits){if(i>=vals.length)throw Error('bad code');acc=vals[i++];bits=20}let take=Math.min(n,bits);v=(v<<take)|((acc>>(bits-take))&((1<<take)-1));bits-=take;n-=take}return v}}
+function pickCand(s){let c=s.split(/\r?\n/).filter(x=>x.startsWith('a=candidate:')).map(x=>x.slice(12).trim());return c.find(x=>/ UDP /i.test(x)&&/ typ host/i.test(x))||c[0]||''}
+function makeSdp(type,setup,uf,pw,fp,addr,port){let cand=addr?`a=candidate:0 1 UDP 2122252543 ${addr} ${port} typ host\r\na=end-of-candidates\r\n`:'';
+  return{type,sdp:'v=0\r\no=- 0 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0\r\na=msid-semantic: WMS\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 0.0.0.0\r\na=mid:0\r\na=ice-ufrag:'+uf+'\r\na=ice-pwd:'+pw+'\r\na=ice-options:trickle\r\na=fingerprint:sha-256 '+colons(fp)+'\r\na=setup:'+setup+'\r\na=sctp-port:5000\r\na=max-message-size:262144\r\n'+cand}}
+function writeDesc(d){let s=d.sdp,a=[],cand=pickCand(s),p=cand.split(/\s+/),addr=p[4]||'',port=+p[5]||0,uuid=uuidBytes(addr),flags=(d.type==='answer'?1:0)|(setupId(sdpLine(s,/a=setup:([^\r\n]+)/))*2);
+  if(cand)flags|=8;if(uuid)flags|=16;a.push(flags);putStr(a,sdpLine(s,/a=ice-ufrag:([^\r\n]+)/));putStr(a,sdpLine(s,/a=ice-pwd:([^\r\n]+)/));a.push(...hexBytes(sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'')));if(cand){putVar(a,port);uuid?a.push(...uuid):putStr(a,addr)}return Uint8Array.from(a)}
+function readDesc(bin){let r={a:bin,i:0},f=r.a[r.i++],type=f&1?'answer':'offer',setup=setupName((f>>1)&3),uf=getStr(r),pw=getStr(r),fp=toHex(r.a.slice(r.i,r.i+32));r.i+=32,addr='',port=0;if(f&8){port=getVar(r);addr=f&16?bytesUuid(r.a.slice(r.i,r.i+=16)):getStr(r)}return makeSdp(type,setup,uf,pw,fp,addr,port)}
+function dense(a){let all=[(a.length>>8)&255,a.length&255,...a],out='',buf=0,bits=0;for(const x of all){buf=(buf<<8)|x;bits+=8;while(bits>=14){bits-=14;out+=String.fromCharCode(0x4E00+((buf>>bits)&0x3fff));buf&=(1<<bits)-1}}if(bits)out+=String.fromCharCode(0x4E00+((buf<<(14-bits))&0x3fff));return out}
+function undense(s){let out=[],buf=0,bits=0;for(const ch of s){let v=ch.charCodeAt(0)-0x4E00;if(v<0||v>0x3fff)throw Error('bad short code');buf=(buf<<14)|v;bits+=14;while(bits>=8){bits-=8;out.push((buf>>bits)&255);buf&=(1<<bits)-1}}let n=(out[0]<<8)|out[1];return Uint8Array.from(out.slice(2,2+n))}
+function writeUltra(d){let s=d.sdp,c=pickCand(s),p=c.split(/\s+/),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),ib=ipBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
+  if(!c||!port||(!ub&&!ib)||!isHex(uf)||!isHex(pw)||!isHex(fp)||uf.length>31||pw.length>63)throw Error('fallback');
+  return glyphPack(put=>{put(d.type==='answer'?1:0,1);put(setupId(sdpLine(s,/a=setup:([^\r\n]+)/)),2);put(ub?1:0,1);put(uf.length,5);put(pw.length,6);for(const x of uf+pw)put(parseInt(x,16),4);for(const x of hexBytes(fp))put(x,8);for(const x of (ub||ib))put(x,8);put(port,16)})}
+function readUltra(s){let g=glyphRead(s),type=g(1)?'answer':'offer',setup=setupName(g(2)),uuid=g(1),ul=g(5),pl=g(6),hex=n=>{let h='';while(n--)h+=g(4).toString(16);return h},uf=hex(ul),pw=hex(pl),fp=hex(64),addrBytes=[];for(let i=0;i<(uuid?16:4);i++)addrBytes.push(g(8));let port=g(16),addr=uuid?bytesUuid(addrBytes):bytesIp(addrBytes);return makeSdp(type,setup,uf,pw,fp,addr,port)}
+function writeNano(d){let s=d.sdp,c=pickCand(s),p=c.split(/\s+/),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
+  if(!ub||port<49152||port>65535||!isHex(uf)||!isHex(pw)||!isHex(fp)||uf.length!==8||pw.length!==32||fp.length!==64)throw Error('fallback');
+  return glyphPack(put=>{put(d.type==='answer'?1:0,1);for(const x of uf+pw)put(parseInt(x,16),4);for(const x of hexBytes(fp))put(x,8);for(const x of ub)put(x,8);put(port-49152,14)})}
+function readNano(s){let g=glyphRead(s),type=g(1)?'answer':'offer',setup=type==='answer'?'active':'actpass',hex=n=>{let h='';while(n--)h+=g(4).toString(16);return h},uf=hex(8),pw=hex(32),fp=hex(64),ub=[];for(let i=0;i<16;i++)ub.push(g(8));return makeSdp(type,setup,uf,pw,fp,bytesUuid(ub),49152+g(14))}
+async function encodeDesc(d){try{return writeNano(d)}catch(e){try{return 'U'+writeUltra(d)}catch(e2){return 'M'+dense(writeDesc(d))}}}
+function cleanCode(s){return String(s||'').replace(/\s+/g,'').trim()}
+async function decodeDesc(s){s=cleanCode(s);if(!s)throw Error('Missing code');if(s.codePointAt(0)>=0x10000)return readNano(s);if(s[0]==='U')return readUltra(s.slice(1));if(s[0]==='M')return readDesc(undense(s.slice(1)));return unpack(s)}
+function visibleLen(s){return [...s].length}
+function pc(){return new RTCPeerConnection({iceServers:[]})}
+function iceDone(p){return new Promise(res=>{if(p.iceGatheringState==='complete')return res();
+let t=setTimeout(res,1800);
+p.onicegatheringstatechange=()=>{if(p.iceGatheringState==='complete'){clearTimeout(t);
+res()}}})}
+function setStatus(s){els.status.textContent=s}
+function showPairButtons(names){
+  for(const b of [els.copyInvite,els.copyAnswer,els.answer,els.use])b.classList.add('hide');
+  for(const name of names)els[name].classList.remove('hide');
+}
+function pairReset(){
+  els.pairIntro.classList.remove('hide');
+  els.pairFlow.classList.add('hide');
+  els.inviteField.classList.remove('hide');
+  els.answerField.classList.add('hide');
+  showPairButtons([]);
+  els.code.value='';
+  els.answerCode.value='';
+  els.code.readOnly=false;
+  els.answerCode.readOnly=false;
+  closeNet();
+  setStatus('Ready.');
+}
+function pairMode(mode){
+  els.pairIntro.classList.add('hide');
+  els.pairFlow.classList.remove('hide');
+  els.inviteField.classList.remove('hide');
+  els.answerField.classList.toggle('hide',mode!=='host');
+  showPairButtons(mode==='host'?[]:['use']);
+  els.code.value='';
+  els.answerCode.value='';
+  if(mode==='host'){
+    els.pairTitle.textContent='Host';
+    els.pairHint.textContent='Host';
+    els.codeLabel.textContent='1. Invite';
+    els.answerLabel.textContent='2. Answer';
+    els.code.placeholder='Invite code will appear here.';
+    els.answerCode.placeholder='Enter answer here.';
+    els.code.readOnly=true;
+    els.answerCode.readOnly=false;
+  }else{
+    els.pairTitle.textContent='Join';
+    els.pairHint.textContent='Join';
+    els.codeLabel.textContent='1. Invite';
+    els.answerLabel.textContent='2. Answer';
+    els.code.placeholder='Enter invite here.';
+    els.answerCode.placeholder='Answer code will appear here.';
+    els.code.readOnly=false;
+    els.answerCode.readOnly=true;
+  }
+}
+async function copyTextFrom(el,label){
+  let text=el.value.trim();
+  if(!text){setStatus('No code to copy yet.');return}
+  try{
+    await navigator.clipboard.writeText(text);
+    setStatus(label+' copied.');
+  }catch(e){
+    el.focus();
+    el.select();
+    try{document.execCommand('copy');setStatus(label+' copied.')}catch(e2){setStatus(label+' selected. Copy it manually.')}
+  }
+}
+function open(ch,id){ch.onopen=()=>{setStatus('Connected. Host starts game.');
+if(net.role==='host'){net.channels.set(id,ch);
+if(!game.players.some(p=>p.id===id))game.players.push(player(id,110+id*24,120+id*18,'remote'));
+ch.send(pack({t:'welcome',id}));
+broadcast()}
+else send({t:'join'})};
+ch.onmessage=e=>msgNet(unpack(e.data),ch,id);
+ch.onclose=()=>{net.channels.delete(id);
+setStatus('Player disconnected.')}}
+async function safePair(btn,working,fn){
+  if(btn){btn.disabled=true;btn.dataset.oldText=btn.textContent;btn.textContent=working}
+  try{await fn()}
+  catch(e){setStatus(e&&e.message==='Missing code'?'Enter the code first.':'That code did not work. Try copying it again.');console.error(e)}
+  finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.oldText||btn.textContent}}
+}
+async function invite(){return safePair(els.invite,'Making invite...',async()=>{
+closeNet();
+pairMode('host');
+setStatus('Making invite...');
+net=netState();
+net.role='host';
+net.pc=pc();
+let id=net.nextId++,ch=net.pc.createDataChannel('game');
+open(ch,id);
+net.dc=ch;
+let offer=await net.pc.createOffer();
+await net.pc.setLocalDescription(offer);
+await iceDone(net.pc);
+els.code.value=await encodeDesc(net.pc.localDescription);
+showPairButtons(['copyInvite','answer']);
+setStatus('Invite ready.');
+})}
+async function join(){closeNet();
+pairMode('join');
+net=netState();
+net.role='client';
+net.pc=pc();
+net.pc.ondatachannel=e=>{net.dc=e.channel;
+open(net.dc,0)};
+showPairButtons(['use']);
+setStatus('Enter invite.')}
+async function useInvite(){return safePair(els.use,'Making...',async()=>{
+setStatus('Making answer...');
+let offer=await decodeDesc(els.code.value);
+await net.pc.setRemoteDescription(offer);
+let ans=await net.pc.createAnswer();
+await net.pc.setLocalDescription(ans);
+await iceDone(net.pc);
+els.answerField.classList.remove('hide');
+els.answerLabel.textContent='2. Answer';
+els.answerCode.value=await encodeDesc(net.pc.localDescription);
+showPairButtons(['copyAnswer']);
+els.inviteField.classList.add('hide');
+els.pairHint.textContent='Join';
+setStatus('Answer ready.');
+})}
+async function useAnswer(){return safePair(els.answer,'Connecting...',async()=>{
+setStatus('Connecting...');
+let ans=await decodeDesc(els.answerCode.value);
+await net.pc.setRemoteDescription(ans);
+showPairButtons([]);
+setStatus('Connected. Start game.');
+})}
+function closeNet(){try{net.dc&&net.dc.close();
+net.pc&&net.pc.close();
+for(const c of net.channels.values())c.close()}catch(e){}
+remoteInputs.clear()}
+function send(o){let ch=net.dc;
+if(ch&&ch.readyState==='open')ch.send(pack(o))}
+function msgNet(o,ch,id){if(o.t==='input'&&net.role==='host')remoteInputs.set(id,o.v);
+if(o.t==='snap'&&net.role==='client'){game=o.g;
+if(game.phase!=='menu')showPlay();
+syncGameMenu();
+ui()}
+if(o.t==='welcome'&&net.role==='client'){net.localId=o.id;
+setStatus('Joined as P'+(o.id+1)+'. Wait for Host.')}
+if(o.t==='start'&&net.role==='host')startGame();
+if(o.t==='join'&&net.role==='host')broadcast()}
+function broadcast(dt=1){if(net.role!=='host')return;
+net.timer+=dt;
+if(dt&&net.timer<.05)return;
+net.timer=0;
+let data=pack({t:'snap',g:game});
+for(const c of net.channels.values())if(c.readyState==='open')c.send(data)}
+function sendInput(dt){net.timer+=dt;
+if(net.timer<.033)return;
+net.timer=0;
+send({t:'input',v:control({control:'local'})})}
+function loop(now){let dt=Math.min(.033,(now-last)/1000||0);
+last=now;
+update(dt);
+draw()}
+function centerStick(){let jb=els.joy.getBoundingClientRect(),sw=els.stick.offsetWidth,sh=els.stick.offsetHeight;els.stick.style.left=(jb.width-sw)/2+'px';els.stick.style.top=(jb.height-sh)/2+'px'}
+function pointer(e){let b=els.joy.getBoundingClientRect(),sw=els.stick.offsetWidth,sh=els.stick.offsetHeight,x=e.clientX-(b.left+b.width/2),y=e.clientY-(b.top+b.height/2),l=hypot(x,y),m=Math.min((b.width-sw)/2,l);
+touch.x=l?x/l:0;
+touch.y=l?y/l:0;
+els.stick.style.left=(b.width-sw)/2+touch.x*m+'px';
+els.stick.style.top=(b.height-sh)/2+touch.y*m+'px'}
+window.addEventListener('keydown',e=>{
+if(e.code==='Escape'){
+  if(game.paused&&!game.over)resumeGame();
+  else openGameMenu();
+  e.preventDefault();
+  return;
+}
+keys.add(e.code);
+if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault()});
+window.addEventListener('keyup',e=>keys.delete(e.code));
+
+els.joy.addEventListener('pointerdown',e=>{touch.on=true;
+touch.id=e.pointerId;
+els.joy.setPointerCapture(e.pointerId);
+pointer(e)});
+els.joy.addEventListener('pointermove',e=>{if(touch.on&&e.pointerId===touch.id)pointer(e)});
+function joyEnd(){touch.on=false;
+touch.x=touch.y=0;
+centerStick()}
+els.joy.addEventListener('pointerup',joyEnd);
+els.joy.addEventListener('pointercancel',joyEnd);
+
+els.dash.addEventListener('pointerdown',()=>{touch.dash=true;
+els.dash.classList.add('down')});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>els.dash.addEventListener(ev,()=>{touch.dash=false;
+els.dash.classList.remove('down')}));
+
+els.start.onclick=startGame;
+els.pause.onclick=openGameMenu;
+els.resume.onclick=resumeGame;
+els.restart.onclick=restartRun;
+els.setupBack.onclick=showSetup;
+function toggleFull(){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen?.()}
+els.full.onclick=toggleFull;
+els.fullGame.onclick=toggleFull;
+els.invite.onclick=()=>invite();
+els.join.onclick=()=>join();
+els.use.onclick=()=>useInvite();
+els.answer.onclick=()=>useAnswer();
+els.copyInvite.onclick=()=>copyTextFrom(els.code,'Invite code');
+els.copyAnswer.onclick=()=>copyTextFrom(els.answerCode,'Answer code');
+els.cancelPair.onclick=pairReset;
+
+
+function fitCanvas(){
+  let b=els.stage.getBoundingClientRect();
+  let availW=Math.max(160,b.width-4), availH=Math.max(120,b.height-4);
+  let scale=Math.max(.1,Math.min(availW/W,availH/H));
+  cv.style.width=Math.floor(W*scale)+'px';
+  cv.style.height=Math.floor(H*scale)+'px';
+  cv.style.transform='none';
+}
+if('ResizeObserver'in window)new ResizeObserver(fitCanvas).observe(els.stage);
+window.addEventListener('resize',fitCanvas);
+window.addEventListener('orientationchange',()=>setTimeout(fitCanvas,250));
+
+ui();
+fitCanvas();
+centerStick();
+requestAnimationFrame(loop);
+
 })();
 
-(() => {
-  "use strict";
 
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingEnabled = false;
-
-  const coinHud = document.getElementById("coinHud");
-  const coinMaxHud = document.getElementById("coinMaxHud");
-  const timeHud = document.getElementById("timeHud");
-  const playerHud = document.getElementById("players");
-  const netBtn = document.getElementById("netBtn");
-  const netPanel = document.getElementById("netPanel");
-  const netStartActions = document.getElementById("netStartActions");
-  const netOutgoingActions = document.getElementById("netOutgoingActions");
-  const netIncomingActions = document.getElementById("netIncomingActions");
-  const inviteBtn = document.getElementById("inviteBtn");
-  const joinBtn = document.getElementById("joinBtn");
-  const qrCanvas = document.getElementById("qrCanvas");
-  const outCode = document.getElementById("outCode");
-  const inCode = document.getElementById("inCode");
-  const scanCodeBtn = document.getElementById("scanCodeBtn");
-  const useCodeBtn = document.getElementById("useCodeBtn");
-  const cancelNetBtn = document.getElementById("cancelNetBtn");
-  const cancelManualBtn = document.getElementById("cancelManualBtn");
-  const scanBox = document.getElementById("scanBox");
-  const scanVideo = document.getElementById("scanVideo");
-  const switchCameraBtn = document.getElementById("switchCameraBtn");
-  const netStatus = document.getElementById("netStatus");
-  const startBtn = document.getElementById("startBtn");
-  const pauseBtn = document.getElementById("pauseBtn");
-  const fullBtn = document.getElementById("fullBtn");
-  const resetBtn = document.getElementById("resetBtn");
-  const joyBase = document.getElementById("joyBase");
-  const joyStick = document.getElementById("joyStick");
-  const dashBtn = document.getElementById("dashBtn");
-
-  const W = canvas.width;
-  const H = canvas.height;
-
-  const colors = ["#46d0ff", "#ff595e", "#8ac926", "#ffca3a"];
-  const keyMap = { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", dash: "Space" };
-  const scannerConstraints = {
-    width: { ideal: 1280 },
-    height: { ideal: 960 },
-    aspectRatio: { ideal: 4 / 3 }
-  };
-  const scannerZoomTarget = 1.45;
-  const scannerDetectInterval = 140;
-
-  const keys = new Set();
-  const touch = { x: 0, y: 0, active: false, dash: false, joyPointerId: null };
-  const remoteInputs = new Map();
-
-  let last = performance.now();
-  let game;
-  let net = makeNetState();
-
-  const walls = [
-    { x: 0, y: 0, w: W, h: 24 },
-    { x: 0, y: H - 24, w: W, h: 24 },
-    { x: 0, y: 0, w: 24, h: H },
-    { x: W - 24, y: 0, w: 24, h: H },
-    { x: 170, y: 118, w: 110, h: 36 },
-    { x: 380, y: 90, w: 42, h: 120 },
-    { x: 610, y: 124, w: 150, h: 32 },
-    { x: 145, y: 345, w: 150, h: 36 },
-    { x: 470, y: 330, w: 40, h: 120 },
-    { x: 675, y: 340, w: 105, h: 36 }
-  ];
-
-  function makeGame() {
-    const players = [
-      makePlayer(0, 92, 92, "local")
-    ];
-
-    const coins = [
-      [145, 90], [335, 78], [550, 85], [815, 86],
-      [90, 210], [300, 220], [660, 225], [875, 240],
-      [108, 330], [320, 315], [615, 315], [860, 340],
-      [230, 455], [430, 455], [635, 455], [805, 455]
-    ].map((p, i) => ({ x: p[0], y: p[1], r: 9, taken: false, pulse: i * .3 }));
-
-    const enemies = [
-      makeEnemy(500, 72),
-      makeEnemy(170, 250),
-      makeEnemy(770, 275),
-      makeEnemy(535, 470)
-    ];
-
-    return {
-      players,
-      coins,
-      enemies,
-      phase: "menu",
-      countdown: 0,
-      activeTime: 0,
-      over: false,
-      won: false,
-      paused: false,
-      exit: { x: W - 68, y: H / 2, r: 28 },
-      shake: 0,
-      totalCoins: coins.length
-    };
-  }
-
-  function makePlayer(id, x, y, control) {
-    return {
-      id,
-      x,
-      y,
-      vx: 0,
-      vy: 0,
-      r: 15,
-      alive: true,
-      hp: 3,
-      score: 0,
-      speed: 155,
-      control,
-      dashCooldown: 0,
-      dashTime: 0,
-      dashX: 1,
-      dashY: 0,
-      dashTrail: [],
-      invuln: 0,
-      facingX: 1,
-      facingY: 0,
-      bob: Math.random() * 10
-    };
-  }
-
-  function makeEnemy(x, y) {
-    const a = Math.random() * Math.PI * 2;
-    return { x, y, vx: Math.cos(a) * 70, vy: Math.sin(a) * 70, r: 14, stun: 0 };
-  }
-
-  function makeNetState() {
-    return {
-      mode: "solo",
-      peer: null,
-      channel: null,
-      peers: new Map(),
-      channels: new Map(),
-      pairingPeer: null,
-      pairingChannel: null,
-      remotePlayerId: null,
-      localPlayerId: 0,
-      nextRemoteId: 1,
-      sendTimer: 0,
-      audio: null,
-      scanner: makeScannerState(),
-      waitingFor: "none"
-    };
-  }
-
-  function makeScannerState() {
-    return {
-      stream: null,
-      runId: 0,
-      preferredDeviceId: null,
-      manualDeviceId: null,
-      currentDeviceId: null,
-      cameraChoices: [],
-      detector: null,
-      lastScanAt: 0
-    };
-  }
-
-  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
-  function len(x, y) { return Math.hypot(x, y); }
-
-  function circleRectResolve(obj, rect) {
-    const cx = clamp(obj.x, rect.x, rect.x + rect.w);
-    const cy = clamp(obj.y, rect.y, rect.y + rect.h);
-    let dx = obj.x - cx;
-    let dy = obj.y - cy;
-    let d = Math.hypot(dx, dy);
-
-    if (d < obj.r) {
-      if (d < 0.001) {
-        const left = Math.abs(obj.x - rect.x);
-        const right = Math.abs(obj.x - (rect.x + rect.w));
-        const top = Math.abs(obj.y - rect.y);
-        const bottom = Math.abs(obj.y - (rect.y + rect.h));
-        const m = Math.min(left, right, top, bottom);
-        if (m === left) { dx = -1; dy = 0; d = 1; }
-        else if (m === right) { dx = 1; dy = 0; d = 1; }
-        else if (m === top) { dx = 0; dy = -1; d = 1; }
-        else { dx = 0; dy = 1; d = 1; }
-      }
-      const push = obj.r - d;
-      obj.x += dx / d * push;
-      obj.y += dy / d * push;
-      if (Math.abs(dx) > Math.abs(dy)) obj.vx *= -0.25;
-      else obj.vy *= -0.25;
-      return true;
-    }
-    return false;
-  }
-
-  function solidWalls() {
-    return walls;
-  }
-
-  function resolveWorld(obj) {
-    for (const wall of solidWalls()) circleRectResolve(obj, wall);
-    obj.x = clamp(obj.x, obj.r + 24, W - obj.r - 24);
-    obj.y = clamp(obj.y, obj.r + 24, H - obj.r - 24);
-  }
-
-  function controlsFor(player) {
-    if (player.control === "remote") {
-      return remoteInputs.get(player.id) || { x: 0, y: 0, dash: false };
-    }
-
-    let x = 0;
-    let y = 0;
-    if (keys.has(keyMap.left)) x -= 1;
-    if (keys.has(keyMap.right)) x += 1;
-    if (keys.has(keyMap.up)) y -= 1;
-    if (keys.has(keyMap.down)) y += 1;
-
-    if (touch.active) {
-      x += touch.x;
-      y += touch.y;
-    }
-
-    const l = Math.hypot(x, y);
-    if (l > 1) { x /= l; y /= l; }
-    return { x, y, dash: keys.has(keyMap.dash) || touch.dash };
-  }
-
-  function update(dt) {
-    if (game.over) return;
-
-    if (net.mode === "client" && isChannelOpen()) {
-      sendLocalInput(dt);
-      updateHud();
-      return;
-    }
-
-    if (game.phase === "menu") {
-      sendSnapshot(dt);
-      updateHud();
-      return;
-    }
-
-    if (game.paused) {
-      sendSnapshot(dt);
-      updateHud();
-      return;
-    }
-
-    if (game.phase === "countdown") {
-      game.countdown = Math.max(0, game.countdown - dt);
-      if (game.countdown <= 0) {
-        game.phase = "playing";
-        playSfx("start");
-      }
-      sendSnapshot(dt);
-      updateHud();
-      return;
-    }
-
-    game.activeTime += dt;
-
-    for (const p of game.players) {
-      p.bob += dt * 7;
-      p.invuln = Math.max(0, p.invuln - dt);
-      p.dashCooldown = Math.max(0, p.dashCooldown - dt);
-      p.dashTime = Math.max(0, p.dashTime - dt);
-      p.dashTrail = p.dashTrail.filter(t => performance.now() - t.at < 190);
-
-      if (!p.alive) continue;
-
-      const c = controlsFor(p);
-      if (c.x || c.y) {
-        p.facingX = c.x;
-        p.facingY = c.y;
-      }
-
-      if (c.dash && p.dashCooldown <= 0) {
-        const l = Math.hypot(c.x, c.y);
-        p.dashX = l ? c.x / l : p.facingX;
-        p.dashY = l ? c.y / l : p.facingY;
-        p.dashTime = 0.18;
-        p.dashCooldown = 0.72;
-        p.invuln = Math.max(p.invuln, 0.18);
-        game.shake = Math.max(game.shake, 0.05);
-        playSfx("dash");
-      }
-
-      if (p.dashTime > 0) {
-        p.vx = p.dashX * 500;
-        p.vy = p.dashY * 500;
-        p.dashTrail.push({ x: p.x, y: p.y, at: performance.now() });
-      } else {
-        p.vx = c.x * p.speed;
-        p.vy = c.y * p.speed;
-      }
-
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      resolveWorld(p);
-    }
-
-    updateCoins();
-    updateEnemies(dt);
-    updateWinLose();
-    sendSnapshot(dt);
-    updateHud();
-  }
-
-  function updateCoins() {
-    for (const coin of game.coins) {
-      if (coin.taken) continue;
-      for (const p of game.players) {
-        if (!p.alive) continue;
-        if (Math.hypot(p.x - coin.x, p.y - coin.y) < p.r + coin.r) {
-          coin.taken = true;
-          p.score++;
-          playSfx("coin");
-          break;
-        }
-      }
-    }
-  }
-
-  function updateEnemies(dt) {
-    const active = game.players.filter(p => p.alive);
-    for (const e of game.enemies) {
-      e.stun = Math.max(0, e.stun - dt);
-
-      let tx = 0;
-      let ty = 0;
-      if (active.length && e.stun <= 0) {
-        let target = active[0];
-        let best = dist(e, target);
-        for (const p of active) {
-          const d = dist(e, p);
-          if (d < best) { best = d; target = p; }
-        }
-        if (best < 240) {
-          tx = (target.x - e.x) / best;
-          ty = (target.y - e.y) / best;
-        }
-      }
-
-      e.vx += tx * 90 * dt;
-      e.vy += ty * 90 * dt;
-      const s = Math.hypot(e.vx, e.vy);
-      const max = e.stun > 0 ? 45 : 92;
-      if (s > max) { e.vx = e.vx / s * max; e.vy = e.vy / s * max; }
-
-      e.x += e.vx * dt;
-      e.y += e.vy * dt;
-      for (const wall of solidWalls()) {
-        if (circleRectResolve(e, wall)) {
-          e.vx += (Math.random() - .5) * 40;
-          e.vy += (Math.random() - .5) * 40;
-        }
-      }
-      resolveWorld(e);
-
-      for (const player of active) {
-        const d = Math.hypot(player.x - e.x, player.y - e.y);
-        if (d < player.r + e.r && player.invuln <= 0) {
-          if (player.dashTime > 0) {
-            const nx = (e.x - player.x) / Math.max(d, .001);
-            const ny = (e.y - player.y) / Math.max(d, .001);
-            e.vx = nx * 190;
-            e.vy = ny * 190;
-            e.stun = .7;
-            playSfx("bump");
-          } else {
-            player.hp--;
-            player.invuln = 1.1;
-            game.shake = 0.18;
-            const nx = (player.x - e.x) / Math.max(d, .001);
-            const ny = (player.y - e.y) / Math.max(d, .001);
-            player.x += nx * 20;
-            player.y += ny * 20;
-            resolveWorld(player);
-            if (player.hp <= 0) {
-              player.alive = false;
-              playSfx("out");
-            } else {
-              playSfx("hit");
-            }
-          }
-        }
-      }
-    }
-  }
-
-  function updateWinLose() {
-    const active = game.players.filter(p => p.alive);
-    if (!active.length) {
-      game.over = true;
-      game.won = false;
-      playSfx("lose");
-      return;
-    }
-
-    const collected = game.coins.filter(c => c.taken).length;
-    if (collected === game.totalCoins) {
-      for (const player of active) {
-        if (Math.hypot(player.x - game.exit.x, player.y - game.exit.y) < player.r + game.exit.r) {
-          game.over = true;
-          game.won = true;
-          playSfx("win");
-          break;
-        }
-      }
-    }
-  }
-
-  function draw() {
-    const shake = game.shake > 0 ? game.shake : 0;
-    game.shake = Math.max(0, game.shake - 0.016);
-    const ox = shake ? (Math.random() - .5) * 8 : 0;
-    const oy = shake ? (Math.random() - .5) * 8 : 0;
-
-    ctx.save();
-    ctx.translate(ox, oy);
-    ctx.clearRect(-10, -10, W + 20, H + 20);
-    drawFloor();
-    drawExit();
-    drawWalls();
-    drawCoins();
-    drawPlayers();
-    drawEnemies();
-    drawOverlay();
-    ctx.restore();
-  }
-
-  function drawFloor() {
-    ctx.fillStyle = "#18213a";
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.strokeStyle = "rgba(255,255,255,.045)";
-    ctx.lineWidth = 1;
-    for (let x = 24; x < W; x += 32) {
-      ctx.beginPath(); ctx.moveTo(x, 24); ctx.lineTo(x, H - 24); ctx.stroke();
-    }
-    for (let y = 24; y < H; y += 32) {
-      ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(W - 24, y); ctx.stroke();
-    }
-
-    ctx.strokeStyle = "rgba(255,255,255,.18)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(24, 24, W - 48, H - 48);
-  }
-
-  function drawWalls() {
-    for (const wall of walls) {
-      const grd = ctx.createLinearGradient(wall.x, wall.y, wall.x, wall.y + wall.h);
-      grd.addColorStop(0, "#59627a");
-      grd.addColorStop(1, "#2d3549");
-      ctx.fillStyle = grd;
-      roundRect(wall.x, wall.y, wall.w, wall.h, 8, true, false);
-      ctx.strokeStyle = "rgba(255,255,255,.16)";
-      ctx.lineWidth = 2;
-      roundRect(wall.x + 1, wall.y + 1, wall.w - 2, wall.h - 2, 8, false, true);
-    }
-  }
-
-  function drawExit() {
-    const collected = game.coins.filter(c => c.taken).length;
-    const open = collected === game.totalCoins;
-    ctx.save();
-    ctx.translate(game.exit.x, game.exit.y);
-    ctx.fillStyle = open ? "rgba(77,255,136,.20)" : "rgba(255,255,255,.08)";
-    ctx.beginPath(); ctx.arc(0, 0, game.exit.r + 10, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = open ? "#67ff98" : "rgba(255,255,255,.22)";
-    ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.arc(0, 0, game.exit.r, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = open ? "#d8ffe3" : "rgba(255,255,255,.45)";
-    ctx.font = "900 13px system-ui";
-    ctx.textAlign = "center";
-    ctx.fillText(open ? "EXIT" : "LOCKED", 0, 5);
-    ctx.restore();
-  }
-
-  function drawCoins() {
-    const now = performance.now() / 1000;
-    for (const coin of game.coins) {
-      if (coin.taken) continue;
-      const pulse = Math.sin(now * 5 + coin.pulse) * 2;
-      ctx.fillStyle = "rgba(0,0,0,.25)";
-      ctx.beginPath(); ctx.ellipse(coin.x, coin.y + 11, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#ffd166";
-      ctx.beginPath(); ctx.arc(coin.x, coin.y + pulse, coin.r, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#fff3b0";
-      ctx.beginPath(); ctx.arc(coin.x - 3, coin.y - 3 + pulse, 3, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-
-  function drawPlayers() {
-    for (const p of game.players) {
-      const yBob = Math.sin(p.bob) * 2;
-
-      ctx.fillStyle = "rgba(0,0,0,.28)";
-      ctx.beginPath(); ctx.ellipse(p.x, p.y + 17, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
-
-      if (p.dashTrail.length) {
-        for (const t of p.dashTrail) {
-          const age = (performance.now() - t.at) / 190;
-          ctx.globalAlpha = Math.max(0, 0.38 * (1 - age));
-          ctx.fillStyle = colors[p.id % colors.length];
-          ctx.beginPath(); ctx.arc(t.x, t.y, p.r * (1 - age * 0.25), 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-      }
-
-      if (!p.alive) ctx.globalAlpha = .35;
-      if (p.invuln > 0 && Math.floor(p.invuln * 12) % 2 === 0) ctx.globalAlpha = .45;
-
-      ctx.fillStyle = colors[p.id % colors.length];
-      ctx.beginPath(); ctx.arc(p.x, p.y + yBob, p.r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,.85)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.fillStyle = "rgba(0,0,0,.38)";
-      ctx.beginPath(); ctx.arc(p.x + p.facingX * 5, p.y - 2 + p.facingY * 5 + yBob, 4, 0, Math.PI * 2); ctx.fill();
-
-      ctx.fillStyle = "#fff";
-      ctx.font = "900 11px system-ui";
-      ctx.textAlign = "center";
-      ctx.fillText(`P${p.id + 1}`, p.x, p.y + 4 + yBob);
-
-      ctx.globalAlpha = 1;
-      drawHearts(p.x - 16, p.y - 27 + yBob, p.hp);
-    }
-  }
-
-  function drawHearts(x, y, hp) {
-    for (let i = 0; i < 3; i++) {
-      ctx.fillStyle = i < hp ? "#ff4d6d" : "rgba(255,255,255,.18)";
-      ctx.fillRect(x + i * 11, y, 8, 8);
-    }
-  }
-
-  function drawEnemies() {
-    for (const e of game.enemies) {
-      ctx.fillStyle = "rgba(0,0,0,.28)";
-      ctx.beginPath(); ctx.ellipse(e.x, e.y + 15, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = e.stun > 0 ? "#a0a7ff" : "#c77dff";
-      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "rgba(0,0,0,.65)";
-      ctx.beginPath(); ctx.arc(e.x - 5, e.y - 3, 3, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(e.x + 5, e.y - 3, 3, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,.55)";
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(e.x, e.y + 4, 6, 0, Math.PI); ctx.stroke();
-    }
-  }
-
-  function drawOverlay() {
-    if (!game.over && !game.paused && game.phase !== "menu" && game.phase !== "countdown") return;
-    ctx.fillStyle = "rgba(0,0,0,.55)";
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#fff";
-    ctx.textAlign = "center";
-    if (game.phase === "menu") {
-      ctx.font = "900 48px system-ui";
-      ctx.fillText("COIN DASH", W / 2, H / 2 - 48);
-      ctx.font = "800 18px system-ui";
-      ctx.fillText(net.mode === "client" && isChannelOpen() ? "Waiting for host to start" : "Press Start", W / 2, H / 2 - 6);
-      ctx.font = "700 14px system-ui";
-      ctx.fillStyle = "rgba(255,255,255,.82)";
-      ctx.fillText("Collect every coin, dodge enemies, then reach the exit.", W / 2, H / 2 + 28);
-      return;
-    }
-    if (game.phase === "countdown") {
-      ctx.font = "900 74px system-ui";
-      ctx.fillText(game.countdown > .7 ? Math.ceil(game.countdown) : "GO", W / 2, H / 2 + 24);
-      return;
-    }
-    ctx.font = "900 44px system-ui";
-    ctx.fillText(game.paused ? "PAUSED" : (game.won ? "YOU WIN" : "GAME OVER"), W / 2, H / 2 - 20);
-    ctx.font = "800 18px system-ui";
-    ctx.fillText(game.paused ? "Press Resume to continue" : "Press Start to play again", W / 2, H / 2 + 22);
-  }
-
-  function roundRect(x, y, w, h, r, fill, stroke) {
-    const rr = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
-    if (fill) ctx.fill();
-    if (stroke) ctx.stroke();
-  }
-
-  function setNetStatus(text) {
-    netStatus.textContent = text;
-  }
-
-  async function playSfx(name) {
-    try {
-      const ctxAudio = await getAudio();
-      const now = ctxAudio.currentTime;
-      const patterns = {
-        coin: [[880, .045], [1320, .055], [1760, .07]],
-        dash: [[180, .035], [360, .04]],
-        bump: [[420, .04], [260, .07]],
-        hit: [[160, .06], [120, .08]],
-        out: [[320, .08], [220, .1], [120, .16]],
-        win: [[660, .08], [880, .08], [1320, .12], [1760, .18]],
-        lose: [[240, .12], [180, .12], [120, .2]],
-        join: [[520, .06], [780, .09], [1040, .12]],
-        pause: [[440, .08], [330, .09]],
-        resume: [[330, .06], [440, .08]],
-        start: [[523, .06], [784, .08]]
-      };
-      let t = now;
-      for (const [freq, dur] of patterns[name] || patterns.coin) {
-        const osc = ctxAudio.createOscillator();
-        const gain = ctxAudio.createGain();
-        osc.type = name === "dash" ? "sawtooth" : "square";
-        osc.frequency.setValueAtTime(freq, t);
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(0.06, t + 0.006);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-        osc.connect(gain).connect(ctxAudio.destination);
-        osc.start(t);
-        osc.stop(t + dur + 0.01);
-        t += dur * 0.82;
-      }
-    } catch {}
-  }
-
-  function primeAudio() {
-    getAudio().catch(() => {});
-  }
-
-  function isChannelOpen() {
-    if (net.mode === "host") {
-      for (const channel of net.channels.values()) {
-        if (channel.readyState === "open") return true;
-      }
-      return false;
-    }
-    return net.channel && net.channel.readyState === "open";
-  }
-
-  function closePairingAttempt() {
-    stopScan();
-    clearCodes(false);
-    if (net.pairingChannel && net.pairingChannel.readyState !== "open") {
-      try { net.pairingChannel.close(); } catch {}
-    }
-    if (net.pairingPeer && !["connected", "completed"].includes(net.pairingPeer.connectionState)) {
-      try { net.pairingPeer.close(); } catch {}
-    }
-    if (net.peer && !net.channel && !["connected", "completed"].includes(net.peer.connectionState)) {
-      try { net.peer.close(); } catch {}
-      net.peer = null;
-    }
-    net.pairingPeer = null;
-    net.pairingChannel = null;
-    net.waitingFor = "none";
-    setNetPanelMode("ready");
-    if (net.channel && net.channel.readyState !== "open") {
-      try { net.channel.close(); } catch {}
-      net.channel = null;
-      net.peer = null;
-    }
-    net.mode = isChannelOpen() ? net.mode : "solo";
-    if (!isChannelOpen()) {
-      net.remotePlayerId = null;
-      net.localPlayerId = 0;
-      net.nextRemoteId = 1;
-      remoteInputs.clear();
-      game.players = game.players.filter(p => p.id === 0);
-      updateHud();
-    }
-  }
-
-  async function getAudio() {
-    if (!net.audio) {
-      net.audio = { ctx: new (window.AudioContext || window.webkitAudioContext)() };
-    }
-    if (net.audio.ctx.state === "suspended") await net.audio.ctx.resume();
-    return net.audio.ctx;
-  }
-
-  function setHidden(el, hidden) {
-    el.classList.toggle("hidden", hidden);
-  }
-
-  function setNetPanelMode(mode) {
-    const ready = mode === "ready";
-    const invite = mode === "invite";
-    const join = mode === "join";
-    const answer = mode === "answer";
-    const manual = mode === "manual";
-    const scanning = mode === "scanning";
-
-    setHidden(netStartActions, !ready);
-    setHidden(netOutgoingActions, ready || manual);
-    setHidden(netIncomingActions, !manual);
-    setHidden(scanCodeBtn, answer || scanning);
-    setHidden(useCodeBtn, !manual);
-    setHidden(inCode, !manual);
-
-    scanCodeBtn.textContent = invite ? "Scan Answer" : "Scan Invite";
-  }
-
-  function clearCodes(clearInput = true) {
-    setHidden(qrCanvas, true);
-    setHidden(outCode, true);
-    outCode.value = "";
-    if (clearInput) inCode.value = "";
-  }
-
-  function showOutgoingCode(code, status) {
-    outCode.value = code;
-    const drewQr = drawQr(code);
-    setHidden(outCode, drewQr);
-    setNetStatus(drewQr ? status : "QR did not fit. Copy this code instead.");
-  }
-
-  function drawQr(text) {
-    if (!window.QRCodeLite || !window.QRErrorCorrectLevelLite) return false;
-    try {
-      const qr = new window.QRCodeLite(0, window.QRErrorCorrectLevelLite.L);
-      qr.addData(text);
-      qr.make();
-      const qctx = qrCanvas.getContext("2d");
-      const count = qr.getModuleCount();
-      const quiet = 4;
-      const scale = Math.max(1, Math.floor(qrCanvas.width / (count + quiet * 2)));
-      const size = scale * (count + quiet * 2);
-      const offset = Math.floor((qrCanvas.width - size) / 2);
-      qctx.fillStyle = "#fff";
-      qctx.fillRect(0, 0, qrCanvas.width, qrCanvas.height);
-      qctx.fillStyle = "#000";
-      for (let row = 0; row < count; row++) {
-        for (let col = 0; col < count; col++) {
-          if (qr.isDark(row, col)) {
-            qctx.fillRect(offset + (col + quiet) * scale, offset + (row + quiet) * scale, scale, scale);
-          }
-        }
-      }
-      setHidden(qrCanvas, false);
-      return true;
-    } catch {
-      setHidden(qrCanvas, true);
-      return false;
-    }
-  }
-
-  function bytesToBase64Url(bytes) {
-    let binary = "";
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-    }
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  }
-
-  function base64UrlToBytes(text) {
-    const b64 = text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=");
-    const binary = atob(b64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-  }
-
-  async function packText(text) {
-    const raw = new TextEncoder().encode(text);
-    if ("CompressionStream" in window) {
-      try {
-        const stream = new Blob([raw]).stream().pipeThrough(new CompressionStream("gzip"));
-        const zipped = new Uint8Array(await new Response(stream).arrayBuffer());
-        return `gz.${bytesToBase64Url(zipped)}`;
-      } catch {}
-    }
-    return `raw.${bytesToBase64Url(raw)}`;
-  }
-
-  async function unpackText(payload) {
-    const dot = payload.indexOf(".");
-    if (dot < 0) throw new Error("Bad code");
-    const kind = payload.slice(0, dot);
-    const bytes = base64UrlToBytes(payload.slice(dot + 1));
-    if (kind === "gz") {
-      if (!("DecompressionStream" in window)) throw new Error("This browser cannot read compressed codes. Use Chrome or paste raw code.");
-      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-      return new TextDecoder().decode(await new Response(stream).arrayBuffer());
-    }
-    if (kind === "raw") return new TextDecoder().decode(bytes);
-    throw new Error("Bad code");
-  }
-
-  const sdpTokens = [
-    ["a=candidate:", "~A"],
-    [" UDP ", "~B"],
-    [" TCP ", "~C"],
-    [" typ host", "~D"],
-    [" typ srflx", "~E"],
-    [" typ relay", "~F"],
-    [" generation 0", "~G"],
-    [" network-id ", "~H"],
-    [" network-cost ", "~I"],
-    ["a=ice-ufrag:", "~J"],
-    ["a=ice-pwd:", "~K"],
-    ["a=fingerprint:sha-256 ", "~L"],
-    ["a=setup:", "~M"],
-    ["a=mid:", "~N"],
-    ["a=sctp-port:", "~O"],
-    ["a=max-message-size:", "~P"],
-    ["a=ice-options:trickle", "~Q"],
-    ["a=end-of-candidates", "~R"],
-    ["m=application 9 UDP/DTLS/SCTP webrtc-datachannel", "~S"],
-    ["c=IN IP4 0.0.0.0", "~T"],
-    ["a=group:BUNDLE ", "~U"]
-  ];
-
-  function compactSdp(sdp) {
-    let compact = sdp.replace(/\r\n/g, "\n").split("\n").filter(Boolean).join("\n");
-    for (const [from, to] of sdpTokens) compact = compact.split(from).join(to);
-    return compact;
-  }
-
-  function expandSdp(compact) {
-    let sdp = compact;
-    for (let i = sdpTokens.length - 1; i >= 0; i--) {
-      const [from, to] = sdpTokens[i];
-      sdp = sdp.split(to).join(from);
-    }
-    return `${sdp.replace(/\n/g, "\r\n")}\r\n`;
-  }
-
-  function makeCompactSignal(packet) {
-    return {
-      t: packet.type === "offer" ? "o" : "a",
-      s: compactSdp(packet.sdp)
-    };
-  }
-
-  function readCompactSignal(packet) {
-    if (Array.isArray(packet)) {
-      return { type: packet[0] === "o" ? "offer" : "answer", sdp: expandSdp(packet[1]) };
-    }
-    return {
-      type: packet.t === "o" ? "offer" : "answer",
-      sdp: expandSdp(packet.s)
-    };
-  }
-
-  async function encodeSignal(packet) {
-    const compact = makeCompactSignal(packet);
-    return `K2.${await packText(JSON.stringify([compact.t, compact.s]))}`;
-  }
-
-  async function decodeSignal(code) {
-    const clean = code.trim().replace(/\s+/g, "");
-    if (!clean) throw new Error("Paste or scan a code first.");
-    if (clean.startsWith("{")) return JSON.parse(code);
-    if (clean.startsWith("K2.")) return readCompactSignal(JSON.parse(await unpackText(clean.slice(3))));
-    if (!clean.startsWith("KICKLAN1.")) throw new Error("That is not a game invite code.");
-    return JSON.parse(await unpackText(clean.slice("KICKLAN1.".length)));
-  }
-
-  function localInputPayload() {
-    const player = game.players.find(p => p.id === net.localPlayerId) || game.players[0];
-    const c = controlsFor(player);
-    return { x: c.x, y: c.y, dash: c.dash };
-  }
-
-  function sendLocalInput(dt) {
-    net.sendTimer -= dt;
-    if (net.sendTimer > 0 || !isChannelOpen()) return;
-    net.sendTimer = 1 / 30;
-    net.channel.send(JSON.stringify({ type: "input", input: localInputPayload() }));
-  }
-
-  function sendSnapshot(dt) {
-    net.sendTimer -= dt;
-    if (net.sendTimer > 0 || !isChannelOpen() || net.mode !== "host") return;
-    net.sendTimer = 1 / 20;
-    const payload = JSON.stringify({
-      type: "state",
-      players: game.players.map(p => ({
-        id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, hp: p.hp, score: p.score,
-        alive: p.alive, dashCooldown: p.dashCooldown, dashTime: p.dashTime,
-        facingX: p.facingX, facingY: p.facingY
-      })),
-      coins: game.coins.map(c => c.taken),
-      enemies: game.enemies.map(e => ({ x: e.x, y: e.y, vx: e.vx, vy: e.vy, stun: e.stun })),
-      phase: game.phase,
-      countdown: game.countdown,
-      activeTime: game.activeTime,
-      over: game.over,
-      won: game.won,
-      paused: game.paused
-    });
-    for (const channel of net.channels.values()) {
-      if (channel.readyState === "open") channel.send(payload);
-    }
-  }
-
-  function applySnapshot(msg) {
-    for (const src of msg.players || []) {
-      let p = game.players.find(player => player.id === src.id);
-      if (!p) {
-        p = makePlayer(src.id, src.x, src.y, src.id === net.localPlayerId ? "local" : "remote");
-        game.players.push(p);
-      }
-      Object.assign(p, src);
-      p.control = src.id === net.localPlayerId ? "local" : "remote";
-    }
-    game.players = game.players.filter(p => (msg.players || []).some(src => src.id === p.id));
-    if (msg.coins) game.coins.forEach((c, i) => { c.taken = !!msg.coins[i]; });
-    if (msg.enemies) game.enemies.forEach((e, i) => { if (msg.enemies[i]) Object.assign(e, msg.enemies[i]); });
-    game.phase = msg.phase || "playing";
-    game.countdown = Number.isFinite(msg.countdown) ? msg.countdown : 0;
-    game.activeTime = Number.isFinite(msg.activeTime) ? msg.activeTime : game.activeTime;
-    game.over = !!msg.over;
-    game.won = !!msg.won;
-    game.paused = !!msg.paused;
-  }
-
-  function handleChannelMessage(event, channelPlayerId = null) {
-    let msg;
-    try { msg = JSON.parse(event.data); } catch { return; }
-
-    if (msg.type === "input" && net.mode === "host" && channelPlayerId != null) {
-      remoteInputs.set(channelPlayerId, msg.input);
-    } else if (msg.type === "welcome" && net.mode === "client") {
-      net.localPlayerId = msg.playerId;
-      setNetStatus(`Connected as P${msg.playerId + 1}.`);
-      playSfx("join");
-    } else if (msg.type === "state" && net.mode === "client") {
-      applySnapshot(msg);
-      updateHud();
-    }
-  }
-
-  function setupChannel(channel) {
-    let channelPlayerId = null;
-    channel.onmessage = event => handleChannelMessage(event, channelPlayerId);
-    channel.onopen = () => {
-      if (net.mode === "host") {
-        const id = addRemotePlayer();
-        if (id == null) {
-          channel.close();
-          setNetStatus("Full");
-          return;
-        }
-        channelPlayerId = id;
-        net.remotePlayerId = id;
-        net.channels.set(id, channel);
-        if (net.pairingPeer) net.peers.set(id, net.pairingPeer);
-        channel.send(JSON.stringify({ type: "welcome", playerId: id }));
-        setNetStatus(`Connected: P${id + 1}`);
-        playSfx("join");
-        net.sendTimer = 0;
-        sendSnapshot(1);
-        net.pairingPeer = null;
-        net.pairingChannel = null;
-        net.waitingFor = "none";
-        stopScan();
-        clearCodes();
-        setNetPanelMode("ready");
-      } else {
-        net.channel = channel;
-        setNetStatus("Connected");
-        stopScan();
-        clearCodes();
-        setNetPanelMode("ready");
-      }
-    };
-    channel.onclose = () => {
-      if (net.mode === "host" && channelPlayerId != null) {
-        net.channels.delete(channelPlayerId);
-        const peer = net.peers.get(channelPlayerId);
-        if (peer) {
-          try { peer.close(); } catch {}
-          net.peers.delete(channelPlayerId);
-        }
-        remoteInputs.delete(channelPlayerId);
-        game.players = game.players.filter(p => p.id !== channelPlayerId);
-        updateHud();
-        setNetStatus(net.channels.size ? `${net.channels.size + 1} players` : "Disconnected");
-      } else {
-        setNetStatus("Disconnected");
-      }
-    };
-  }
-
-  function addRemotePlayer() {
-    if (game.players.length >= colors.length) return null;
-    let id = 1;
-    while (game.players.some(p => p.id === id) && id < colors.length) id++;
-    if (id >= colors.length) return null;
-    net.nextRemoteId = Math.max(net.nextRemoteId, id + 1);
-    const spots = [{ x: 130, y: 92 }, { x: 92, y: 132 }, { x: 130, y: 132 }];
-    const spot = spots[(id - 1) % spots.length];
-    game.players.push(makePlayer(id, spot.x, spot.y, "remote"));
-    return id;
-  }
-
-  function createPeer() {
-    if (!("RTCPeerConnection" in window)) {
-      throw new Error("Pairing is not supported here.");
-    }
-    const peer = new RTCPeerConnection({ iceServers: [] });
-    peer.onconnectionstatechange = () => {
-      if (peer.connectionState === "connected") setNetStatus("Connected");
-      else if (peer.connectionState === "failed") setNetStatus("Could not connect");
-    };
-    return peer;
-  }
-
-  function waitIceComplete(peer) {
-    if (peer.iceGatheringState === "complete") return Promise.resolve();
-    return new Promise(resolve => {
-      const done = () => {
-        if (peer.iceGatheringState === "complete") {
-          peer.removeEventListener("icegatheringstatechange", done);
-          resolve();
-        }
-      };
-      peer.addEventListener("icegatheringstatechange", done);
-      setTimeout(resolve, 1800);
-    });
-  }
-
-  async function beginInvite() {
-    try {
-      if (game.players.length >= colors.length) {
-        setNetStatus("Full");
-        return;
-      }
-      closePairingAttempt();
-      netPanel.classList.add("show");
-      setNetPanelMode("invite");
-      net.mode = "host";
-      const peer = createPeer();
-      net.pairingPeer = peer;
-      const channel = peer.createDataChannel("coin-dash");
-      net.pairingChannel = channel;
-      setupChannel(channel);
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      await waitIceComplete(peer);
-      net.waitingFor = "answer";
-      const code = await encodeSignal({ type: "offer", sdp: peer.localDescription.sdp });
-      showOutgoingCode(code, "Show this QR. Then scan their answer.");
-    } catch (err) {
-      setNetStatus(err.message);
-      closePairingAttempt();
-    }
-  }
-
-  async function beginJoin() {
-    try {
-      if (isChannelOpen()) return;
-      closePairingAttempt();
-      netPanel.classList.add("show");
-      setNetPanelMode("scanning");
-      net.mode = "client";
-      net.waitingFor = "offer";
-      clearCodes();
-      setNetStatus("Scan host QR.");
-      scanIncomingCode();
-    } catch (err) {
-      setNetStatus(err.message);
-      closePairingAttempt();
-    }
-  }
-
-  async function handleSignalPacket(packet) {
-    if (packet.type === "offer" && net.mode === "client" && !net.peer) {
-      setNetStatus("Answering...");
-      const peer = createPeer();
-      net.peer = peer;
-      peer.ondatachannel = event => setupChannel(event.channel);
-      await peer.setRemoteDescription({ type: "offer", sdp: packet.sdp });
-      const answer = await peer.createAnswer();
-      await peer.setLocalDescription(answer);
-      await waitIceComplete(peer);
-      const code = await encodeSignal({ type: "answer", sdp: peer.localDescription.sdp });
-      net.waitingFor = "connected";
-      setNetPanelMode("answer");
-      showOutgoingCode(code, "Show this answer QR to the host.");
-    } else if (packet.type === "answer" && net.mode === "host" && net.pairingPeer && !net.pairingPeer.currentRemoteDescription) {
-      setNetStatus("Connecting...");
-      const peer = net.pairingPeer;
-      await peer.setRemoteDescription({ type: "answer", sdp: packet.sdp });
-      clearCodes();
-      setNetPanelMode("ready");
-      setNetStatus("Connecting...");
-    } else {
-      throw new Error("This code is for the other step.");
-    }
-  }
-
-  async function useIncomingCode() {
-    try {
-      const packet = await decodeSignal(inCode.value);
-      await handleSignalPacket(packet);
-    } catch (err) {
-      setNetStatus(err.message);
-    }
-  }
-
-  function stopScan() {
-    net.scanner.runId++;
-    setHidden(scanBox, true);
-    setHidden(switchCameraBtn, true);
-    try { scanVideo.pause(); } catch {}
-    if (scanVideo.srcObject) scanVideo.srcObject = null;
-    if (net.scanner.stream) {
-      for (const track of net.scanner.stream.getTracks()) track.stop();
-      net.scanner.stream = null;
-    }
-    net.scanner.currentDeviceId = null;
-  }
-
-  function cameraScore(device) {
-    const label = normalizeCameraLabel(device);
-    const ultraWide = cameraLooksUltraWide(device);
-    let score = 0;
-
-    if (!label) return 0;
-    if (/(^|\b)(front|user|selfie|face ?time)(\b|$)|facing front/.test(label)) score -= 320;
-    if (/(^|\b)(back|rear|environment)(\b|$)|facing back/.test(label)) score += 120;
-
-    if (ultraWide) score -= 360;
-    if (/(^|\b)(macro|depth|tof|infrared|ir camera|auxiliary)(\b|$)/.test(label)) score -= 240;
-    if (/(^|\b)(tele|telephoto|zoom)(\b|$)/.test(label)) score -= 70;
-
-    if (!ultraWide && /(^|\b)(main|standard|normal|default|primary)(\b|$)/.test(label)) score += 130;
-    if (!ultraWide && /(^|[^0-9])1(?:[.,]0)?\s*x(\b|$)/.test(label)) score += 115;
-    if (!ultraWide && /(back|rear)\s+(wide\s+)?camera$/.test(label)) score += 80;
-    if (!ultraWide && /camera2\s*0\b.*facing back/.test(label)) score += 65;
-    if (!ultraWide && /\bwide\b/.test(label)) score += 25;
-
-    return score;
-  }
-
-  function normalizeCameraLabel(device) {
-    return (device && device.label ? device.label : "")
-      .toLowerCase()
-      .replace(/[_-]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  function cameraLooksUltraWide(device) {
-    const label = normalizeCameraLabel(device);
-    return /ultra\s*wide|ultrawide|super\s*wide|0\s*[.,]\s*5\s*x?|\b\.5\s*x\b|wide\s*angle/.test(label);
-  }
-
-  function cameraDebugName(device) {
-    const label = device && device.label ? device.label.trim() : "";
-    return label || "unnamed camera";
-  }
-
-  function getCameraSettings(track) {
-    return track && track.getSettings ? track.getSettings() : {};
-  }
-
-  function stopStream(stream) {
-    if (!stream) return;
-    for (const track of stream.getTracks()) track.stop();
-  }
-
-  function rankedCameraDevices(devices, options = {}) {
-    const preferredId = options.preferredDeviceId || null;
-    return devices
-      .filter(device => device.kind === "videoinput")
-      .map((device, index) => {
-        const baseScore = cameraScore(device);
-        const preferredBonus = preferredId && device.deviceId === preferredId && baseScore >= 80 ? 12 : 0;
-        return { device, score: baseScore + preferredBonus, baseScore, index };
-      })
-      .filter(choice => choice.score > -260)
-      .sort((a, b) => (b.score - a.score) || (a.index - b.index));
-  }
-
-  function bestCameraDevice(devices, options = {}) {
-    return rankedCameraDevices(devices, options)[0] || null;
-  }
-
-  async function openCameraStream(videoConstraints) {
-    return navigator.mediaDevices.getUserMedia({
-      video: { ...scannerConstraints, ...videoConstraints },
-      audio: false
-    });
-  }
-
-  async function configureTrackControl(track, control) {
-    if (!track || !track.applyConstraints || !control) return false;
-    try {
-      await track.applyConstraints({ advanced: [control] });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  function supportedMode(caps, key, preferred) {
-    const values = caps && Array.isArray(caps[key]) ? caps[key] : [];
-    if (values.includes(preferred)) return preferred;
-    if (values.includes("continuous")) return "continuous";
-    if (values.includes("single-shot")) return "single-shot";
-    return null;
-  }
-
-  async function configureScanTrack(track, focusMode = "continuous") {
-    if (!track) return false;
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    let changed = false;
-
-    const focus = supportedMode(caps, "focusMode", focusMode);
-    if (focus) changed = await configureTrackControl(track, { focusMode: focus }) || changed;
-
-    const exposure = supportedMode(caps, "exposureMode", "continuous");
-    if (exposure) changed = await configureTrackControl(track, { exposureMode: exposure }) || changed;
-
-    const whiteBalance = supportedMode(caps, "whiteBalanceMode", "continuous");
-    if (whiteBalance) changed = await configureTrackControl(track, { whiteBalanceMode: whiteBalance }) || changed;
-
-    if (caps.zoom && Number.isFinite(caps.zoom.min) && Number.isFinite(caps.zoom.max)) {
-      const zoom = clamp(scannerZoomTarget, caps.zoom.min, caps.zoom.max);
-      if (Number.isFinite(zoom)) changed = await configureTrackControl(track, { zoom }) || changed;
-    }
-
-    return changed;
-  }
-
-  async function getBestScanStream() {
-    let stream = await openCameraStream({ facingMode: { ideal: "environment" } });
-    let selectedTrack = stream.getVideoTracks()[0];
-
-    try {
-      const devices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
-      const currentSettings = getCameraSettings(selectedTrack);
-      const currentDevice = devices.find(device => device.deviceId === currentSettings.deviceId);
-      const currentScore = currentDevice ? cameraScore(currentDevice) : -20;
-      const ranked = rankedCameraDevices(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
-      net.scanner.cameraChoices = ranked;
-
-      const manual = ranked.find(choice => choice.device.deviceId === net.scanner.manualDeviceId);
-      const best = manual || bestCameraDevice(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
-      const currentIsBad = !currentDevice || currentScore < 80 || cameraLooksUltraWide(currentDevice);
-      const shouldSwitch = best && best.device.deviceId && best.device.deviceId !== currentSettings.deviceId &&
-        (manual || currentIsBad || best.score > currentScore);
-
-      if (shouldSwitch) {
-        try {
-          const oldStream = stream;
-          stream = await openCameraStream({ deviceId: { exact: best.device.deviceId } });
-          stopStream(oldStream);
-        } catch {
-          net.scanner.manualDeviceId = null;
-        }
-        selectedTrack = stream.getVideoTracks()[0];
-      }
-
-      selectedTrack = stream.getVideoTracks()[0];
-      const selectedSettings = getCameraSettings(selectedTrack);
-      let selectedDevice = devices.find(device => device.deviceId === selectedSettings.deviceId);
-      let selectedScore = selectedDevice ? cameraScore(selectedDevice) : -20;
-
-      if ((!selectedDevice || selectedScore < 0 || cameraLooksUltraWide(selectedDevice)) && ranked.length) {
-        for (const choice of ranked) {
-          if (!choice.device.deviceId || choice.device.deviceId === selectedSettings.deviceId || cameraLooksUltraWide(choice.device)) continue;
-          try {
-            const oldStream = stream;
-            stream = await openCameraStream({ deviceId: { exact: choice.device.deviceId } });
-            stopStream(oldStream);
-            selectedTrack = stream.getVideoTracks()[0];
-            selectedDevice = choice.device;
-            selectedScore = cameraScore(choice.device);
-            break;
-          } catch {}
-        }
-      }
-
-      const finalSettings = getCameraSettings(selectedTrack);
-      const finalDevice = devices.find(device => device.deviceId === finalSettings.deviceId) || selectedDevice;
-      const finalScore = finalDevice ? cameraScore(finalDevice) : selectedScore;
-      net.scanner.currentDeviceId = finalSettings.deviceId || (finalDevice && finalDevice.deviceId) || null;
-      net.scanner.preferredDeviceId = finalScore >= 80 ? net.scanner.currentDeviceId : null;
-    } catch {}
-
-    await configureScanTrack(selectedTrack, "continuous");
-    return stream;
-  }
-
-  function currentScannerCameraText() {
-    const current = net.scanner.cameraChoices.find(choice => choice.device.deviceId === net.scanner.currentDeviceId);
-    if (!current) return "";
-    return ` Camera: ${cameraDebugName(current.device)} (${Math.round(current.baseScore)}).`;
-  }
-
-  async function switchScannerCamera() {
-    const choices = net.scanner.cameraChoices.length
-      ? net.scanner.cameraChoices
-      : rankedCameraDevices(await navigator.mediaDevices.enumerateDevices(), { preferredDeviceId: net.scanner.preferredDeviceId });
-    if (choices.length < 2) return;
-    const currentIndex = Math.max(0, choices.findIndex(choice => choice.device.deviceId === net.scanner.currentDeviceId));
-    const next = choices[(currentIndex + 1) % choices.length];
-    if (!next || !next.device.deviceId) return;
-    net.scanner.manualDeviceId = next.device.deviceId;
-    setNetStatus(`Switching to ${cameraDebugName(next.device)}...`);
-    await scanIncomingCode();
-  }
-
-  async function refocusScanner() {
-    const track = net.scanner.stream && net.scanner.stream.getVideoTracks()[0];
-    if (!track) return;
-    setNetStatus("Refocusing...");
-    const focused = await configureScanTrack(track, "single-shot");
-    window.setTimeout(() => {
-      configureScanTrack(track, "continuous");
-      setNetStatus(net.mode === "host" ? "Scan answer QR. Tap video to refocus." : "Scan host QR. Tap video to refocus.");
-    }, focused ? 700 : 250);
-  }
-
-  function canScanQr() {
-    return "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
-  }
-
-  async function waitForVideoReady(video) {
-    if (video.readyState >= 1) return;
-    await new Promise(resolve => {
-      video.addEventListener("loadedmetadata", resolve, { once: true });
-    });
-  }
-
-  async function detectQrFrame(detector, run) {
-    if (run !== net.scanner.runId) return;
-    const now = performance.now();
-    if (now - net.scanner.lastScanAt >= scannerDetectInterval && scanVideo.readyState >= 2) {
-      net.scanner.lastScanAt = now;
-      try {
-        const codes = await detector.detect(scanVideo);
-        if (run !== net.scanner.runId) return;
-        if (codes.length && codes[0].rawValue) {
-          inCode.value = codes[0].rawValue;
-          stopScan();
-          await useIncomingCode();
-          return;
-        }
-      } catch {}
-    }
-    requestAnimationFrame(() => detectQrFrame(detector, run));
-  }
-
-  async function scanIncomingCode() {
-    setNetPanelMode("scanning");
-    setHidden(qrCanvas, true);
-    setHidden(outCode, true);
-    if (!canScanQr()) {
-      setNetPanelMode("manual");
-      setNetStatus("Paste code. Other player can tap their QR to show it.");
-      return;
-    }
-    try {
-      stopScan();
-      net.scanner.detector = net.scanner.detector || new BarcodeDetector({ formats: ["qr_code"] });
-      const stream = await getBestScanStream();
-      net.scanner.stream = stream;
-      scanVideo.srcObject = stream;
-      setHidden(scanBox, false);
-      setHidden(switchCameraBtn, net.scanner.cameraChoices.length < 2);
-      await scanVideo.play();
-      await waitForVideoReady(scanVideo);
-      net.scanner.lastScanAt = 0;
-      const run = ++net.scanner.runId;
-      const scanText = net.mode === "host" ? "Scan answer QR." : "Scan host QR.";
-      setNetStatus(`${scanText}${currentScannerCameraText()} Tap video to refocus.`);
-      requestAnimationFrame(() => detectQrFrame(net.scanner.detector, run));
-    } catch {
-      stopScan();
-      setNetPanelMode("manual");
-      setNetStatus("Paste code. Other player can tap their QR to show it.");
-    }
-  }
-
-  function updateHud() {
-    const collected = game.coins.filter(c => c.taken).length;
-    coinHud.textContent = collected;
-    coinMaxHud.textContent = game.totalCoins;
-    pauseBtn.textContent = game.paused ? "Resume" : "Pause";
-    const waitingClient = net.mode === "client" && isChannelOpen();
-    startBtn.textContent = game.over ? "Restart" : "Start";
-    startBtn.classList.toggle("hidden", waitingClient || (!game.over && game.phase !== "menu"));
-    pauseBtn.classList.toggle("hidden", game.over || game.phase === "menu" || game.phase === "countdown");
-
-    const secs = Math.floor(game.activeTime);
-    timeHud.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
-
-    playerHud.innerHTML = game.players.map(p => {
-      const dash = p.alive && p.dashCooldown > 0 ? " · Dash" : "";
-      const state = p.alive ? `${p.hp} HP · ${p.score}${dash}` : "DOWN";
-      return `<span class="badge"><span class="dot" style="background:${colors[p.id % colors.length]}"></span>P${p.id + 1}: ${state}</span>`;
-    }).join("");
-  }
-
-  function loop(now) {
-    const dt = Math.min(0.033, (now - last) / 1000);
-    last = now;
-    update(dt);
-    draw();
-    requestAnimationFrame(loop);
-  }
-
-  function resetGame() {
-    game = makeGame();
-    if (net.mode === "host" && net.channels.size) {
-      const spots = [{ x: 130, y: 92 }, { x: 92, y: 132 }, { x: 130, y: 132 }];
-      for (const id of net.channels.keys()) {
-        const spot = spots[(id - 1) % spots.length];
-        game.players.push(makePlayer(id, spot.x, spot.y, "remote"));
-      }
-    }
-    touch.dash = false;
-    dashBtn.classList.remove("down");
-    resetJoystick();
-    keys.clear();
-    remoteInputs.clear();
-    if (net.mode === "host") {
-      net.sendTimer = 0;
-      sendSnapshot(1);
-    }
-    updateHud();
-  }
-
-  function startGame() {
-    if (net.mode === "client" && isChannelOpen()) {
-      setNetStatus("Host starts the game.");
-      return;
-    }
-    if (game.over) resetGame();
-    game.phase = "countdown";
-    game.countdown = 3;
-    game.activeTime = 0;
-    game.over = false;
-    game.won = false;
-    game.paused = false;
-    keys.clear();
-    resetJoystick();
-    playSfx("start");
-    if (net.mode === "host") {
-      net.sendTimer = 0;
-      sendSnapshot(1);
-    }
-    updateHud();
-  }
-
-  window.addEventListener("keydown", (e) => {
-    primeAudio();
-    if ((e.code === "Enter" || e.code === "Space") && !e.repeat && (game.phase === "menu" || game.over)) {
-      startGame();
-      e.preventDefault();
-      return;
-    }
-    if (e.code === "KeyP" && !e.repeat) {
-      togglePause();
-      e.preventDefault();
-      return;
-    }
-    keys.add(e.code);
-    if (["Space"].includes(e.code)) e.preventDefault();
-  });
-  window.addEventListener("keyup", (e) => keys.delete(e.code));
-
-  async function toggleFullscreen() {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await document.documentElement.requestFullscreen();
-    } catch {
-      setNetStatus("Fullscreen unavailable");
-    }
-  }
-
-  function togglePause() {
-    if (net.mode === "client" && isChannelOpen()) {
-      setNetStatus("Host pauses the game.");
-      return;
-    }
-    if (game.over || game.phase !== "playing") return;
-    game.paused = !game.paused;
-    playSfx(game.paused ? "pause" : "resume");
-    if (net.mode === "host") {
-      net.sendTimer = 0;
-      sendSnapshot(1);
-    }
-    updateHud();
-  }
-
-  document.addEventListener("fullscreenchange", () => {
-    fullBtn.textContent = document.fullscreenElement ? "Exit" : "Full";
-  });
-
-  fullBtn.addEventListener("click", toggleFullscreen);
-  startBtn.addEventListener("click", startGame);
-  pauseBtn.addEventListener("click", togglePause);
-  resetBtn.addEventListener("click", () => {
-    if (net.mode === "client" && isChannelOpen()) {
-      setNetStatus("Host resets the game.");
-      return;
-    }
-    resetGame();
-  });
-  netBtn.addEventListener("click", () => netPanel.classList.toggle("show"));
-  canvas.addEventListener("pointerdown", () => {
-    if (game.phase === "menu" || game.over) startGame();
-  });
-
-  function bindHoldButton(el, prop) {
-    const down = (e) => { e.preventDefault(); primeAudio(); touch[prop] = true; el.classList.add("down"); };
-    const up = (e) => { e.preventDefault(); touch[prop] = false; el.classList.remove("down"); };
-    el.addEventListener("pointerdown", down);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
-    el.addEventListener("pointerleave", up);
-  }
-  bindHoldButton(dashBtn, "dash");
-
-  inviteBtn.addEventListener("click", () => {
-    primeAudio();
-    beginInvite();
-  });
-  joinBtn.addEventListener("click", () => {
-    primeAudio();
-    beginJoin();
-  });
-  useCodeBtn.addEventListener("click", useIncomingCode);
-  scanCodeBtn.addEventListener("click", scanIncomingCode);
-  scanVideo.addEventListener("pointerdown", refocusScanner);
-  switchCameraBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    switchScannerCamera().catch(() => {
-      setNetPanelMode("manual");
-      setNetStatus("Paste code. Other player can tap their QR to show it.");
-    });
-  });
-  qrCanvas.addEventListener("click", () => {
-    if (!outCode.value) return;
-    setHidden(outCode, !outCode.classList.contains("hidden"));
-    setNetStatus(outCode.classList.contains("hidden") ? "QR ready." : "Code shown.");
-  });
-  function cancelPairingUi() {
-    closePairingAttempt();
-    clearCodes();
-    setNetStatus(isChannelOpen() ? "Connected" : "Ready.");
-  }
-  cancelNetBtn.addEventListener("click", cancelPairingUi);
-  cancelManualBtn.addEventListener("click", cancelPairingUi);
-
-  function joyPos(e) {
-    const rect = joyBase.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const stickSize = joyStick.offsetWidth || 44;
-    let dx = e.clientX - cx;
-    let dy = e.clientY - cy;
-    const max = rect.width * .34;
-    const l = Math.hypot(dx, dy);
-    if (l > max) { dx = dx / l * max; dy = dy / l * max; }
-    joyStick.style.left = `${rect.width / 2 - stickSize / 2 + dx}px`;
-    joyStick.style.top = `${rect.height / 2 - stickSize / 2 + dy}px`;
-    touch.x = dx / max;
-    touch.y = dy / max;
-  }
-
-  function resetJoystick() {
-    const rect = joyBase.getBoundingClientRect();
-    const stickSize = joyStick.offsetWidth || 44;
-    touch.active = false;
-    touch.joyPointerId = null;
-    touch.x = 0;
-    touch.y = 0;
-    joyStick.style.left = `${rect.width / 2 - stickSize / 2}px`;
-    joyStick.style.top = `${rect.height / 2 - stickSize / 2}px`;
-  }
-
-  joyBase.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    primeAudio();
-    if (touch.active && touch.joyPointerId !== e.pointerId) return;
-    touch.joyPointerId = e.pointerId;
-    try { joyBase.setPointerCapture(e.pointerId); } catch {}
-    touch.active = true;
-    joyPos(e);
-  });
-  joyBase.addEventListener("pointermove", (e) => {
-    if (!touch.active || touch.joyPointerId !== e.pointerId) return;
-    e.preventDefault();
-    joyPos(e);
-  });
-  function joyUp(e) {
-    e.preventDefault();
-    if (touch.joyPointerId !== e.pointerId) return;
-    resetJoystick();
-  }
-  joyBase.addEventListener("pointerup", joyUp);
-  joyBase.addEventListener("pointercancel", joyUp);
-  joyBase.addEventListener("lostpointercapture", resetJoystick);
-  window.addEventListener("resize", () => { if (!touch.active) resetJoystick(); });
-
-  resetGame();
-  setNetPanelMode("ready");
-  requestAnimationFrame((t) => { last = t; requestAnimationFrame(loop); });
-})();
 </script>
 </body>
 </html>
