@@ -1682,6 +1682,13 @@ module.exports = QRCode;
 
   const colors = ["#46d0ff", "#ff595e", "#8ac926", "#ffca3a"];
   const keyMap = { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", dash: "Space" };
+  const scannerConstraints = {
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    aspectRatio: { ideal: 16 / 9 }
+  };
+  const scannerZoomTarget = 1.45;
+  const scannerDetectInterval = 140;
 
   const keys = new Set();
   const touch = { x: 0, y: 0, active: false, dash: false, joyPointerId: null };
@@ -1783,10 +1790,18 @@ module.exports = QRCode;
       nextRemoteId: 1,
       sendTimer: 0,
       audio: null,
-      scanStream: null,
-      scanRun: 0,
-      preferredScanDeviceId: null,
+      scanner: makeScannerState(),
       waitingFor: "none"
+    };
+  }
+
+  function makeScannerState() {
+    return {
+      stream: null,
+      runId: 0,
+      preferredDeviceId: null,
+      detector: null,
+      lastScanAt: 0
     };
   }
 
@@ -2739,49 +2754,13 @@ module.exports = QRCode;
   }
 
   function stopScan() {
-    net.scanRun++;
+    net.scanner.runId++;
     setHidden(scanBox, true);
+    try { scanVideo.pause(); } catch {}
     if (scanVideo.srcObject) scanVideo.srcObject = null;
-    if (net.scanStream) {
-      for (const track of net.scanStream.getTracks()) track.stop();
-      net.scanStream = null;
-    }
-  }
-
-  async function applyCameraFocus(track, mode = "continuous") {
-    if (!track || !track.applyConstraints) return false;
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    const advanced = [];
-    if (Array.isArray(caps.focusMode)) {
-      if (caps.focusMode.includes(mode)) advanced.push({ focusMode: mode });
-      else if (caps.focusMode.includes("continuous")) advanced.push({ focusMode: "continuous" });
-      else if (caps.focusMode.includes("single-shot")) advanced.push({ focusMode: "single-shot" });
-    }
-    if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes("continuous")) {
-      advanced.push({ exposureMode: "continuous" });
-    }
-    if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes("continuous")) {
-      advanced.push({ whiteBalanceMode: "continuous" });
-    }
-    if (!advanced.length) return false;
-    try {
-      await track.applyConstraints({ advanced });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async function refocusScanner() {
-    const track = net.scanStream && net.scanStream.getVideoTracks()[0];
-    if (!track) return;
-    const focused = await applyCameraFocus(track, "single-shot");
-    if (focused) {
-      setNetStatus("Refocusing...");
-      setTimeout(() => {
-        applyCameraFocus(track, "continuous");
-        setNetStatus(net.mode === "host" ? "Scan answer QR. Tap video to refocus." : "Scan host QR. Tap video to refocus.");
-      }, 700);
+    if (net.scanner.stream) {
+      for (const track of net.scanner.stream.getTracks()) track.stop();
+      net.scanner.stream = null;
     }
   }
 
@@ -2790,99 +2769,179 @@ module.exports = QRCode;
     let score = 0;
     if (/back|rear|environment/.test(label)) score += 80;
     if (/front|user|selfie/.test(label)) score -= 120;
-    if (/ultra|0\.5|0,5|wide|macro|depth|tof/.test(label)) score -= 90;
-    if (/tele|zoom/.test(label)) score -= 35;
-    if (/main|standard|normal|1x|1\.0|1,0/.test(label)) score += 35;
+    if (/ultra[\s-]?wide|0\.5x?|0,5x?/.test(label)) score -= 180;
+    if (/macro|depth|tof|infrared|ir camera/.test(label)) score -= 160;
+    if (/tele|telephoto/.test(label)) score -= 45;
+    if (/main|standard|normal|wide|1x|1\.0x?|1,0x?/.test(label)) score += 45;
+    if (/back camera|rear camera/.test(label)) score += 25;
     return score;
   }
 
+  function getCameraSettings(track) {
+    return track && track.getSettings ? track.getSettings() : {};
+  }
+
+  function stopStream(stream) {
+    if (!stream) return;
+    for (const track of stream.getTracks()) track.stop();
+  }
+
+  function bestCameraDevice(devices) {
+    return devices
+      .map((device, index) => ({ device, score: cameraScore(device) - index * 0.01 }))
+      .sort((a, b) => b.score - a.score)[0] || null;
+  }
+
+  async function openCameraStream(videoConstraints) {
+    return navigator.mediaDevices.getUserMedia({
+      video: { ...scannerConstraints, ...videoConstraints },
+      audio: false
+    });
+  }
+
+  async function configureTrackControl(track, control) {
+    if (!track || !track.applyConstraints || !control) return false;
+    try {
+      await track.applyConstraints({ advanced: [control] });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function supportedMode(caps, key, preferred) {
+    const values = caps && Array.isArray(caps[key]) ? caps[key] : [];
+    if (values.includes(preferred)) return preferred;
+    if (values.includes("continuous")) return "continuous";
+    if (values.includes("single-shot")) return "single-shot";
+    return null;
+  }
+
+  async function configureScanTrack(track, focusMode = "continuous") {
+    if (!track) return false;
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    let changed = false;
+
+    const focus = supportedMode(caps, "focusMode", focusMode);
+    if (focus) changed = await configureTrackControl(track, { focusMode: focus }) || changed;
+
+    const exposure = supportedMode(caps, "exposureMode", "continuous");
+    if (exposure) changed = await configureTrackControl(track, { exposureMode: exposure }) || changed;
+
+    const whiteBalance = supportedMode(caps, "whiteBalanceMode", "continuous");
+    if (whiteBalance) changed = await configureTrackControl(track, { whiteBalanceMode: whiteBalance }) || changed;
+
+    if (caps.zoom && Number.isFinite(caps.zoom.min) && Number.isFinite(caps.zoom.max)) {
+      const zoom = clamp(scannerZoomTarget, caps.zoom.min, caps.zoom.max);
+      if (Number.isFinite(zoom)) changed = await configureTrackControl(track, { zoom }) || changed;
+    }
+
+    return changed;
+  }
+
   async function getBestScanStream() {
-    const baseConstraints = {
-      facingMode: { ideal: "environment" },
-      width: { ideal: 1280 },
-      height: { ideal: 720 }
-    };
-    if (net.preferredScanDeviceId) {
+    if (net.scanner.preferredDeviceId) {
       try {
-        return await navigator.mediaDevices.getUserMedia({
-          video: {
-            deviceId: { exact: net.preferredScanDeviceId },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
+        const preferred = await openCameraStream({ deviceId: { exact: net.scanner.preferredDeviceId } });
+        await configureScanTrack(preferred.getVideoTracks()[0], "continuous");
+        return preferred;
       } catch {
-        net.preferredScanDeviceId = null;
+        net.scanner.preferredDeviceId = null;
       }
     }
-    let stream = await navigator.mediaDevices.getUserMedia({ video: baseConstraints, audio: false });
+
+    let stream = await openCameraStream({ facingMode: { ideal: "environment" } });
+    let selectedTrack = stream.getVideoTracks()[0];
+
     try {
       const devices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
-      if (!devices.length) return stream;
-      const currentTrack = stream.getVideoTracks()[0];
-      const currentSettings = currentTrack && currentTrack.getSettings ? currentTrack.getSettings() : {};
-      const best = devices
-        .map((device, index) => ({ device, score: cameraScore(device) - index * 0.01 }))
-        .sort((a, b) => b.score - a.score)[0];
-      if (!best || !best.device.deviceId || best.score < -40 || best.device.deviceId === currentSettings.deviceId) {
-        return stream;
+      const currentSettings = getCameraSettings(selectedTrack);
+      const currentDevice = devices.find(device => device.deviceId === currentSettings.deviceId);
+      const currentScore = currentDevice ? cameraScore(currentDevice) : -20;
+      const best = bestCameraDevice(devices);
+
+      if (best && best.device.deviceId && best.score > currentScore + 15 && best.device.deviceId !== currentSettings.deviceId) {
+        stopStream(stream);
+        try {
+          stream = await openCameraStream({ deviceId: { exact: best.device.deviceId } });
+        } catch {
+          stream = await openCameraStream({ facingMode: { ideal: "environment" } });
+        }
+        selectedTrack = stream.getVideoTracks()[0];
+        net.scanner.preferredDeviceId = getCameraSettings(selectedTrack).deviceId || best.device.deviceId;
+      } else if (currentSettings.deviceId) {
+        net.scanner.preferredDeviceId = currentSettings.deviceId;
       }
-      for (const track of stream.getTracks()) track.stop();
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          deviceId: { exact: best.device.deviceId },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      });
-      net.preferredScanDeviceId = best.device.deviceId;
     } catch {}
+
+    await configureScanTrack(selectedTrack, "continuous");
     return stream;
+  }
+
+  async function refocusScanner() {
+    const track = net.scanner.stream && net.scanner.stream.getVideoTracks()[0];
+    if (!track) return;
+    setNetStatus("Refocusing...");
+    const focused = await configureScanTrack(track, "single-shot");
+    window.setTimeout(() => {
+      configureScanTrack(track, "continuous");
+      setNetStatus(net.mode === "host" ? "Scan answer QR. Tap video to refocus." : "Scan host QR. Tap video to refocus.");
+    }, focused ? 700 : 250);
+  }
+
+  function canScanQr() {
+    return "BarcodeDetector" in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+  }
+
+  async function waitForVideoReady(video) {
+    if (video.readyState >= 1) return;
+    await new Promise(resolve => {
+      video.addEventListener("loadedmetadata", resolve, { once: true });
+    });
+  }
+
+  async function detectQrFrame(detector, run) {
+    if (run !== net.scanner.runId) return;
+    const now = performance.now();
+    if (now - net.scanner.lastScanAt >= scannerDetectInterval && scanVideo.readyState >= 2) {
+      net.scanner.lastScanAt = now;
+      try {
+        const codes = await detector.detect(scanVideo);
+        if (run !== net.scanner.runId) return;
+        if (codes.length && codes[0].rawValue) {
+          inCode.value = codes[0].rawValue;
+          stopScan();
+          await useIncomingCode();
+          return;
+        }
+      } catch {}
+    }
+    requestAnimationFrame(() => detectQrFrame(detector, run));
   }
 
   async function scanIncomingCode() {
     setNetPanelMode("scanning");
     setHidden(qrCanvas, true);
     setHidden(outCode, true);
-    if (!("BarcodeDetector" in window)) {
-      setNetPanelMode("manual");
-      setNetStatus("Paste code. Other player can tap their QR to show it.");
-      return;
-    }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (!canScanQr()) {
       setNetPanelMode("manual");
       setNetStatus("Paste code. Other player can tap their QR to show it.");
       return;
     }
     try {
       stopScan();
-      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      net.scanner.detector = net.scanner.detector || new BarcodeDetector({ formats: ["qr_code"] });
       const stream = await getBestScanStream();
-      net.scanStream = stream;
-      const track = stream.getVideoTracks()[0];
-      await applyCameraFocus(track, "continuous");
+      net.scanner.stream = stream;
       scanVideo.srcObject = stream;
       setHidden(scanBox, false);
       await scanVideo.play();
-      const run = ++net.scanRun;
-      const scan = async () => {
-        if (run !== net.scanRun) return;
-        try {
-          const codes = await detector.detect(scanVideo);
-          if (codes.length && codes[0].rawValue) {
-            inCode.value = codes[0].rawValue;
-            stopScan();
-            await useIncomingCode();
-            return;
-          }
-        } catch {}
-        requestAnimationFrame(scan);
-      };
+      await waitForVideoReady(scanVideo);
+      net.scanner.lastScanAt = 0;
+      const run = ++net.scanner.runId;
       const scanText = net.mode === "host" ? "Scan answer QR." : "Scan host QR.";
       setNetStatus(`${scanText} Tap video to refocus.`);
-      scan();
+      requestAnimationFrame(() => detectQrFrame(net.scanner.detector, run));
     } catch {
       stopScan();
       setNetPanelMode("manual");
