@@ -290,7 +290,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
       </div>
     </section>
   </section>
-  <div class="version-tag">v1.0.7</div>
+  <div class="version-tag">v1.0.8</div>
 </main>
 <script>
 
@@ -733,6 +733,9 @@ async function decodeAnswerCode(s){
 async function addDecodedIce(d){
   if(d&&d._ice&&net.pc&&!d._hasIce)try{await net.pc.addIceCandidate(d._ice)}catch(e){console.warn('ICE candidate skipped',e)}
 }
+async function addIceToPeer(peer,d){
+  if(d&&d._ice&&peer&&!d._hasIce)try{await peer.addIceCandidate(d._ice)}catch(e){console.warn('ICE candidate skipped',e)}
+}
 function visibleLen(s){return [...s].length}
 function pc(){let p=new RTCPeerConnection({iceServers:[]});p._localCandidates=[];p.addEventListener('icecandidate',e=>{if(e.candidate&&e.candidate.candidate)p._localCandidates.push(e.candidate.candidate)});return p}
 function bestCandidate(p){let s=p&&p.localDescription?p.localDescription.sdp:'',fromSdp=s.split(/\r?\n/).filter(x=>x.startsWith('a=candidate:')).map(x=>cleanCandidate(x)),all=[...(p&&p._localCandidates?p._localCandidates:[]),...fromSdp].map(cleanCandidate).filter(Boolean);return all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x)&&/( 10\.| 192\.168\.| 172\.(1[6-9]|2\d|3[01])\.|\.local )/i.test(' '+x+' '))||all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x))||all[0]||''}
@@ -948,17 +951,16 @@ async function acceptAnswerCode(raw){
       if(!picked)continue;
       if(picked.desc.type!=='answer')throw Error('Wrong code type');
       await slot.pc.setRemoteDescription(rtcDesc(picked.desc));
+      await addIceToPeer(slot.pc,picked.desc);
       slot.accepted=true;
-      if(slot.ch&&slot.ch.readyState==='open'){
-        net.channels.set(slotId,slot.ch);
-        net.knownIds.add(slotId);
-        slot.done=true;
-        ensureHostPlayers(game.phase==='menu'||game.over);
-        pulseHostSync(slot.ch,slotId);
-        broadcastNow();
-        return{room:true,msg:'P'+(slotId+1)+' joined. Paste the next answer when ready.'};
-      }
-      return{room:true,msg:'Answer accepted for P'+(slotId+1)+'. Waiting for that device to connect...'};
+      slot.done=true;
+      net.channels.set(slotId,slot.ch);
+      net.knownIds.add(slotId);
+      ensureHostPlayers(game.phase==='menu'||game.over);
+      if(slot.ch&&slot.ch.readyState==='open')pulseHostSync(slot.ch,slotId);
+      else setTimeout(()=>pulseHostSync(slot.ch,slotId),180);
+      broadcastPulse();
+      return{room:true,msg:'P'+(slotId+1)+' added. Paste the next answer when ready.'};
     }
     throw Error('No open player spot');
   }
