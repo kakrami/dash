@@ -250,6 +250,9 @@
   #scanBox {
     position: relative;
     margin-top: 8px;
+    width: 100%;
+    height: min(62vh, 560px);
+    min-height: 360px;
     overflow: hidden;
     border-radius: 8px;
     border: 1px solid rgba(255,255,255,.18);
@@ -258,8 +261,8 @@
   #scanVideo {
     display: block;
     width: 100%;
-    max-height: 260px;
-    object-fit: contain;
+    height: 100%;
+    object-fit: cover;
     touch-action: manipulation;
     cursor: pointer;
   }
@@ -331,7 +334,13 @@
     .scoreLine strong { display: none; }
     #netPanel {
       top: 78px;
-      width: min(330px, calc(100vw - 16px));
+      left: 8px;
+      right: 8px;
+      width: auto;
+    }
+    #scanBox {
+      height: min(58vh, 520px);
+      min-height: 390px;
     }
   }
 </style>
@@ -1701,9 +1710,9 @@ module.exports = QRCode;
   const colors = ["#46d0ff", "#ff595e", "#8ac926", "#ffca3a"];
   const keyMap = { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", dash: "Space" };
   const scannerConstraints = {
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-    aspectRatio: { ideal: 16 / 9 }
+    width: { ideal: 1280 },
+    height: { ideal: 960 },
+    aspectRatio: { ideal: 4 / 3 }
   };
   const scannerZoomTarget = 1.45;
   const scannerDetectInterval = 140;
