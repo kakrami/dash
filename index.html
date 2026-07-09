@@ -56,7 +56,6 @@ button{appearance:none;border:0}
 .field-actions.two{grid-template-columns:1fr 1fr}
 .field-actions .btn{width:100%;min-height:36px;padding:0 10px;border-radius:10px;font-size:13px}
 .code-field textarea{width:100%;min-height:78px;resize:vertical;border:1px solid #ffffff2d;border-radius:12px;background:#0008;color:#fff;padding:9px;font:800 12px/1.25 ui-monospace,Menlo,Consolas,monospace}
-.slot-select{width:100%;min-height:40px;border:1px solid #ffffff2d;border-radius:12px;background:#06111f;color:#fff;padding:0 10px;font-weight:900}
 .status{font-size:12px;line-height:1.35;color:var(--muted);background:#ffffff0b;border:1px solid #ffffff12;border-radius:12px;padding:9px}
 
 /* GAME: header, field, controls. Nothing overlays the play area. */
@@ -220,13 +219,6 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
                   <label id="codeLabel" for="code">Invite code</label>
                 </div>
                 <textarea id="code" placeholder="Code goes here." spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
-                <select id="joinSlot" class="slot-select hide" aria-label="Player spot">
-                  <option value="">Pick player spot</option>
-                  <option value="1">Join as P2</option>
-                  <option value="2">Join as P3</option>
-                  <option value="3">Join as P4</option>
-                  <option value="4">Join as P5</option>
-                </select>
                 <div class="field-actions" id="inviteActions">
                   <button type="button" id="useBtn" class="btn btn-primary hide">Make Answer</button>
                   <button type="button" id="copyInviteBtn" class="btn btn-secondary hide">Copy Invite</button>
@@ -298,7 +290,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
       </div>
     </section>
   </section>
-  <div class="version-tag">v1.0.5</div>
+  <div class="version-tag">v1.0.6</div>
 </main>
 <script>
 
@@ -313,7 +305,7 @@ cx.lineCap='round';
 const W=cv.width,H=cv.height,colors=['#46d0ff','#ff595e','#8ac926','#ffca3a','#c77dff','#ff9f1c'];
 const ROOM_JOINERS=4;
 
-const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),clock:$('clock'),players:$('players'),net:$('net'),start:$('startBtn'),pause:$('pauseBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),fullGame:$('fullGameBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),answerField:$('answerField'),answerCode:$('answerCode'),codeLabel:$('codeLabel'),answerLabel:$('answerLabel'),copyInvite:$('copyInviteBtn'),copyAnswer:$('copyAnswerBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),answer:$('answerBtn'),use:$('useBtn'),code:$('code'),joinSlot:$('joinSlot'),menuPair:$('menuPair'),menuAnswerCode:$('menuAnswerCode'),menuAcceptAnswer:$('menuAcceptAnswerBtn'),menuCopyInvite:$('menuCopyInviteBtn'),menuPairStatus:$('menuPairStatus'),status:$('status'),joy:$('joy'),stick:$('stick'),dash:$('dash')};
+const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),clock:$('clock'),players:$('players'),net:$('net'),start:$('startBtn'),pause:$('pauseBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),fullGame:$('fullGameBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),answerField:$('answerField'),answerCode:$('answerCode'),codeLabel:$('codeLabel'),answerLabel:$('answerLabel'),copyInvite:$('copyInviteBtn'),copyAnswer:$('copyAnswerBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),answer:$('answerBtn'),use:$('useBtn'),code:$('code'),menuPair:$('menuPair'),menuAnswerCode:$('menuAnswerCode'),menuAcceptAnswer:$('menuAcceptAnswerBtn'),menuCopyInvite:$('menuCopyInviteBtn'),menuPairStatus:$('menuPairStatus'),status:$('status'),joy:$('joy'),stick:$('stick'),dash:$('dash')};
 
 const walls=[r(0,0,W,24),r(0,H-24,W,24),r(0,0,24,H),r(W-24,0,24,H),r(170,118,110,36),r(380,90,42,120),r(610,124,150,32),r(145,345,150,36),r(470,330,40,120),r(675,340,105,36)];
 
@@ -368,7 +360,7 @@ function enemy(x,y){let a=Math.random()*6.28;
 return{x,y,vx:Math.cos(a)*70,vy:Math.sin(a)*70,r:14,stun:0}}
 function makeGame(){let coins=coinPos.map((p,i)=>({x:p[0],y:p[1],r:9,taken:false,pulse:i*.3})),s=spawnPoint(0);
 return{players:[player(0,s.x,s.y)],coins,enemies:[enemy(520,86),enemy(760,275),enemy(535,470)],phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:{x:W-68,y:H/2,r:28},shake:0,total:coins.length}}
-function netState(){return{role:'solo',pc:null,dc:null,channels:new Map(),knownIds:new Set(),pendingSlots:new Map(),localId:0,nextId:1,timer:0,roomSlots:ROOM_JOINERS}}
+function netState(){return{role:'solo',pc:null,dc:null,channels:new Map(),knownIds:new Set(),pendingSlots:new Map(),joinPeers:new Map(),localId:0,nextId:1,timer:0,roomSlots:ROOM_JOINERS}}
 function control(p){if(p.control==='remote')return inputSafe(remoteInputs.get(p.id));
 let x=0,y=0;
 if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;
@@ -398,10 +390,10 @@ o.y=clamp(o.y,o.r+24,H-o.r-24)}
 function hideGameMenu(){els.pauseOverlay.classList.add('hide')}
 function showSetup(){game.paused=true;hideGameMenu();els.play.classList.add('hide');els.setup.classList.remove('hide');ui()}
 function showPlay(){els.setup.classList.add('hide');els.play.classList.remove('hide');setTimeout(()=>{fitCanvas();centerStick()},0)}
-function beginRun(){game=makeGame();restoreRemotes();game.phase='count';game.count=3;game.paused=false;hideGameMenu();showPlay();beep('start');broadcast();ui()}
+function beginRun(){game=makeGame();restoreRemotes();game.phase='count';game.count=3;game.paused=false;hideGameMenu();showPlay();beep('start');broadcastNow();ui()}
 function startGame(){if(net.role==='client'){hideGameMenu();showPlay();return send({t:'start'})}beginRun()}
-function openGameMenu(){if(game.phase==='menu')return;if(!game.over)game.paused=true;syncGameMenu();broadcast();ui()}
-function resumeGame(){if(game.over)return;game.paused=false;hideGameMenu();broadcast();ui()}
+function openGameMenu(){if(game.phase==='menu')return;if(!game.over)game.paused=true;syncGameMenu();broadcastNow();ui()}
+function resumeGame(){if(game.over)return;game.paused=false;hideGameMenu();broadcastNow();ui()}
 function restartRun(){if(net.role==='client')return startGame();beginRun()}
 function restoreRemotes(){ensureHostPlayers(true)}
 function ensureHostPlayers(reset=false){if(net.role!=='host'||!game||!Array.isArray(game.players))return;
@@ -712,11 +704,21 @@ async function decodeRoomInvite(s){
   return room;
 }
 async function encodeRoomAnswer(slot,desc,cand=''){return encodeJsonCode('CDA',{k:'answer',v:1,slot,desc:await encodeDesc(desc,cand)})}
+async function encodeRoomAnswers(answers){return encodeJsonCode('CDA',{k:'answers',v:2,answers})}
 async function decodeRoomAnswer(s){
   let ans=await decodeJsonCode(s,'CDA');
   if(!ans)return null;
-  if(ans.k!=='answer')throw Error('Bad code');
-  return{slot:Math.max(1,Math.round(num(ans.slot,1))),desc:await decodeDesc(ans.desc)};
+  if(ans.k==='answer')return{answers:[{slot:Math.max(1,Math.round(num(ans.slot,1))),desc:await decodeDesc(ans.desc)}]};
+  if(ans.k==='answers'&&Array.isArray(ans.answers)){
+    let answers=[];
+    for(const item of ans.answers){
+      let slot=Math.max(1,Math.round(num(item&&item.slot,1))),desc=await decodeDesc(item&&item.desc);
+      answers.push({slot,desc});
+    }
+    if(!answers.length)throw Error('Bad code');
+    return{answers};
+  }
+  throw Error('Bad code');
 }
 async function decodeInviteCode(s){
   let room=await decodeRoomInvite(s);
@@ -725,7 +727,7 @@ async function decodeInviteCode(s){
 }
 async function decodeAnswerCode(s){
   let ans=await decodeRoomAnswer(s);
-  if(ans)return{kind:'room',slot:ans.slot,desc:ans.desc};
+  if(ans)return{kind:'room',answers:ans.answers};
   return{kind:'single',desc:await decodeDesc(s)};
 }
 async function addDecodedIce(d){
@@ -736,9 +738,10 @@ function pc(){let p=new RTCPeerConnection({iceServers:[]});p._localCandidates=[]
 function bestCandidate(p){let s=p&&p.localDescription?p.localDescription.sdp:'',fromSdp=s.split(/\r?\n/).filter(x=>x.startsWith('a=candidate:')).map(x=>cleanCandidate(x)),all=[...(p&&p._localCandidates?p._localCandidates:[]),...fromSdp].map(cleanCandidate).filter(Boolean);return all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x)&&/( 10\.| 192\.168\.| 172\.(1[6-9]|2\d|3[01])\.|\.local )/i.test(' '+x+' '))||all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x))||all[0]||''}
 function iceDone(p,ms=5200){return new Promise(res=>{if(bestCandidate(p)||p.iceGatheringState==='complete')return res();let done=false,finish=()=>{if(done)return;done=true;clearTimeout(t);res()},t=setTimeout(finish,ms);p.addEventListener('icecandidate',()=>{if(bestCandidate(p))setTimeout(finish,80)});p.addEventListener('icegatheringstatechange',()=>{if(p.iceGatheringState==='complete')finish()})})}
 function setStatus(s){els.status.textContent=s;if(els.menuPairStatus)els.menuPairStatus.textContent=s}
+function hasOpenRoomSlot(){if(net.role!=='host'||!net.pendingSlots)return false;for(const slot of net.pendingSlots.values())if(!slot.done&&!slot.pc.currentRemoteDescription)return true;return false}
 function syncMenuPair(){
   if(!els.menuPair)return;
-  let show=net.role==='host'&&net.pendingSlots&&net.pendingSlots.size>0;
+  let show=hasOpenRoomSlot();
   els.menuPair.classList.toggle('hide',!show);
   if(show&&!els.menuPairStatus.textContent)els.menuPairStatus.textContent='Ready for answers.';
 }
@@ -754,8 +757,6 @@ function pairReset(){
   showPairButtons([]);
   els.code.value='';
   els.answerCode.value='';
-  els.joinSlot.value='';
-  els.joinSlot.classList.add('hide');
   els.code.readOnly=false;
   els.answerCode.readOnly=false;
   closeNet();
@@ -766,7 +767,6 @@ function pairMode(mode){
   els.pairFlow.classList.remove('hide');
   els.inviteField.classList.remove('hide');
   els.answerField.classList.toggle('hide',mode!=='host');
-  els.joinSlot.classList.toggle('hide',mode!=='join');
   showPairButtons(mode==='host'?[]:['use']);
   els.code.value='';
   els.answerCode.value='';
@@ -781,7 +781,7 @@ function pairMode(mode){
     els.answerCode.readOnly=false;
   }else{
     els.pairTitle.textContent='Join';
-    els.pairHint.textContent='Paste invite, pick a player spot, then make an answer.';
+    els.pairHint.textContent='Paste the host invite, then make an answer.';
     els.codeLabel.textContent='Reusable invite';
     els.answerLabel.textContent='Your answer';
     els.code.placeholder='Paste host invite here.';
@@ -802,18 +802,20 @@ async function copyTextFrom(el,label){
     try{document.execCommand('copy');setStatus(label+' copied.')}catch(e2){setStatus(label+' selected. Copy it manually.')}
   }
 }
-function open(ch,id){ch.onopen=()=>{setStatus('Connected. Host starts game.');
+function sendTo(ch,o){if(ch&&ch.readyState==='open')ch.send(pack(o))}
+function closeUnusedJoinPeers(active){if(net.role!=='client'||!net.joinPeers)return;for(const [slot,peer] of net.joinPeers){if(peer!==active){try{peer.close()}catch(e){}net.joinPeers.delete(slot)}}}
+function open(ch,id,peer=null){ch.onopen=()=>{setStatus('Connected. Host starts game.');
 if(net.role==='host'){
 net.channels.set(id,ch);
 net.knownIds.add(id);
 let slot=net.pendingSlots&&net.pendingSlots.get(id);if(slot)slot.done=true;
 ensureHostPlayers(game.phase==='menu'||game.over);
-ch.send(pack({t:'welcome',id}));
-broadcast()}
-else send({t:'join'})};
+sendTo(ch,{t:'welcome',id});
+sendTo(ch,{t:'snap',g:game});
+broadcastNow();}
+else{if(peer){net.pc=peer;closeUnusedJoinPeers(peer)}net.dc=ch;send({t:'join'})}};
 ch.onmessage=e=>msgNet(unpack(e.data),ch,id);
-ch.onclose=()=>{net.channels.delete(id);if(net.knownIds)net.knownIds.delete(id);
-setStatus('Player disconnected.')}}
+ch.onclose=()=>{if(net.role==='host'){net.channels.delete(id);if(net.knownIds)net.knownIds.delete(id);setStatus('Player disconnected.')}}}
 async function safePair(btn,working,fn){
   if(btn){btn.disabled=true;btn.dataset.oldText=btn.textContent;btn.textContent=working}
   try{await fn()}
@@ -822,8 +824,8 @@ async function safePair(btn,working,fn){
     if(e&&e.message==='Missing code')msg='Enter the code first.';
     else if(e&&e.message==='Old code rejected')msg='That older code format failed. Make a new code with this updated file.';
     else if(e&&e.message==='Wrong code type')msg='That code is not for this step.';
-    else if(e&&e.message==='Player spot already used')msg='That player spot is already used. Pick another spot on the joining device.';
-    else if(e&&e.message==='Pick player spot')msg='Pick a player spot first.';
+    else if(e&&e.message==='No open player spot')msg='No open player spot is available. Host needs to make a fresh invite.';
+    else if(e&&e.message==='Answer already used')msg='That answer was already used. Make a fresh answer from the invite.';
     else if(e&&e.message&&e.message.startsWith('No local Wi-Fi'))msg=e.message;
     setStatus(msg);
     console.error(e)
@@ -860,24 +862,43 @@ net=netState();
 net.role='client';
 showPairButtons(['use']);
 setStatus('Enter invite.')}
+async function makeJoinAnswerForSlot(slot){
+  let peer=pc();
+  net.joinPeers.set(slot.id,peer);
+  peer.ondatachannel=e=>open(e.channel,0,peer);
+  let offer=await decodeDesc(slot.code);
+  if(offer.type!=='offer')throw Error('Wrong code type');
+  await peer.setRemoteDescription(rtcDesc(offer));
+  await addDecodedIce(offer);
+  let ans=await peer.createAnswer();
+  await peer.setLocalDescription(ans);
+  await iceDone(peer);
+  let cand=bestCandidate(peer);
+  if(!cand)throw Error('No local Wi-Fi address found. Both devices must be on the same Wi-Fi.');
+  return{slot:slot.id,desc:await encodeDesc(peer.localDescription,cand)};
+}
 async function useInvite(){return safePair(els.use,'Making...',async()=>{
 setStatus('Making answer...');
-try{net.dc&&net.dc.close();net.pc&&net.pc.close()}catch(e){}
-net.pc=pc();
-net.pc.ondatachannel=e=>{net.dc=e.channel;open(net.dc,0)};
-let decoded=await decodeInviteCode(els.code.value),offer,roomSlot=null;
+try{net.dc&&net.dc.close();net.pc&&net.pc.close();if(net.joinPeers)for(const p of net.joinPeers.values())p.close()}catch(e){}
+net.joinPeers=new Map();
+let decoded=await decodeInviteCode(els.code.value);
 if(decoded.kind==='room'){
-  if(!els.joinSlot.value)throw Error('Pick player spot');
-  let want=Math.max(1,Math.round(num(els.joinSlot.value,1)));
-  roomSlot=decoded.room.slots.find(x=>x.id===want);
-  if(!roomSlot)throw Error('Bad code');
-  if(!roomSlot)throw Error('Bad code');
-  offer=await decodeDesc(roomSlot.code);
-  net.localId=roomSlot.id;
-}else offer=decoded.offer;
+  let answers=[];
+  for(const slot of decoded.room.slots)answers.push(await makeJoinAnswerForSlot(slot));
+  els.answerField.classList.remove('hide');
+  els.answerLabel.textContent='Your answer';
+  els.answerCode.value=await encodeRoomAnswers(answers);
+  showPairButtons(['copyAnswer']);
+  els.inviteField.classList.add('hide');
+  els.pairHint.textContent='Give this answer to Host. Host assigns the next open player spot.';
+  setStatus('Answer ready. Host will assign your player spot.');
+  return;
+}
+net.pc=pc();
+net.pc.ondatachannel=e=>{net.dc=e.channel;open(net.dc,0,net.pc)};
+let offer=decoded.offer;
 if(offer.type!=='offer')throw Error('Wrong code type');
-try{await net.pc.setRemoteDescription(rtcDesc(offer))}
-catch(e){throw e}
+await net.pc.setRemoteDescription(rtcDesc(offer));
 await addDecodedIce(offer);
 let ans=await net.pc.createAnswer();
 await net.pc.setLocalDescription(ans);
@@ -886,25 +907,30 @@ els.answerField.classList.remove('hide');
 els.answerLabel.textContent='Your answer';
 let cand=bestCandidate(net.pc);
 if(!cand){setStatus('No local Wi-Fi address found. Both devices must be on the same Wi-Fi.');return}
-els.answerCode.value=roomSlot?await encodeRoomAnswer(roomSlot.id,net.pc.localDescription,cand):await encodeDesc(net.pc.localDescription,cand);
+els.answerCode.value=await encodeDesc(net.pc.localDescription,cand);
 showPairButtons(['copyAnswer']);
 els.inviteField.classList.add('hide');
-els.pairHint.textContent=roomSlot?'Give this answer to Host for P'+(roomSlot.id+1)+'.':'Give this answer to Host.';
+els.pairHint.textContent='Give this answer to Host.';
 setStatus('Answer ready.');
 })}
 async function acceptAnswerCode(raw){
   if(!String(raw||'').trim())throw Error('Missing code');
   let ans=await decodeAnswerCode(raw);
   if(ans.kind==='room'){
-    if(!net.pendingSlots||!net.pendingSlots.has(ans.slot))throw Error('Wrong code type');
-    let slot=net.pendingSlots.get(ans.slot);
-    if(slot.done||slot.pc.currentRemoteDescription)throw Error('Player spot already used');
-    if(ans.desc.type!=='answer')throw Error('Wrong code type');
-    await slot.pc.setRemoteDescription(rtcDesc(ans.desc));
-    net.knownIds.add(ans.slot);
-    ensureHostPlayers(game.phase==='menu'||game.over);
-    broadcast();
-    return{room:true,msg:'Answer accepted for P'+(ans.slot+1)+'. Paste the next answer when ready.'};
+    if(!net.pendingSlots)throw Error('Wrong code type');
+    let bySlot=new Map(ans.answers.map(a=>[a.slot,a]));
+    for(const [slotId,slot] of net.pendingSlots){
+      if(slot.done||slot.pc.currentRemoteDescription)continue;
+      let picked=bySlot.get(slotId);
+      if(!picked)continue;
+      if(picked.desc.type!=='answer')throw Error('Wrong code type');
+      await slot.pc.setRemoteDescription(rtcDesc(picked.desc));
+      net.knownIds.add(slotId);
+      ensureHostPlayers(game.phase==='menu'||game.over);
+      broadcastNow();
+      return{room:true,msg:'Answer accepted as P'+(slotId+1)+'. Paste the next answer when ready.'};
+    }
+    throw Error('No open player spot');
   }
   let desc=ans.desc;
   if(desc.type!=='answer')throw Error('Wrong code type');
@@ -912,6 +938,7 @@ async function acceptAnswerCode(raw){
   try{await net.pc.setRemoteDescription(rtcDesc(desc))}
   catch(e){throw e}
   await addDecodedIce(desc);
+  broadcastNow();
   return{room:false,msg:'Answer accepted. Waiting for player...'};
 }
 async function useAnswer(){return safePair(els.answer,'Connecting...',async()=>{
@@ -932,10 +959,10 @@ function closeNet(){try{net.dc&&net.dc.close();
 net.pc&&net.pc.close();
 for(const c of net.channels.values())c.close();
 if(net.pendingSlots)for(const s of net.pendingSlots.values()){try{s.ch&&s.ch.close();s.pc&&s.pc.close()}catch(e){}}
+if(net.joinPeers)for(const p of net.joinPeers.values()){try{p.close()}catch(e){}}
 }catch(e){}
 remoteInputs.clear()}
-function send(o){let ch=net.dc;
-if(ch&&ch.readyState==='open')ch.send(pack(o))}
+function send(o){sendTo(net.dc,o)}
 function msgNet(o,ch,id){if(o.t==='input'&&net.role==='host')remoteInputs.set(id,inputSafe(o.v));
 if(o.t==='snap'&&net.role==='client'){game=o.g;repairGameState();
 if(game.phase!=='menu')showPlay();
@@ -944,15 +971,17 @@ ui()}
 if(o.t==='welcome'&&net.role==='client'){net.localId=o.id;
 setStatus('Joined as P'+(o.id+1)+'. Wait for Host.')}
 if(o.t==='start'&&net.role==='host')startGame();
-if(o.t==='join'&&net.role==='host'){net.knownIds.add(id);ensureHostPlayers(game.phase==='menu'||game.over);broadcast()}}
-function broadcast(dt=1){if(net.role!=='host')return;
-net.timer+=dt;
-if(dt&&net.timer<.05)return;
+if(o.t==='join'&&net.role==='host'){net.knownIds.add(id);ensureHostPlayers(game.phase==='menu'||game.over);sendTo(ch,{t:'welcome',id});sendTo(ch,{t:'snap',g:game});broadcastNow()}}
+function broadcastNow(){if(net.role!=='host')return;
 net.timer=0;
 ensureHostPlayers(false);
 repairGameState();
 let data=pack({t:'snap',g:game});
 for(const c of net.channels.values())if(c.readyState==='open')c.send(data)}
+function broadcast(dt=1){if(net.role!=='host')return;
+net.timer+=dt;
+if(dt&&net.timer<.05)return;
+broadcastNow()}
 function sendInput(dt){net.timer+=dt;
 if(net.timer<.033)return;
 net.timer=0;
