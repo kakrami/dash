@@ -56,6 +56,7 @@ button{appearance:none;border:0}
 .field-actions.two{grid-template-columns:1fr 1fr}
 .field-actions .btn{width:100%;min-height:36px;padding:0 10px;border-radius:10px;font-size:13px}
 .code-field textarea{width:100%;min-height:78px;resize:vertical;border:1px solid #ffffff2d;border-radius:12px;background:#0008;color:#fff;padding:9px;font:800 12px/1.25 ui-monospace,Menlo,Consolas,monospace}
+.slot-select{width:100%;min-height:40px;border:1px solid #ffffff2d;border-radius:12px;background:#06111f;color:#fff;padding:0 10px;font-weight:900}
 .status{font-size:12px;line-height:1.35;color:var(--muted);background:#ffffff0b;border:1px solid #ffffff12;border-radius:12px;padding:9px}
 
 /* GAME: header, field, controls. Nothing overlays the play area. */
@@ -82,11 +83,18 @@ button{appearance:none;border:0}
 .game-stage{flex:1 1 auto;min-height:0;display:grid;place-items:center;overflow:hidden;background:linear-gradient(180deg,#0b1222,#060913);border:1px solid #ffffff10;border-radius:18px;padding:3px}
 canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #67d7ff45;border-radius:16px;box-shadow:0 20px 70px #000b,0 0 34px #49c7ff1c;max-width:100%;max-height:100%}
 .game-menu{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:calc(var(--safe-top) + 14px) 14px calc(var(--safe-bottom) + 14px);background:#020713bf;backdrop-filter:blur(6px)}
-.game-menu-card{width:min(360px,92vw);display:grid;gap:10px;padding:16px;border-radius:20px;background:linear-gradient(180deg,#101a2ef5,#060914f5);border:1px solid #7edcff55;box-shadow:0 22px 70px #000b,inset 0 1px #ffffff18;text-align:center}
+.game-menu-card{width:min(420px,92vw);max-height:calc(100dvh - var(--safe-top) - var(--safe-bottom) - 28px);overflow:auto;display:grid;gap:10px;padding:16px;border-radius:20px;background:linear-gradient(180deg,#101a2ef5,#060914f5);border:1px solid #7edcff55;box-shadow:0 22px 70px #000b,inset 0 1px #ffffff18;text-align:center}
 .menu-kicker{font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
 .game-menu h2{margin:0;font-size:30px;line-height:1;text-transform:uppercase;letter-spacing:.03em}
 .game-menu p{margin:0 0 4px;color:var(--muted);font-size:13px;font-weight:800}
 .menu-buttons{display:grid;gap:8px}
+.menu-pair{display:grid;gap:8px;text-align:left;padding:10px;border-radius:14px;background:#ffffff0b;border:1px solid #ffffff14}
+.menu-pair-title{font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em;color:var(--text)}
+.menu-pair-hint{font-size:12px;font-weight:800;line-height:1.3;color:var(--muted)}
+.menu-pair textarea{width:100%;min-height:62px;max-height:120px;resize:vertical;border:1px solid #ffffff2d;border-radius:12px;background:#0008;color:#fff;padding:9px;font:800 12px/1.25 ui-monospace,Menlo,Consolas,monospace}
+.menu-pair-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.menu-pair-actions .btn{width:100%;min-height:34px;padding:0 9px;font-size:12px}
+.menu-pair-status{font-size:12px;line-height:1.3;color:var(--muted);min-height:16px}
 
 /* Touch controls live in their own dock, never on the field. */
 .touch-deck{flex:0 0 112px;display:none;align-items:center;justify-content:space-between;padding:8px 18px;gap:16px}
@@ -212,6 +220,13 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
                   <label id="codeLabel" for="code">Invite code</label>
                 </div>
                 <textarea id="code" placeholder="Code goes here." spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+                <select id="joinSlot" class="slot-select hide" aria-label="Player spot">
+                  <option value="">Pick player spot</option>
+                  <option value="1">Join as P2</option>
+                  <option value="2">Join as P3</option>
+                  <option value="3">Join as P4</option>
+                  <option value="4">Join as P5</option>
+                </select>
                 <div class="field-actions" id="inviteActions">
                   <button type="button" id="useBtn" class="btn btn-primary hide">Make Answer</button>
                   <button type="button" id="copyInviteBtn" class="btn btn-secondary hide">Copy Invite</button>
@@ -264,6 +279,16 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
         <div class="menu-kicker" id="menuKicker">Game Menu</div>
         <h2 id="menuTitle">Paused</h2>
         <p id="menuSubtitle">Game paused.</p>
+        <div id="menuPair" class="menu-pair hide" aria-label="Accept player answer">
+          <div class="menu-pair-title">Add Player</div>
+          <div class="menu-pair-hint">Paste each player's answer code here. The host invite stays the same.</div>
+          <textarea id="menuAnswerCode" placeholder="Paste answer code" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+          <div class="menu-pair-actions">
+            <button type="button" id="menuAcceptAnswerBtn" class="btn btn-primary">Accept Answer</button>
+            <button type="button" id="menuCopyInviteBtn" class="btn btn-secondary">Copy Invite</button>
+          </div>
+          <div id="menuPairStatus" class="menu-pair-status">Ready for answers.</div>
+        </div>
         <div class="menu-buttons">
           <button type="button" id="resumeBtn" class="btn btn-primary btn-wide">Resume</button>
           <button type="button" id="restartBtn" class="btn btn-secondary btn-wide">Restart Run</button>
@@ -273,7 +298,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
       </div>
     </section>
   </section>
-  <div class="version-tag">v1.0.2</div>
+  <div class="version-tag">v1.0.5</div>
 </main>
 <script>
 
@@ -286,8 +311,9 @@ cx.lineJoin='round';
 cx.lineCap='round';
 
 const W=cv.width,H=cv.height,colors=['#46d0ff','#ff595e','#8ac926','#ffca3a','#c77dff','#ff9f1c'];
+const ROOM_JOINERS=4;
 
-const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),clock:$('clock'),players:$('players'),net:$('net'),start:$('startBtn'),pause:$('pauseBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),fullGame:$('fullGameBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),answerField:$('answerField'),answerCode:$('answerCode'),codeLabel:$('codeLabel'),answerLabel:$('answerLabel'),copyInvite:$('copyInviteBtn'),copyAnswer:$('copyAnswerBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),answer:$('answerBtn'),use:$('useBtn'),code:$('code'),status:$('status'),joy:$('joy'),stick:$('stick'),dash:$('dash')};
+const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),clock:$('clock'),players:$('players'),net:$('net'),start:$('startBtn'),pause:$('pauseBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),fullGame:$('fullGameBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),answerField:$('answerField'),answerCode:$('answerCode'),codeLabel:$('codeLabel'),answerLabel:$('answerLabel'),copyInvite:$('copyInviteBtn'),copyAnswer:$('copyAnswerBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),answer:$('answerBtn'),use:$('useBtn'),code:$('code'),joinSlot:$('joinSlot'),menuPair:$('menuPair'),menuAnswerCode:$('menuAnswerCode'),menuAcceptAnswer:$('menuAcceptAnswerBtn'),menuCopyInvite:$('menuCopyInviteBtn'),menuPairStatus:$('menuPairStatus'),status:$('status'),joy:$('joy'),stick:$('stick'),dash:$('dash')};
 
 const walls=[r(0,0,W,24),r(0,H-24,W,24),r(0,0,24,H),r(W-24,0,24,H),r(170,118,110,36),r(380,90,42,120),r(610,124,150,32),r(145,345,150,36),r(470,330,40,120),r(675,340,105,36)];
 
@@ -303,12 +329,16 @@ function shadow(x,y,w,h,a=.35){cx.fillStyle=`rgba(0,0,0,${a})`;cx.beginPath();cx
 const keys=new Set(),touch={x:0,y:0,dash:false,on:false,id:null},remoteInputs=new Map();
 
 let game=makeGame(),last=performance.now(),net=netState(),audio=null;
+let inputSeq=0,inputDashDown=false,inputAim={x:1,y:0};
 
 function r(x,y,w,h){return{x,y,w,h}}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function hypot(x,y){return Math.hypot(x,y)}
 function num(v,d=0){v=Number(v);return Number.isFinite(v)?v:d}
-function inputSafe(v){let x=num(v&&v.x),y=num(v&&v.y),l=hypot(x,y);if(l>1){x/=l;y/=l}return{x,y,dash:!!(v&&v.dash)}}
+function inputSafe(v){let x=num(v&&v.x),y=num(v&&v.y),l=hypot(x,y);if(l>1){x/=l;y/=l}
+  let dashX=num(v&&v.dashX,x),dashY=num(v&&v.dashY,y),dl=hypot(dashX,dashY);
+  if(dl>.001){dashX/=dl;dashY/=dl}else{dashX=x;dashY=y}
+  return{x,y,dash:!!(v&&v.dash),dashSeq:Math.max(0,Math.round(num(v&&v.dashSeq,0))),dashX,dashY}}
 function isGoodNum(v){return typeof v==='number'&&Number.isFinite(v)}
 function repairGameState(){
   if(!game||!Array.isArray(game.players))return;
@@ -323,21 +353,22 @@ function repairGameState(){
     p.faceX=num(p.faceX,p.dx);p.faceY=num(p.faceY,p.dy);
     p.dt=clamp(num(p.dt),0,.25);p.cd=clamp(num(p.cd),0,1);
     p.dashHit=clamp(num(p.dashHit),0,.25);p.inv=clamp(num(p.inv),0,2);
+    p.lastDashSeq=Math.max(0,Math.round(num(p.lastDashSeq,0)));
     p.hp=clamp(Math.round(num(p.hp,5)),0,5);p.score=Math.max(0,Math.round(num(p.score,0)));
     p.alive=p.alive!==false&&p.hp>0;
     if(p.control!=='remote')p.control='local';
     if(!Array.isArray(p.trail))p.trail=[];
-    p.trail=p.trail.filter(t=>isGoodNum(t.x)&&isGoodNum(t.y));
+    p.trail=p.trail.filter(t=>isGoodNum(t.x)&&isGoodNum(t.y)).slice(-12);
   }
 }
 function spawnPoint(id){let spots=[[92,92],[122,112],[92,148],[150,92],[150,148],[116,188]];let s=spots[id%spots.length],row=Math.floor(id/spots.length);return{x:s[0]+row*18,y:s[1]+row*14}}
-function resetPlayerState(p,id,control){let s=spawnPoint(id);Object.assign(p,{id,x:s.x,y:s.y,vx:0,vy:0,r:15,hp:5,score:0,alive:true,control,cd:0,dt:0,dx:1,dy:0,faceX:1,faceY:0,inv:0,bob:Math.random()*9,trail:[],dashHit:0});return p}
-function player(id,x,y,control='local'){return{id,x,y,vx:0,vy:0,r:15,hp:5,score:0,alive:true,control,cd:0,dt:0,dx:1,dy:0,faceX:1,faceY:0,inv:0,bob:Math.random()*9,trail:[],dashHit:0}}
+function resetPlayerState(p,id,control){let s=spawnPoint(id);Object.assign(p,{id,x:s.x,y:s.y,vx:0,vy:0,r:15,hp:5,score:0,alive:true,control,cd:0,dt:0,dx:1,dy:0,faceX:1,faceY:0,inv:0,bob:Math.random()*9,trail:[],dashHit:0,lastDashSeq:0});return p}
+function player(id,x,y,control='local'){return{id,x,y,vx:0,vy:0,r:15,hp:5,score:0,alive:true,control,cd:0,dt:0,dx:1,dy:0,faceX:1,faceY:0,inv:0,bob:Math.random()*9,trail:[],dashHit:0,lastDashSeq:0}}
 function enemy(x,y){let a=Math.random()*6.28;
 return{x,y,vx:Math.cos(a)*70,vy:Math.sin(a)*70,r:14,stun:0}}
 function makeGame(){let coins=coinPos.map((p,i)=>({x:p[0],y:p[1],r:9,taken:false,pulse:i*.3})),s=spawnPoint(0);
 return{players:[player(0,s.x,s.y)],coins,enemies:[enemy(520,86),enemy(760,275),enemy(535,470)],phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:{x:W-68,y:H/2,r:28},shake:0,total:coins.length}}
-function netState(){return{role:'solo',pc:null,dc:null,channels:new Map(),knownIds:new Set(),localId:0,nextId:1,timer:0}}
+function netState(){return{role:'solo',pc:null,dc:null,channels:new Map(),knownIds:new Set(),pendingSlots:new Map(),localId:0,nextId:1,timer:0,roomSlots:ROOM_JOINERS}}
 function control(p){if(p.control==='remote')return inputSafe(remoteInputs.get(p.id));
 let x=0,y=0;
 if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;
@@ -424,7 +455,13 @@ if(!p.alive)continue;
 let c=control(p),sp=178;
 if(c.x||c.y){p.faceX=c.x;
 p.faceY=c.y}
-if(c.dash&&p.cd<=0&&(c.x||c.y))startDash(p,c);
+if(p.control==='remote'){
+  if(c.dashSeq&&c.dashSeq!==p.lastDashSeq){
+    p.lastDashSeq=c.dashSeq;
+    let dc={x:c.dashX||c.x,y:c.dashY||c.y};
+    if(p.cd<=0&&(dc.x||dc.y))startDash(p,dc);
+  }
+}else if(c.dash&&p.cd<=0&&(c.x||c.y))startDash(p,c);
 	if(p.dt>0){p.vx=p.dx*520;
 	p.vy=p.dy*520;
 	p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:performance.now(),life:280})}
@@ -513,6 +550,7 @@ els.clock.textContent=m+':'+s;
 els.players.innerHTML=game.players.map(p=>`<span class="badge"><span class="dot" style="background:${colors[p.id%colors.length]}"></span>P${p.id+1} ${p.alive?'♥'.repeat(p.hp):'OUT'} · ${p.score}</span>`).join('');
 syncGameMenu()}
 function syncGameMenu(){
+  syncMenuPair();
   if(game.over){
     els.menuKicker.textContent=game.won?'Run Complete':'Run Ended';
     els.menuTitle.textContent=game.won?'You Win':'Game Over';
@@ -630,11 +668,12 @@ async function gunzipText(bytes){
   return await new Response(stream).text();
 }
 function rtcDesc(d){return{type:d.type,sdp:d.sdp}}
-function cleanCode(s){
+function cleanAnyCode(s){
   s=String(s||'').replace(/[\s\u200B-\u200D\uFEFF]+/g,'').trim();
-  let m=s.match(/CDv[12]\.[0-9A-Za-z_-]+|CD[0-9A-Za-z_-]+/);
+  let m=s.match(/CD[RA][12]\.[0-9A-Za-z_-]+|CDv[12]\.[0-9A-Za-z_-]+|CD[0-9A-Za-z_-]+/);
   return m?m[0]:s;
 }
+function cleanCode(s){return cleanAnyCode(s)}
 function checkDesc(d){
   if(!d||!/^(offer|answer)$/.test(d.type)||typeof d.sdp!=='string'||!d.sdp.includes('m=application'))throw Error('Bad code');
   return d;
@@ -643,6 +682,7 @@ async function encodeDesc(d,cand=''){return 'CD'+b64UrlBytes(writeDesc(d,cand))}
 async function decodeDesc(s){
   s=cleanCode(s);
   if(!s)throw Error('Missing code');
+  if(s.startsWith('CDR')||s.startsWith('CDA'))throw Error('Wrong code type');
   if(s.startsWith('CDv2.'))return checkDesc(JSON.parse(await gunzipText(bytesFromB64Url(s.slice(5)))));
   if(s.startsWith('CDv1.'))return checkDesc(JSON.parse(textFromBytes(bytesFromB64Url(s.slice(5)))));
   if(s.startsWith('CD'))return checkDesc(readDesc(bytesFromB64Url(s.slice(2))));
@@ -651,6 +691,43 @@ async function decodeDesc(s){
   if(s[0]==='M')return checkDesc(readDesc(undense(s.slice(1))));
   return checkDesc(unpack(s));
 }
+async function encodeJsonCode(prefix,obj){
+  let text=JSON.stringify(obj);
+  try{return prefix+'2.'+b64UrlBytes(await gzipText(text))}
+  catch(e){return prefix+'1.'+b64UrlBytes(textToBytes(text))}
+}
+async function decodeJsonCode(s,prefix){
+  s=cleanAnyCode(s);
+  if(s.startsWith(prefix+'2.'))return JSON.parse(await gunzipText(bytesFromB64Url(s.slice(prefix.length+2))));
+  if(s.startsWith(prefix+'1.'))return JSON.parse(textFromBytes(bytesFromB64Url(s.slice(prefix.length+2))));
+  return null;
+}
+async function encodeRoomInvite(slots){return encodeJsonCode('CDR',{k:'room',v:1,slots})}
+async function decodeRoomInvite(s){
+  let room=await decodeJsonCode(s,'CDR');
+  if(!room)return null;
+  if(room.k!=='room'||!Array.isArray(room.slots)||!room.slots.length)throw Error('Bad code');
+  room.slots=room.slots.map(x=>({id:Math.max(1,Math.round(num(x.id,1))),code:String(x.code||'')})).filter(x=>x.code);
+  if(!room.slots.length)throw Error('Bad code');
+  return room;
+}
+async function encodeRoomAnswer(slot,desc,cand=''){return encodeJsonCode('CDA',{k:'answer',v:1,slot,desc:await encodeDesc(desc,cand)})}
+async function decodeRoomAnswer(s){
+  let ans=await decodeJsonCode(s,'CDA');
+  if(!ans)return null;
+  if(ans.k!=='answer')throw Error('Bad code');
+  return{slot:Math.max(1,Math.round(num(ans.slot,1))),desc:await decodeDesc(ans.desc)};
+}
+async function decodeInviteCode(s){
+  let room=await decodeRoomInvite(s);
+  if(room)return{kind:'room',room};
+  return{kind:'single',offer:await decodeDesc(s)};
+}
+async function decodeAnswerCode(s){
+  let ans=await decodeRoomAnswer(s);
+  if(ans)return{kind:'room',slot:ans.slot,desc:ans.desc};
+  return{kind:'single',desc:await decodeDesc(s)};
+}
 async function addDecodedIce(d){
   if(d&&d._ice&&net.pc&&!d._hasIce)try{await net.pc.addIceCandidate(d._ice)}catch(e){console.warn('ICE candidate skipped',e)}
 }
@@ -658,7 +735,13 @@ function visibleLen(s){return [...s].length}
 function pc(){let p=new RTCPeerConnection({iceServers:[]});p._localCandidates=[];p.addEventListener('icecandidate',e=>{if(e.candidate&&e.candidate.candidate)p._localCandidates.push(e.candidate.candidate)});return p}
 function bestCandidate(p){let s=p&&p.localDescription?p.localDescription.sdp:'',fromSdp=s.split(/\r?\n/).filter(x=>x.startsWith('a=candidate:')).map(x=>cleanCandidate(x)),all=[...(p&&p._localCandidates?p._localCandidates:[]),...fromSdp].map(cleanCandidate).filter(Boolean);return all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x)&&/( 10\.| 192\.168\.| 172\.(1[6-9]|2\d|3[01])\.|\.local )/i.test(' '+x+' '))||all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x))||all[0]||''}
 function iceDone(p,ms=5200){return new Promise(res=>{if(bestCandidate(p)||p.iceGatheringState==='complete')return res();let done=false,finish=()=>{if(done)return;done=true;clearTimeout(t);res()},t=setTimeout(finish,ms);p.addEventListener('icecandidate',()=>{if(bestCandidate(p))setTimeout(finish,80)});p.addEventListener('icegatheringstatechange',()=>{if(p.iceGatheringState==='complete')finish()})})}
-function setStatus(s){els.status.textContent=s}
+function setStatus(s){els.status.textContent=s;if(els.menuPairStatus)els.menuPairStatus.textContent=s}
+function syncMenuPair(){
+  if(!els.menuPair)return;
+  let show=net.role==='host'&&net.pendingSlots&&net.pendingSlots.size>0;
+  els.menuPair.classList.toggle('hide',!show);
+  if(show&&!els.menuPairStatus.textContent)els.menuPairStatus.textContent='Ready for answers.';
+}
 function showPairButtons(names){
   for(const b of [els.copyInvite,els.copyAnswer,els.answer,els.use])b.classList.add('hide');
   for(const name of names)els[name].classList.remove('hide');
@@ -671,6 +754,8 @@ function pairReset(){
   showPairButtons([]);
   els.code.value='';
   els.answerCode.value='';
+  els.joinSlot.value='';
+  els.joinSlot.classList.add('hide');
   els.code.readOnly=false;
   els.answerCode.readOnly=false;
   closeNet();
@@ -681,24 +766,25 @@ function pairMode(mode){
   els.pairFlow.classList.remove('hide');
   els.inviteField.classList.remove('hide');
   els.answerField.classList.toggle('hide',mode!=='host');
+  els.joinSlot.classList.toggle('hide',mode!=='join');
   showPairButtons(mode==='host'?[]:['use']);
   els.code.value='';
   els.answerCode.value='';
   if(mode==='host'){
     els.pairTitle.textContent='Host';
-    els.pairHint.textContent='Host';
-    els.codeLabel.textContent='1. Invite';
-    els.answerLabel.textContent='2. Answer';
-    els.code.placeholder='Invite code will appear here.';
-    els.answerCode.placeholder='Enter answer here.';
+    els.pairHint.textContent='One invite works for P2–P5.';
+    els.codeLabel.textContent='Reusable invite';
+    els.answerLabel.textContent='Player answer';
+    els.code.placeholder='Reusable invite code will appear here.';
+    els.answerCode.placeholder='Paste each player answer here.';
     els.code.readOnly=true;
     els.answerCode.readOnly=false;
   }else{
     els.pairTitle.textContent='Join';
-    els.pairHint.textContent='Join';
-    els.codeLabel.textContent='1. Invite';
-    els.answerLabel.textContent='2. Answer';
-    els.code.placeholder='Enter invite here.';
+    els.pairHint.textContent='Paste invite, pick a player spot, then make an answer.';
+    els.codeLabel.textContent='Reusable invite';
+    els.answerLabel.textContent='Your answer';
+    els.code.placeholder='Paste host invite here.';
     els.answerCode.placeholder='Answer code will appear here.';
     els.code.readOnly=false;
     els.answerCode.readOnly=true;
@@ -720,6 +806,7 @@ function open(ch,id){ch.onopen=()=>{setStatus('Connected. Host starts game.');
 if(net.role==='host'){
 net.channels.set(id,ch);
 net.knownIds.add(id);
+let slot=net.pendingSlots&&net.pendingSlots.get(id);if(slot)slot.done=true;
 ensureHostPlayers(game.phase==='menu'||game.over);
 ch.send(pack({t:'welcome',id}));
 broadcast()}
@@ -735,42 +822,59 @@ async function safePair(btn,working,fn){
     if(e&&e.message==='Missing code')msg='Enter the code first.';
     else if(e&&e.message==='Old code rejected')msg='That older code format failed. Make a new code with this updated file.';
     else if(e&&e.message==='Wrong code type')msg='That code is not for this step.';
+    else if(e&&e.message==='Player spot already used')msg='That player spot is already used. Pick another spot on the joining device.';
+    else if(e&&e.message==='Pick player spot')msg='Pick a player spot first.';
+    else if(e&&e.message&&e.message.startsWith('No local Wi-Fi'))msg=e.message;
     setStatus(msg);
     console.error(e)
   }
   finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.oldText||btn.textContent}}
 }
+async function makeHostSlot(id){
+  let peer=pc(),ch=peer.createDataChannel('game'),slot={id,pc:peer,ch,code:'',done:false};
+  net.pendingSlots.set(id,slot);
+  open(ch,id);
+  let offer=await peer.createOffer();
+  await peer.setLocalDescription(offer);
+  await iceDone(peer);
+  let cand=bestCandidate(peer);
+  if(!cand)throw Error('No local Wi-Fi address found. Both devices must be on the same Wi-Fi.');
+  slot.code=await encodeDesc(peer.localDescription,cand);
+  return{id,code:slot.code};
+}
 async function invite(){return safePair(els.invite,'Making invite...',async()=>{
 closeNet();
 pairMode('host');
-setStatus('Making invite...');
+setStatus('Making reusable invite...');
 net=netState();
 net.role='host';
-net.pc=pc();
-let id=net.nextId++,ch=net.pc.createDataChannel('game');
-open(ch,id);
-net.dc=ch;
-let offer=await net.pc.createOffer();
-await net.pc.setLocalDescription(offer);
-await iceDone(net.pc);
-let cand=bestCandidate(net.pc);
-if(!cand){setStatus('No local Wi-Fi address found. Both devices must be on the same Wi-Fi.');return}
-els.code.value=await encodeDesc(net.pc.localDescription,cand);
+let ids=Array.from({length:ROOM_JOINERS},(_,i)=>i+1);
+let slots=await Promise.all(ids.map(id=>makeHostSlot(id)));
+els.code.value=await encodeRoomInvite(slots);
 showPairButtons(['copyInvite','answer']);
-setStatus('Invite ready.');
+setStatus('Reusable invite ready. Share the same invite with each player.');
 })}
 async function join(){closeNet();
 pairMode('join');
 net=netState();
 net.role='client';
-net.pc=pc();
-net.pc.ondatachannel=e=>{net.dc=e.channel;
-open(net.dc,0)};
 showPairButtons(['use']);
 setStatus('Enter invite.')}
 async function useInvite(){return safePair(els.use,'Making...',async()=>{
 setStatus('Making answer...');
-let offer=await decodeDesc(els.code.value);
+try{net.dc&&net.dc.close();net.pc&&net.pc.close()}catch(e){}
+net.pc=pc();
+net.pc.ondatachannel=e=>{net.dc=e.channel;open(net.dc,0)};
+let decoded=await decodeInviteCode(els.code.value),offer,roomSlot=null;
+if(decoded.kind==='room'){
+  if(!els.joinSlot.value)throw Error('Pick player spot');
+  let want=Math.max(1,Math.round(num(els.joinSlot.value,1)));
+  roomSlot=decoded.room.slots.find(x=>x.id===want);
+  if(!roomSlot)throw Error('Bad code');
+  if(!roomSlot)throw Error('Bad code');
+  offer=await decodeDesc(roomSlot.code);
+  net.localId=roomSlot.id;
+}else offer=decoded.offer;
 if(offer.type!=='offer')throw Error('Wrong code type');
 try{await net.pc.setRemoteDescription(rtcDesc(offer))}
 catch(e){throw e}
@@ -779,37 +883,65 @@ let ans=await net.pc.createAnswer();
 await net.pc.setLocalDescription(ans);
 await iceDone(net.pc);
 els.answerField.classList.remove('hide');
-els.answerLabel.textContent='2. Answer';
+els.answerLabel.textContent='Your answer';
 let cand=bestCandidate(net.pc);
 if(!cand){setStatus('No local Wi-Fi address found. Both devices must be on the same Wi-Fi.');return}
-els.answerCode.value=await encodeDesc(net.pc.localDescription,cand);
+els.answerCode.value=roomSlot?await encodeRoomAnswer(roomSlot.id,net.pc.localDescription,cand):await encodeDesc(net.pc.localDescription,cand);
 showPairButtons(['copyAnswer']);
 els.inviteField.classList.add('hide');
-els.pairHint.textContent='Join';
+els.pairHint.textContent=roomSlot?'Give this answer to Host for P'+(roomSlot.id+1)+'.':'Give this answer to Host.';
 setStatus('Answer ready.');
 })}
+async function acceptAnswerCode(raw){
+  if(!String(raw||'').trim())throw Error('Missing code');
+  let ans=await decodeAnswerCode(raw);
+  if(ans.kind==='room'){
+    if(!net.pendingSlots||!net.pendingSlots.has(ans.slot))throw Error('Wrong code type');
+    let slot=net.pendingSlots.get(ans.slot);
+    if(slot.done||slot.pc.currentRemoteDescription)throw Error('Player spot already used');
+    if(ans.desc.type!=='answer')throw Error('Wrong code type');
+    await slot.pc.setRemoteDescription(rtcDesc(ans.desc));
+    net.knownIds.add(ans.slot);
+    ensureHostPlayers(game.phase==='menu'||game.over);
+    broadcast();
+    return{room:true,msg:'Answer accepted for P'+(ans.slot+1)+'. Paste the next answer when ready.'};
+  }
+  let desc=ans.desc;
+  if(desc.type!=='answer')throw Error('Wrong code type');
+  if(!net.pc)throw Error('Wrong code type');
+  try{await net.pc.setRemoteDescription(rtcDesc(desc))}
+  catch(e){throw e}
+  await addDecodedIce(desc);
+  return{room:false,msg:'Answer accepted. Waiting for player...'};
+}
 async function useAnswer(){return safePair(els.answer,'Connecting...',async()=>{
-setStatus('Connecting...');
-let ans=await decodeDesc(els.answerCode.value);
-if(ans.type!=='answer')throw Error('Wrong code type');
-try{await net.pc.setRemoteDescription(rtcDesc(ans))}
-catch(e){throw e}
-await addDecodedIce(ans);
-showPairButtons([]);
-setStatus('Answer accepted. Waiting for player...');
+  setStatus('Connecting...');
+  let res=await acceptAnswerCode(els.answerCode.value);
+  els.answerCode.value='';
+  showPairButtons(res.room?['copyInvite','answer']:[]);
+  setStatus(res.msg);
+})}
+async function menuAcceptAnswer(){return safePair(els.menuAcceptAnswer,'Accepting...',async()=>{
+  setStatus('Accepting answer...');
+  let res=await acceptAnswerCode(els.menuAnswerCode.value);
+  els.menuAnswerCode.value='';
+  syncMenuPair();
+  setStatus(res.msg);
 })}
 function closeNet(){try{net.dc&&net.dc.close();
 net.pc&&net.pc.close();
-for(const c of net.channels.values())c.close()}catch(e){}
+for(const c of net.channels.values())c.close();
+if(net.pendingSlots)for(const s of net.pendingSlots.values()){try{s.ch&&s.ch.close();s.pc&&s.pc.close()}catch(e){}}
+}catch(e){}
 remoteInputs.clear()}
 function send(o){let ch=net.dc;
 if(ch&&ch.readyState==='open')ch.send(pack(o))}
 function msgNet(o,ch,id){if(o.t==='input'&&net.role==='host')remoteInputs.set(id,inputSafe(o.v));
-if(o.t==='snap'&&net.role==='client'){game=o.g;repairGameState();ensureClientPlayer();
+if(o.t==='snap'&&net.role==='client'){game=o.g;repairGameState();
 if(game.phase!=='menu')showPlay();
 syncGameMenu();
 ui()}
-if(o.t==='welcome'&&net.role==='client'){net.localId=o.id;ensureClientPlayer();
+if(o.t==='welcome'&&net.role==='client'){net.localId=o.id;
 setStatus('Joined as P'+(o.id+1)+'. Wait for Host.')}
 if(o.t==='start'&&net.role==='host')startGame();
 if(o.t==='join'&&net.role==='host'){net.knownIds.add(id);ensureHostPlayers(game.phase==='menu'||game.over);broadcast()}}
@@ -824,7 +956,12 @@ for(const c of net.channels.values())if(c.readyState==='open')c.send(data)}
 function sendInput(dt){net.timer+=dt;
 if(net.timer<.033)return;
 net.timer=0;
-send({t:'input',v:control({control:'local'})})}
+let v=control({control:'local'}),l=hypot(v.x,v.y);
+if(l>.001)inputAim={x:v.x/l,y:v.y/l};
+if(v.dash&&!inputDashDown){inputSeq++;v.dashSeq=inputSeq;v.dashX=inputAim.x;v.dashY=inputAim.y}
+inputDashDown=v.dash;
+v.dash=false;
+send({t:'input',v})}
 function loop(now){let dt=Math.min(.033,(now-last)/1000||0);
 last=now;
 update(dt);
@@ -874,6 +1011,8 @@ els.invite.onclick=()=>invite();
 els.join.onclick=()=>join();
 els.use.onclick=()=>useInvite();
 els.answer.onclick=()=>useAnswer();
+els.menuAcceptAnswer.onclick=()=>menuAcceptAnswer();
+els.menuCopyInvite.onclick=()=>copyTextFrom(els.code,'Invite code');
 els.copyInvite.onclick=()=>copyTextFrom(els.code,'Invite code');
 els.copyAnswer.onclick=()=>copyTextFrom(els.answerCode,'Answer code');
 els.cancelPair.onclick=pairReset;
