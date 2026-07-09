@@ -38,13 +38,13 @@
   }
   #hud {
     position: fixed;
-    top: 10px;
-    left: 10px;
-    right: 10px;
+    top: 8px;
+    left: 8px;
+    right: 8px;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
     pointer-events: none;
     font-weight: 800;
     text-shadow: 0 2px 2px rgba(0,0,0,.6);
@@ -52,21 +52,38 @@
   .panel {
     background: rgba(7, 10, 18, .70);
     border: 1px solid rgba(255,255,255,.16);
-    border-radius: 14px;
-    padding: 8px 10px;
+    border-radius: 8px;
+    padding: 6px 8px;
     backdrop-filter: blur(7px);
+  }
+  #scorePanel {
+    min-width: 186px;
+  }
+  .scoreLine {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    white-space: nowrap;
+  }
+  .scoreLine strong {
+    font-size: 13px;
+    letter-spacing: .02em;
+  }
+  .scoreMeta {
+    font-size: 12px;
+    opacity: .86;
   }
   #players {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
-    max-width: 560px;
+    max-width: 420px;
   }
   .badge {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 8px;
+    padding: 4px 7px;
     border-radius: 999px;
     background: rgba(255,255,255,.10);
     font-size: 13px;
@@ -77,36 +94,6 @@
     height: 10px;
     border-radius: 50%;
     display: inline-block;
-  }
-  #msg {
-    position: fixed;
-    top: 72px;
-    left: 50%;
-    transform: translateX(-50%);
-    min-width: 220px;
-    max-width: calc(100vw - 20px);
-    text-align: center;
-    font-weight: 900;
-    color: #fff;
-    background: rgba(0, 0, 0, .45);
-    border: 1px solid rgba(255,255,255,.18);
-    border-radius: 999px;
-    padding: 8px 14px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .18s ease;
-    text-shadow: 0 2px 2px rgba(0,0,0,.8);
-  }
-  #msg.show { opacity: 1; }
-  #controlsInfo {
-    position: fixed;
-    left: 10px;
-    bottom: 10px;
-    max-width: 520px;
-    font-size: 12px;
-    line-height: 1.35;
-    color: rgba(255,255,255,.78);
-    pointer-events: none;
   }
   #touchControls {
     position: fixed;
@@ -135,8 +122,8 @@
     position: absolute;
     left: 24px;
     bottom: 34px;
-    width: 126px;
-    height: 126px;
+    width: 112px;
+    height: 112px;
     border-radius: 50%;
     background: rgba(255,255,255,.09);
     border: 1px solid rgba(255,255,255,.18);
@@ -144,10 +131,10 @@
   }
   #joyStick {
     position: absolute;
-    left: 38px;
-    top: 38px;
-    width: 50px;
-    height: 50px;
+    left: 34px;
+    top: 34px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: rgba(255,255,255,.35);
     border: 1px solid rgba(255,255,255,.28);
@@ -155,10 +142,12 @@
   #dashBtn {
     right: 28px;
     bottom: 78px;
-    width: 74px;
-    height: 74px;
-    font-size: 13px;
+    width: 66px;
+    height: 66px;
+    font-size: 12px;
   }
+  #pauseBtn,
+  #fullBtn,
   #resetBtn {
     pointer-events: auto;
     cursor: pointer;
@@ -166,7 +155,7 @@
     background: rgba(255,255,255,.12);
     border: 1px solid rgba(255,255,255,.18);
     border-radius: 10px;
-    padding: 6px 10px;
+    padding: 6px 9px;
     font-weight: 800;
   }
   #netBtn {
@@ -176,7 +165,7 @@
     background: rgba(72, 184, 255, .16);
     border: 1px solid rgba(114, 211, 255, .32);
     border-radius: 10px;
-    padding: 6px 10px;
+    padding: 6px 9px;
     font-weight: 800;
   }
   #hudActions {
@@ -186,29 +175,24 @@
   }
   #netPanel {
     position: fixed;
-    right: 10px;
-    bottom: 10px;
-    width: min(360px, calc(100vw - 20px));
+    right: 8px;
+    top: 48px;
+    width: min(270px, calc(100vw - 16px));
     display: none;
     z-index: 3;
   }
   #netPanel.show { display: block; }
-  #netPanel h3 {
-    margin: 0 0 8px;
-    font-size: 15px;
-  }
-  #netPanel p {
-    margin: 0 0 10px;
-    color: rgba(255,255,255,.78);
-    font-size: 12px;
-    line-height: 1.35;
+  .netTitle {
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 900;
   }
   #netStatus {
-    min-height: 34px;
-    margin-top: 8px;
+    min-height: 18px;
+    margin-top: 6px;
     color: rgba(255,255,255,.86);
-    font-size: 12px;
-    line-height: 1.35;
+    font-size: 11px;
+    line-height: 1.25;
   }
   .netBtns {
     display: grid;
@@ -219,8 +203,8 @@
     border: 1px solid rgba(255,255,255,.20);
     background: rgba(255,255,255,.10);
     color: #fff;
-    border-radius: 12px;
-    padding: 12px 8px;
+    border-radius: 8px;
+    padding: 9px 8px;
     font-weight: 900;
     user-select: none;
     touch-action: none;
@@ -229,12 +213,15 @@
     background: rgba(72,184,255,.28);
     border-color: rgba(114,211,255,.62);
   }
+  @media (hover: hover) and (pointer: fine) {
+    #touchControls { display: none; }
+  }
   @media (max-width: 760px) {
-    #controlsInfo { display: none; }
-    #hud { font-size: 13px; }
-    #players { max-width: 360px; }
+    #hud { font-size: 12px; gap: 6px; }
+    #players { max-width: 260px; }
     .badge { font-size: 11px; padding: 4px 6px; }
-    #msg { top: 62px; font-size: 13px; }
+    #scorePanel { min-width: 0; }
+    .scoreLine strong { display: none; }
   }
 </style>
 </head>
@@ -242,22 +229,19 @@
 <div id="wrap"><canvas id="game" width="960" height="540"></canvas></div>
 
 <div id="hud">
-  <div class="panel">
-    <div>COIN DASH</div>
-    <div style="font-size:13px; opacity:.85; margin-top:2px;">Coins: <span id="coinHud">0</span>/<span id="coinMaxHud">0</span> · Time: <span id="timeHud">0:00</span></div>
+  <div class="panel" id="scorePanel">
+    <div class="scoreLine">
+      <strong>COIN DASH</strong>
+      <span class="scoreMeta"><span id="coinHud">0</span>/<span id="coinMaxHud">0</span> · <span id="timeHud">0:00</span></span>
+    </div>
   </div>
-  <div class="panel" id="players"></div>
+  <div id="players"></div>
   <div id="hudActions">
-    <button id="netBtn">Multiplayer</button>
+    <button id="netBtn">Players</button>
+    <button id="pauseBtn">Pause</button>
+    <button id="fullBtn">Full</button>
     <button id="resetBtn">Reset</button>
   </div>
-</div>
-
-<div id="msg"></div>
-
-<div id="controlsInfo" class="panel">
-  <b>Goal:</b> collect all coins, avoid enemies, then reach the exit.<br>
-  <b>Controls:</b> WASD, Space dash
 </div>
 
 <div id="touchControls">
@@ -266,13 +250,12 @@
 </div>
 
 <div id="netPanel" class="panel">
-  <h3>LAN Multiplayer</h3>
-  <p>Host holds Invite. The other device holds Join nearby. The devices trade connection sounds, then gameplay runs peer-to-peer on the LAN.</p>
+  <div class="netTitle">Pair Players</div>
   <div class="netBtns">
-    <button id="inviteBtn" class="netHoldBtn">HOLD INVITE</button>
-    <button id="joinBtn" class="netHoldBtn">HOLD JOIN</button>
+    <button id="inviteBtn" class="netHoldBtn">Invite</button>
+    <button id="joinBtn" class="netHoldBtn">Join</button>
   </div>
-  <div id="netStatus">Not connected.</div>
+  <div id="netStatus">Ready.</div>
 </div>
 
 <script>
@@ -287,12 +270,13 @@
   const coinMaxHud = document.getElementById("coinMaxHud");
   const timeHud = document.getElementById("timeHud");
   const playerHud = document.getElementById("players");
-  const msg = document.getElementById("msg");
   const netBtn = document.getElementById("netBtn");
   const netPanel = document.getElementById("netPanel");
   const inviteBtn = document.getElementById("inviteBtn");
   const joinBtn = document.getElementById("joinBtn");
   const netStatus = document.getElementById("netStatus");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const fullBtn = document.getElementById("fullBtn");
   const resetBtn = document.getElementById("resetBtn");
   const joyBase = document.getElementById("joyBase");
   const joyStick = document.getElementById("joyStick");
@@ -305,12 +289,11 @@
   const keyMap = { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", dash: "Space" };
 
   const keys = new Set();
-  const touch = { x: 0, y: 0, active: false, dash: false };
+  const touch = { x: 0, y: 0, active: false, dash: false, joyPointerId: null };
   const remoteInputs = new Map();
 
   let last = performance.now();
   let game;
-  let toastTimer = 0;
   let net = makeNetState();
 
   const walls = [
@@ -352,6 +335,7 @@
       startedAt: performance.now(),
       over: false,
       won: false,
+      paused: false,
       exit: { x: W - 68, y: H / 2, r: 28 },
       shake: 0,
       totalCoins: coins.length
@@ -393,20 +377,25 @@
       mode: "solo",
       peer: null,
       channel: null,
+      peers: new Map(),
+      channels: new Map(),
+      pairingPeer: null,
+      pairingChannel: null,
+      remotePlayerId: null,
       localPlayerId: 0,
       nextRemoteId: 1,
       sendTimer: 0,
       audio: null,
       listening: false,
       transmitting: false,
+      activeHold: null,
+      txToken: null,
+      txOscillators: new Set(),
+      txTimers: new Set(),
+      mediaStream: null,
+      listenRun: 0,
       heard: ""
     };
-  }
-
-  function showMessage(text) {
-    msg.textContent = text;
-    msg.classList.add("show");
-    toastTimer = 2.2;
   }
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
@@ -475,15 +464,16 @@
   }
 
   function update(dt) {
-    if (toastTimer > 0) {
-      toastTimer -= dt;
-      if (toastTimer <= 0) msg.classList.remove("show");
-    }
-
     if (game.over) return;
 
     if (net.mode === "client" && isChannelOpen()) {
       sendLocalInput(dt);
+      updateHud();
+      return;
+    }
+
+    if (game.paused) {
+      sendSnapshot(dt);
       updateHud();
       return;
     }
@@ -511,6 +501,7 @@
         p.dashCooldown = 0.72;
         p.invuln = Math.max(p.invuln, 0.18);
         game.shake = Math.max(game.shake, 0.05);
+        playSfx("dash");
       }
 
       if (p.dashTime > 0) {
@@ -542,7 +533,7 @@
         if (Math.hypot(p.x - coin.x, p.y - coin.y) < p.r + coin.r) {
           coin.taken = true;
           p.score++;
-          showMessage("Coin collected");
+          playSfx("coin");
           break;
         }
       }
@@ -594,7 +585,7 @@
             e.vx = nx * 190;
             e.vy = ny * 190;
             e.stun = .7;
-            showMessage("Slime bumped");
+            playSfx("bump");
           } else {
             player.hp--;
             player.invuln = 1.1;
@@ -606,9 +597,9 @@
             resolveWorld(player);
             if (player.hp <= 0) {
               player.alive = false;
-              showMessage(player.id === 0 ? "You are out" : `P${player.id + 1} is out`);
+              playSfx("out");
             } else {
-              showMessage(player.id === 0 ? "Hit!" : `P${player.id + 1} hit!`);
+              playSfx("hit");
             }
           }
         }
@@ -621,7 +612,7 @@
     if (!active.length) {
       game.over = true;
       game.won = false;
-      showMessage("Game over - reset to try again");
+      playSfx("lose");
       return;
     }
 
@@ -631,7 +622,7 @@
         if (Math.hypot(player.x - game.exit.x, player.y - game.exit.y) < player.r + game.exit.r) {
           game.over = true;
           game.won = true;
-          showMessage("You win!");
+          playSfx("win");
           break;
         }
       }
@@ -781,15 +772,15 @@
   }
 
   function drawOverlay() {
-    if (!game.over) return;
+    if (!game.over && !game.paused) return;
     ctx.fillStyle = "rgba(0,0,0,.55)";
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
     ctx.font = "900 44px system-ui";
-    ctx.fillText(game.won ? "YOU WIN" : "GAME OVER", W / 2, H / 2 - 20);
+    ctx.fillText(game.paused ? "PAUSED" : (game.won ? "YOU WIN" : "GAME OVER"), W / 2, H / 2 - 20);
     ctx.font = "800 18px system-ui";
-    ctx.fillText("Press Reset to play again", W / 2, H / 2 + 22);
+    ctx.fillText(game.paused ? "Press Resume to continue" : "Press Reset to play again", W / 2, H / 2 + 22);
   }
 
   function roundRect(x, y, w, h, r, fill, stroke) {
@@ -809,8 +800,106 @@
     netStatus.textContent = text;
   }
 
+  async function playSfx(name) {
+    try {
+      const ctxAudio = await getAudio();
+      const now = ctxAudio.currentTime;
+      const patterns = {
+        coin: [[880, .045], [1320, .055], [1760, .07]],
+        dash: [[180, .035], [360, .04]],
+        bump: [[420, .04], [260, .07]],
+        hit: [[160, .06], [120, .08]],
+        out: [[320, .08], [220, .1], [120, .16]],
+        win: [[660, .08], [880, .08], [1320, .12], [1760, .18]],
+        lose: [[240, .12], [180, .12], [120, .2]],
+        join: [[520, .06], [780, .09], [1040, .12]],
+        pause: [[440, .08], [330, .09]],
+        resume: [[330, .06], [440, .08]],
+        start: [[523, .06], [784, .08]]
+      };
+      let t = now;
+      for (const [freq, dur] of patterns[name] || patterns.coin) {
+        const osc = ctxAudio.createOscillator();
+        const gain = ctxAudio.createGain();
+        osc.type = name === "dash" ? "sawtooth" : "square";
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.06, t + 0.006);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.connect(gain).connect(ctxAudio.destination);
+        osc.start(t);
+        osc.stop(t + dur + 0.01);
+        t += dur * 0.82;
+      }
+    } catch {}
+  }
+
+  function primeAudio() {
+    getAudio().catch(() => {});
+  }
+
   function isChannelOpen() {
+    if (net.mode === "host") {
+      for (const channel of net.channels.values()) {
+        if (channel.readyState === "open") return true;
+      }
+      return false;
+    }
     return net.channel && net.channel.readyState === "open";
+  }
+
+  function isPairingComplete() {
+    if (net.mode === "host") return net.pairingChannel && net.pairingChannel.readyState === "open";
+    return isChannelOpen();
+  }
+
+  function stopTransmit() {
+    if (net.txToken) net.txToken.active = false;
+    for (const id of net.txTimers) clearTimeout(id);
+    net.txTimers.clear();
+    for (const osc of net.txOscillators) {
+      try { osc.stop(); } catch {}
+      try { osc.disconnect(); } catch {}
+    }
+    net.txOscillators.clear();
+    net.transmitting = false;
+  }
+
+  function stopAcousticListen() {
+    net.listening = false;
+    net.listenRun++;
+    net.heard = "";
+    if (net.mediaStream) {
+      for (const track of net.mediaStream.getTracks()) track.stop();
+      net.mediaStream = null;
+    }
+  }
+
+  function closePairingAttempt() {
+    stopTransmit();
+    stopAcousticListen();
+    if (net.pairingChannel && net.pairingChannel.readyState !== "open") {
+      try { net.pairingChannel.close(); } catch {}
+    }
+    if (net.pairingPeer && !["connected", "completed"].includes(net.pairingPeer.connectionState)) {
+      try { net.pairingPeer.close(); } catch {}
+    }
+    net.pairingPeer = null;
+    net.pairingChannel = null;
+    if (net.channel && net.channel.readyState !== "open") {
+      try { net.channel.close(); } catch {}
+      net.channel = null;
+      net.peer = null;
+    }
+    net.mode = isChannelOpen() ? net.mode : "solo";
+    if (!isChannelOpen()) {
+      net.remotePlayerId = null;
+      net.localPlayerId = 0;
+      net.nextRemoteId = 1;
+      remoteInputs.clear();
+      game.players = game.players.filter(p => p.id === 0);
+      updateHud();
+    }
   }
 
   function localInputPayload() {
@@ -830,7 +919,7 @@
     net.sendTimer -= dt;
     if (net.sendTimer > 0 || !isChannelOpen() || net.mode !== "host") return;
     net.sendTimer = 1 / 20;
-    net.channel.send(JSON.stringify({
+    const payload = JSON.stringify({
       type: "state",
       players: game.players.map(p => ({
         id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, hp: p.hp, score: p.score,
@@ -840,8 +929,12 @@
       coins: game.coins.map(c => c.taken),
       enemies: game.enemies.map(e => ({ x: e.x, y: e.y, vx: e.vx, vy: e.vy, stun: e.stun })),
       over: game.over,
-      won: game.won
-    }));
+      won: game.won,
+      paused: game.paused
+    });
+    for (const channel of net.channels.values()) {
+      if (channel.readyState === "open") channel.send(payload);
+    }
   }
 
   function applySnapshot(msg) {
@@ -859,18 +952,19 @@
     if (msg.enemies) game.enemies.forEach((e, i) => { if (msg.enemies[i]) Object.assign(e, msg.enemies[i]); });
     game.over = !!msg.over;
     game.won = !!msg.won;
+    game.paused = !!msg.paused;
   }
 
-  function handleChannelMessage(event) {
+  function handleChannelMessage(event, channelPlayerId = null) {
     let msg;
     try { msg = JSON.parse(event.data); } catch { return; }
 
-    if (msg.type === "input" && net.mode === "host" && net.remotePlayerId != null) {
-      remoteInputs.set(net.remotePlayerId, msg.input);
+    if (msg.type === "input" && net.mode === "host" && channelPlayerId != null) {
+      remoteInputs.set(channelPlayerId, msg.input);
     } else if (msg.type === "welcome" && net.mode === "client") {
       net.localPlayerId = msg.playerId;
       setNetStatus(`Connected as P${msg.playerId + 1}.`);
-      showMessage(`Joined as P${msg.playerId + 1}`);
+      playSfx("join");
     } else if (msg.type === "state" && net.mode === "client") {
       applySnapshot(msg);
       updateHud();
@@ -878,24 +972,56 @@
   }
 
   function setupChannel(channel) {
-    net.channel = channel;
-    channel.onmessage = handleChannelMessage;
+    let channelPlayerId = null;
+    channel.onmessage = event => handleChannelMessage(event, channelPlayerId);
     channel.onopen = () => {
       if (net.mode === "host") {
         const id = addRemotePlayer();
+        if (id == null) {
+          channel.close();
+          setNetStatus("Full");
+          return;
+        }
+        channelPlayerId = id;
         net.remotePlayerId = id;
+        net.channels.set(id, channel);
+        if (net.pairingPeer) net.peers.set(id, net.pairingPeer);
         channel.send(JSON.stringify({ type: "welcome", playerId: id }));
-        setNetStatus(`Connected. Remote player is P${id + 1}.`);
-        showMessage(`P${id + 1} joined`);
+        setNetStatus(`Connected: P${id + 1}`);
+        playSfx("join");
+        net.pairingPeer = null;
+        net.pairingChannel = null;
+        stopTransmit();
+        stopAcousticListen();
       } else {
-        setNetStatus("Connected. Waiting for host state.");
+        net.channel = channel;
+        setNetStatus("Connected");
       }
     };
-    channel.onclose = () => setNetStatus("Disconnected.");
+    channel.onclose = () => {
+      if (net.mode === "host" && channelPlayerId != null) {
+        net.channels.delete(channelPlayerId);
+        const peer = net.peers.get(channelPlayerId);
+        if (peer) {
+          try { peer.close(); } catch {}
+          net.peers.delete(channelPlayerId);
+        }
+        remoteInputs.delete(channelPlayerId);
+        game.players = game.players.filter(p => p.id !== channelPlayerId);
+        updateHud();
+        setNetStatus(net.channels.size ? `${net.channels.size + 1} players` : "Disconnected");
+      } else {
+        setNetStatus("Disconnected");
+      }
+    };
   }
 
   function addRemotePlayer() {
-    const id = net.nextRemoteId++;
+    if (game.players.length >= colors.length) return null;
+    let id = 1;
+    while (game.players.some(p => p.id === id) && id < colors.length) id++;
+    if (id >= colors.length) return null;
+    net.nextRemoteId = Math.max(net.nextRemoteId, id + 1);
     const spots = [{ x: 130, y: 92 }, { x: 92, y: 132 }, { x: 130, y: 132 }];
     const spot = spots[(id - 1) % spots.length];
     game.players.push(makePlayer(id, spot.x, spot.y, "remote"));
@@ -904,10 +1030,13 @@
 
   function createPeer() {
     if (!("RTCPeerConnection" in window)) {
-      throw new Error("WebRTC is not available in this browser.");
+      throw new Error("Pairing is not supported here.");
     }
     const peer = new RTCPeerConnection({ iceServers: [] });
-    peer.onconnectionstatechange = () => setNetStatus(`Connection: ${peer.connectionState}`);
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === "connected") setNetStatus("Connected");
+      else if (peer.connectionState === "failed") setNetStatus("Could not connect");
+    };
     return peer;
   }
 
@@ -925,46 +1054,70 @@
     });
   }
 
-  async function beginInvite() {
+  async function beginInvite(token) {
     try {
+      if (!token.active) return;
+      if (game.players.length >= colors.length) {
+        setNetStatus("Full");
+        return;
+      }
+      closePairingAttempt();
       net.mode = "host";
-      net.peer = createPeer();
-      setupChannel(net.peer.createDataChannel("coin-dash"));
-      const offer = await net.peer.createOffer();
-      await net.peer.setLocalDescription(offer);
-      await waitIceComplete(net.peer);
+      const peer = createPeer();
+      net.pairingPeer = peer;
+      const channel = peer.createDataChannel("coin-dash");
+      net.pairingChannel = channel;
+      setupChannel(channel);
+      const offer = await peer.createOffer();
+      if (!token.active) return closePairingAttempt();
+      await peer.setLocalDescription(offer);
+      await waitIceComplete(peer);
+      if (!token.active) return closePairingAttempt();
       await startAcousticListen();
+      if (!token.active) return closePairingAttempt();
       net.transmitting = true;
-      setNetStatus("Playing invite sound. Keep holding until connected.");
-      transmitWhileHeld(inviteBtn, { type: "offer", sdp: net.peer.localDescription.sdp });
+      setNetStatus("Inviting...");
+      transmitWhileHeld(token, { type: "offer", sdp: peer.localDescription.sdp });
     } catch (err) {
       setNetStatus(err.message);
+      closePairingAttempt();
     }
   }
 
-  async function beginJoin() {
+  async function beginJoin(token) {
     try {
+      if (!token.active || isChannelOpen()) return;
+      closePairingAttempt();
       net.mode = "client";
       await startAcousticListen();
-      setNetStatus("Listening for invite sound. Keep holding Join near host.");
+      if (!token.active) return closePairingAttempt();
+      setNetStatus("Joining...");
     } catch (err) {
       setNetStatus(err.message);
+      closePairingAttempt();
     }
   }
 
   async function handleAcousticPacket(packet) {
     if (packet.type === "offer" && net.mode === "client" && !net.peer) {
-      setNetStatus("Invite heard. Answering with sound.");
-      net.peer = createPeer();
-      net.peer.ondatachannel = event => setupChannel(event.channel);
-      await net.peer.setRemoteDescription({ type: "offer", sdp: packet.sdp });
-      const answer = await net.peer.createAnswer();
-      await net.peer.setLocalDescription(answer);
-      await waitIceComplete(net.peer);
-      transmitWhileHeld(joinBtn, { type: "answer", sdp: net.peer.localDescription.sdp });
-    } else if (packet.type === "answer" && net.mode === "host" && net.peer && !net.peer.currentRemoteDescription) {
-      setNetStatus("Answer heard. Connecting...");
-      await net.peer.setRemoteDescription({ type: "answer", sdp: packet.sdp });
+      setNetStatus("Answering...");
+      const holdToken = net.activeHold;
+      const peer = createPeer();
+      net.peer = peer;
+      peer.ondatachannel = event => setupChannel(event.channel);
+      await peer.setRemoteDescription({ type: "offer", sdp: packet.sdp });
+      if (!holdToken || !holdToken.active) return closePairingAttempt();
+      const answer = await peer.createAnswer();
+      if (!holdToken.active) return closePairingAttempt();
+      await peer.setLocalDescription(answer);
+      await waitIceComplete(peer);
+      if (holdToken.active && net.peer === peer) {
+        transmitWhileHeld(holdToken, { type: "answer", sdp: peer.localDescription.sdp });
+      }
+    } else if (packet.type === "answer" && net.mode === "host" && net.pairingPeer && !net.pairingPeer.currentRemoteDescription) {
+      setNetStatus("Connecting...");
+      const peer = net.pairingPeer;
+      await peer.setRemoteDescription({ type: "answer", sdp: packet.sdp });
     }
   }
 
@@ -982,11 +1135,17 @@
     return `cd55${payload.length.toString(16).padStart(5, "0")}${payload}`;
   }
 
-  async function transmitWhileHeld(button, packet) {
-    if (!button.classList.contains("down")) return;
-    await playToneFrame(makeFrame(packet));
-    if (button.classList.contains("down") && !isChannelOpen()) {
-      setTimeout(() => transmitWhileHeld(button, packet), 250);
+  async function transmitWhileHeld(holdToken, packet) {
+    if (!holdToken.active || isPairingComplete()) return;
+    const txToken = { active: true };
+    net.txToken = txToken;
+    await playToneFrame(makeFrame(packet), txToken, holdToken);
+    if (holdToken.active && txToken.active && !isPairingComplete()) {
+      const id = setTimeout(() => {
+        net.txTimers.delete(id);
+        transmitWhileHeld(holdToken, packet);
+      }, 250);
+      net.txTimers.add(id);
     }
   }
 
@@ -998,48 +1157,56 @@
     return net.audio.ctx;
   }
 
-  async function playToneFrame(frame) {
+  async function playToneFrame(frame, txToken, holdToken) {
     const ctxAudio = await getAudio();
     const freqs = [700, 760, 820, 880, 940, 1000, 1060, 1120, 1180, 1240, 1300, 1360, 1420, 1480, 1540, 1600];
-    const symbol = 0.035;
-    let t = ctxAudio.currentTime + 0.02;
+    const symbolMs = 28;
     for (const ch of frame) {
+      if (!txToken.active || !holdToken.active || isPairingComplete()) break;
       const n = parseInt(ch, 16);
       const osc = ctxAudio.createOscillator();
       const gain = ctxAudio.createGain();
       osc.frequency.value = freqs[n];
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.08, t + 0.004);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + symbol - 0.004);
+      gain.gain.setValueAtTime(0.08, ctxAudio.currentTime);
       osc.connect(gain).connect(ctxAudio.destination);
-      osc.start(t);
-      osc.stop(t + symbol);
-      t += symbol;
+      net.txOscillators.add(osc);
+      osc.onended = () => net.txOscillators.delete(osc);
+      osc.start();
+      const id = setTimeout(() => {
+        net.txTimers.delete(id);
+        try { osc.stop(); } catch {}
+        try { osc.disconnect(); } catch {}
+      }, symbolMs);
+      net.txTimers.add(id);
+      await new Promise(resolve => {
+        setTimeout(resolve, symbolMs + 3);
+      });
     }
-    return new Promise(resolve => setTimeout(resolve, (t - ctxAudio.currentTime) * 1000 + 60));
   }
 
   async function startAcousticListen() {
     if (net.listening) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error("Microphone access is required for sound joining.");
+      throw new Error("Allow mic to pair.");
     }
     const ctxAudio = await getAudio();
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
     });
+    net.mediaStream = stream;
     const source = ctxAudio.createMediaStreamSource(stream);
     const analyser = ctxAudio.createAnalyser();
     analyser.fftSize = 4096;
     source.connect(analyser);
     net.listening = true;
+    const run = ++net.listenRun;
 
     const freqs = [700, 760, 820, 880, 940, 1000, 1060, 1120, 1180, 1240, 1300, 1360, 1420, 1480, 1540, 1600];
     const data = new Uint8Array(analyser.frequencyBinCount);
     let lastAt = 0;
 
     const read = () => {
-      if (!net.listening) return;
+      if (!net.listening || run !== net.listenRun) return;
       requestAnimationFrame(read);
       const now = performance.now();
       if (now - lastAt < 34) return;
@@ -1073,9 +1240,11 @@
     const payload = net.heard.slice(9, 9 + len);
     net.heard = net.heard.slice(9 + len);
     try {
-      handleAcousticPacket(JSON.parse(hexToText(payload)));
+      handleAcousticPacket(JSON.parse(hexToText(payload))).catch(() => {
+        if (!isChannelOpen()) setNetStatus("Stopped");
+      });
     } catch {
-      setNetStatus("Heard sound, but could not read it. Keep holding the buttons close together.");
+      setNetStatus("Move closer");
     }
   }
 
@@ -1083,6 +1252,7 @@
     const collected = game.coins.filter(c => c.taken).length;
     coinHud.textContent = collected;
     coinMaxHud.textContent = game.totalCoins;
+    pauseBtn.textContent = game.paused ? "Resume" : "Pause";
 
     const secs = Math.floor((performance.now() - game.startedAt) / 1000);
     timeHud.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
@@ -1104,23 +1274,63 @@
 
   function resetGame() {
     game = makeGame();
+    if (net.mode === "host" && net.channels.size) {
+      const spots = [{ x: 130, y: 92 }, { x: 92, y: 132 }, { x: 130, y: 132 }];
+      for (const id of net.channels.keys()) {
+        const spot = spots[(id - 1) % spots.length];
+        game.players.push(makePlayer(id, spot.x, spot.y, "remote"));
+      }
+    }
     touch.dash = false;
     dashBtn.classList.remove("down");
-    showMessage("Collect all coins, then reach the exit");
+    resetJoystick();
+    playSfx("start");
     updateHud();
   }
 
   window.addEventListener("keydown", (e) => {
+    primeAudio();
+    if (e.code === "KeyP" && !e.repeat) {
+      togglePause();
+      e.preventDefault();
+      return;
+    }
     keys.add(e.code);
     if (["Space"].includes(e.code)) e.preventDefault();
   });
   window.addEventListener("keyup", (e) => keys.delete(e.code));
 
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      setNetStatus("Fullscreen unavailable");
+    }
+  }
+
+  function togglePause() {
+    if (game.over) return;
+    game.paused = !game.paused;
+    playSfx(game.paused ? "pause" : "resume");
+    if (net.mode === "host") {
+      net.sendTimer = 0;
+      sendSnapshot(1);
+    }
+    updateHud();
+  }
+
+  document.addEventListener("fullscreenchange", () => {
+    fullBtn.textContent = document.fullscreenElement ? "Exit" : "Full";
+  });
+
+  fullBtn.addEventListener("click", toggleFullscreen);
+  pauseBtn.addEventListener("click", togglePause);
   resetBtn.addEventListener("click", resetGame);
   netBtn.addEventListener("click", () => netPanel.classList.toggle("show"));
 
   function bindHoldButton(el, prop) {
-    const down = (e) => { e.preventDefault(); touch[prop] = true; el.classList.add("down"); };
+    const down = (e) => { e.preventDefault(); primeAudio(); touch[prop] = true; el.classList.add("down"); };
     const up = (e) => { e.preventDefault(); touch[prop] = false; el.classList.remove("down"); };
     el.addEventListener("pointerdown", down);
     el.addEventListener("pointerup", up);
@@ -1132,17 +1342,32 @@
   function bindNetHoldButton(el, start) {
     el.addEventListener("pointerdown", (e) => {
       e.preventDefault();
+      primeAudio();
+      if (el.classList.contains("down")) return;
+      if (e.pointerId != null && el.setPointerCapture) {
+        try { el.setPointerCapture(e.pointerId); } catch {}
+      }
+      const token = { active: true };
+      net.activeHold = token;
       el.classList.add("down");
-      start();
+      start(token);
     });
     const stop = (e) => {
       e.preventDefault();
+      if (!el.classList.contains("down")) return;
+      if (net.activeHold) net.activeHold.active = false;
+      net.activeHold = null;
       el.classList.remove("down");
-      if (!isChannelOpen()) setNetStatus("Hold Invite or Join again to keep pairing.");
+      stopTransmit();
+      if (!isPairingComplete()) {
+        closePairingAttempt();
+        setNetStatus("Stopped");
+      }
     };
     el.addEventListener("pointerup", stop);
     el.addEventListener("pointercancel", stop);
     el.addEventListener("pointerleave", stop);
+    el.addEventListener("lostpointercapture", stop);
   }
   bindNetHoldButton(inviteBtn, beginInvite);
   bindNetHoldButton(joinBtn, beginJoin);
@@ -1151,38 +1376,52 @@
     const rect = joyBase.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
+    const stickSize = joyStick.offsetWidth || 44;
     let dx = e.clientX - cx;
     let dy = e.clientY - cy;
     const max = rect.width * .34;
     const l = Math.hypot(dx, dy);
     if (l > max) { dx = dx / l * max; dy = dy / l * max; }
-    joyStick.style.left = `${rect.width / 2 - 25 + dx}px`;
-    joyStick.style.top = `${rect.height / 2 - 25 + dy}px`;
+    joyStick.style.left = `${rect.width / 2 - stickSize / 2 + dx}px`;
+    joyStick.style.top = `${rect.height / 2 - stickSize / 2 + dy}px`;
     touch.x = dx / max;
     touch.y = dy / max;
   }
 
+  function resetJoystick() {
+    const rect = joyBase.getBoundingClientRect();
+    const stickSize = joyStick.offsetWidth || 44;
+    touch.active = false;
+    touch.joyPointerId = null;
+    touch.x = 0;
+    touch.y = 0;
+    joyStick.style.left = `${rect.width / 2 - stickSize / 2}px`;
+    joyStick.style.top = `${rect.height / 2 - stickSize / 2}px`;
+  }
+
   joyBase.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-    joyBase.setPointerCapture(e.pointerId);
+    primeAudio();
+    if (touch.active && touch.joyPointerId !== e.pointerId) return;
+    touch.joyPointerId = e.pointerId;
+    try { joyBase.setPointerCapture(e.pointerId); } catch {}
     touch.active = true;
     joyPos(e);
   });
   joyBase.addEventListener("pointermove", (e) => {
-    if (!touch.active) return;
+    if (!touch.active || touch.joyPointerId !== e.pointerId) return;
     e.preventDefault();
     joyPos(e);
   });
   function joyUp(e) {
     e.preventDefault();
-    touch.active = false;
-    touch.x = 0;
-    touch.y = 0;
-    joyStick.style.left = "38px";
-    joyStick.style.top = "38px";
+    if (touch.joyPointerId !== e.pointerId) return;
+    resetJoystick();
   }
   joyBase.addEventListener("pointerup", joyUp);
   joyBase.addEventListener("pointercancel", joyUp);
+  joyBase.addEventListener("lostpointercapture", resetJoystick);
+  window.addEventListener("resize", () => { if (!touch.active) resetJoystick(); });
 
   resetGame();
   requestAnimationFrame((t) => { last = t; requestAnimationFrame(loop); });
