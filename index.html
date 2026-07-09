@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Coin Dash</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #10141f;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #fff;
+    touch-action: none;
+  }
+  #wrap {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at top, rgba(60, 120, 255, .18), transparent 35%),
+      linear-gradient(180deg, #0c1020, #10141f 55%, #090b10);
+  }
+  canvas {
+    width: min(100vw, 177.777vh);
+    height: min(56.25vw, 100vh);
+    max-width: 100vw;
+    max-height: 100vh;
+    image-rendering: pixelated;
+    background: #18213a;
+    border: 2px solid rgba(255,255,255,.16);
+    box-shadow: 0 20px 90px rgba(0,0,0,.45);
+  }
+  #hud {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    pointer-events: none;
+    font-weight: 800;
+    text-shadow: 0 2px 2px rgba(0,0,0,.6);
+  }
+  .panel {
+    background: rgba(7, 10, 18, .70);
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 14px;
+    padding: 8px 10px;
+    backdrop-filter: blur(7px);
+  }
+  #players {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    max-width: 560px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.10);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  #msg {
+    position: fixed;
+    top: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 220px;
+    max-width: calc(100vw - 20px);
+    text-align: center;
+    font-weight: 900;
+    color: #fff;
+    background: rgba(0, 0, 0, .45);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 999px;
+    padding: 8px 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+    text-shadow: 0 2px 2px rgba(0,0,0,.8);
+  }
+  #msg.show { opacity: 1; }
+  #controlsInfo {
+    position: fixed;
+    left: 10px;
+    bottom: 10px;
+    max-width: 520px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: rgba(255,255,255,.78);
+    pointer-events: none;
+  }
+  #touchControls {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+  .touchBtn {
+    pointer-events: auto;
+    position: absolute;
+    border: 1px solid rgba(255,255,255,.20);
+    background: rgba(255,255,255,.10);
+    color: #fff;
+    border-radius: 999px;
+    font-weight: 900;
+    user-select: none;
+    touch-action: none;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 20px rgba(255,255,255,.04), 0 6px 18px rgba(0,0,0,.25);
+  }
+  .touchBtn.down { background: rgba(255,255,255,.28); }
+  #joyBase {
+    pointer-events: auto;
+    position: absolute;
+    left: 24px;
+    bottom: 34px;
+    width: 126px;
+    height: 126px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.09);
+    border: 1px solid rgba(255,255,255,.18);
+    touch-action: none;
+  }
+  #joyStick {
+    position: absolute;
+    left: 38px;
+    top: 38px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.35);
+    border: 1px solid rgba(255,255,255,.28);
+  }
+  #dashBtn {
+    right: 28px;
+    bottom: 78px;
+    width: 74px;
+    height: 74px;
+    font-size: 13px;
+  }
+  #resetBtn {
+    pointer-events: auto;
+    cursor: pointer;
+    color: #fff;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-weight: 800;
+  }
+  #netBtn {
+    pointer-events: auto;
+    cursor: pointer;
+    color: #fff;
+    background: rgba(72, 184, 255, .16);
+    border: 1px solid rgba(114, 211, 255, .32);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-weight: 800;
+  }
+  #hudActions {
+    display: flex;
+    gap: 8px;
+    pointer-events: auto;
+  }
+  #netPanel {
+    position: fixed;
+    right: 10px;
+    bottom: 10px;
+    width: min(360px, calc(100vw - 20px));
+    display: none;
+    z-index: 3;
+  }
+  #netPanel.show { display: block; }
+  #netPanel h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+  }
+  #netPanel p {
+    margin: 0 0 10px;
+    color: rgba(255,255,255,.78);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  #netStatus {
+    min-height: 34px;
+    margin-top: 8px;
+    color: rgba(255,255,255,.86);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .netBtns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .netHoldBtn {
+    border: 1px solid rgba(255,255,255,.20);
+    background: rgba(255,255,255,.10);
+    color: #fff;
+    border-radius: 12px;
+    padding: 12px 8px;
+    font-weight: 900;
+    user-select: none;
+    touch-action: none;
+  }
+  .netHoldBtn.down {
+    background: rgba(72,184,255,.28);
+    border-color: rgba(114,211,255,.62);
+  }
+  @media (max-width: 760px) {
+    #controlsInfo { display: none; }
+    #hud { font-size: 13px; }
+    #players { max-width: 360px; }
+    .badge { font-size: 11px; padding: 4px 6px; }
+    #msg { top: 62px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game" width="960" height="540"></canvas></div>
+
+<div id="hud">
+  <div class="panel">
+    <div>COIN DASH</div>
+    <div style="font-size:13px; opacity:.85; margin-top:2px;">Coins: <span id="coinHud">0</span>/<span id="coinMaxHud">0</span> · Time: <span id="timeHud">0:00</span></div>
+  </div>
+  <div class="panel" id="players"></div>
+  <div id="hudActions">
+    <button id="netBtn">Multiplayer</button>
+    <button id="resetBtn">Reset</button>
+  </div>
+</div>
+
+<div id="msg"></div>
+
+<div id="controlsInfo" class="panel">
+  <b>Goal:</b> collect all coins, avoid enemies, then reach the exit.<br>
+  <b>Controls:</b> WASD, Space dash
+</div>
+
+<div id="touchControls">
+  <div id="joyBase"><div id="joyStick"></div></div>
+  <div id="dashBtn" class="touchBtn">DASH</div>
+</div>
+
+<div id="netPanel" class="panel">
+  <h3>LAN Multiplayer</h3>
+  <p>Host holds Invite. The other device holds Join nearby. The devices trade connection sounds, then gameplay runs peer-to-peer on the LAN.</p>
+  <div class="netBtns">
+    <button id="inviteBtn" class="netHoldBtn">HOLD INVITE</button>
+    <button id="joinBtn" class="netHoldBtn">HOLD JOIN</button>
+  </div>
+  <div id="netStatus">Not connected.</div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+
+  const coinHud = document.getElementById("coinHud");
+  const coinMaxHud = document.getElementById("coinMaxHud");
+  const timeHud = document.getElementById("timeHud");
+  const playerHud = document.getElementById("players");
+  const msg = document.getElementById("msg");
+  const netBtn = document.getElementById("netBtn");
+  const netPanel = document.getElementById("netPanel");
+  const inviteBtn = document.getElementById("inviteBtn");
+  const joinBtn = document.getElementById("joinBtn");
+  const netStatus = document.getElementById("netStatus");
+  const resetBtn = document.getElementById("resetBtn");
+  const joyBase = document.getElementById("joyBase");
+  const joyStick = document.getElementById("joyStick");
+  const dashBtn = document.getElementById("dashBtn");
+
+  const W = canvas.width;
+  const H = canvas.height;
+
+  const colors = ["#46d0ff", "#ff595e", "#8ac926", "#ffca3a"];
+  const keyMap = { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", dash: "Space" };
+
+  const keys = new Set();
+  const touch = { x: 0, y: 0, active: false, dash: false };
+  const remoteInputs = new Map();
+
+  let last = performance.now();
+  let game;
+  let toastTimer = 0;
+  let net = makeNetState();
+
+  const walls = [
+    { x: 0, y: 0, w: W, h: 24 },
+    { x: 0, y: H - 24, w: W, h: 24 },
+    { x: 0, y: 0, w: 24, h: H },
+    { x: W - 24, y: 0, w: 24, h: H },
+    { x: 170, y: 118, w: 110, h: 36 },
+    { x: 380, y: 90, w: 42, h: 120 },
+    { x: 610, y: 124, w: 150, h: 32 },
+    { x: 145, y: 345, w: 150, h: 36 },
+    { x: 470, y: 330, w: 40, h: 120 },
+    { x: 675, y: 340, w: 105, h: 36 }
+  ];
+
+  function makeGame() {
+    const players = [
+      makePlayer(0, 92, 92, "local")
+    ];
+
+    const coins = [
+      [145, 90], [335, 78], [550, 85], [815, 86],
+      [90, 210], [300, 220], [660, 225], [875, 240],
+      [108, 330], [320, 315], [615, 315], [860, 340],
+      [230, 455], [430, 455], [635, 455], [805, 455]
+    ].map((p, i) => ({ x: p[0], y: p[1], r: 9, taken: false, pulse: i * .3 }));
+
+    const enemies = [
+      makeEnemy(500, 72),
+      makeEnemy(170, 250),
+      makeEnemy(770, 275),
+      makeEnemy(535, 470)
+    ];
+
+    return {
+      players,
+      coins,
+      enemies,
+      startedAt: performance.now(),
+      over: false,
+      won: false,
+      exit: { x: W - 68, y: H / 2, r: 28 },
+      shake: 0,
+      totalCoins: coins.length
+    };
+  }
+
+  function makePlayer(id, x, y, control) {
+    return {
+      id,
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      r: 15,
+      alive: true,
+      hp: 3,
+      score: 0,
+      speed: 155,
+      control,
+      dashCooldown: 0,
+      dashTime: 0,
+      dashX: 1,
+      dashY: 0,
+      dashTrail: [],
+      invuln: 0,
+      facingX: 1,
+      facingY: 0,
+      bob: Math.random() * 10
+    };
+  }
+
+  function makeEnemy(x, y) {
+    const a = Math.random() * Math.PI * 2;
+    return { x, y, vx: Math.cos(a) * 70, vy: Math.sin(a) * 70, r: 14, stun: 0 };
+  }
+
+  function makeNetState() {
+    return {
+      mode: "solo",
+      peer: null,
+      channel: null,
+      localPlayerId: 0,
+      nextRemoteId: 1,
+      sendTimer: 0,
+      audio: null,
+      listening: false,
+      transmitting: false,
+      heard: ""
+    };
+  }
+
+  function showMessage(text) {
+    msg.textContent = text;
+    msg.classList.add("show");
+    toastTimer = 2.2;
+  }
+
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+  function len(x, y) { return Math.hypot(x, y); }
+
+  function circleRectResolve(obj, rect) {
+    const cx = clamp(obj.x, rect.x, rect.x + rect.w);
+    const cy = clamp(obj.y, rect.y, rect.y + rect.h);
+    let dx = obj.x - cx;
+    let dy = obj.y - cy;
+    let d = Math.hypot(dx, dy);
+
+    if (d < obj.r) {
+      if (d < 0.001) {
+        const left = Math.abs(obj.x - rect.x);
+        const right = Math.abs(obj.x - (rect.x + rect.w));
+        const top = Math.abs(obj.y - rect.y);
+        const bottom = Math.abs(obj.y - (rect.y + rect.h));
+        const m = Math.min(left, right, top, bottom);
+        if (m === left) { dx = -1; dy = 0; d = 1; }
+        else if (m === right) { dx = 1; dy = 0; d = 1; }
+        else if (m === top) { dx = 0; dy = -1; d = 1; }
+        else { dx = 0; dy = 1; d = 1; }
+      }
+      const push = obj.r - d;
+      obj.x += dx / d * push;
+      obj.y += dy / d * push;
+      if (Math.abs(dx) > Math.abs(dy)) obj.vx *= -0.25;
+      else obj.vy *= -0.25;
+      return true;
+    }
+    return false;
+  }
+
+  function solidWalls() {
+    return walls;
+  }
+
+  function resolveWorld(obj) {
+    for (const wall of solidWalls()) circleRectResolve(obj, wall);
+    obj.x = clamp(obj.x, obj.r + 24, W - obj.r - 24);
+    obj.y = clamp(obj.y, obj.r + 24, H - obj.r - 24);
+  }
+
+  function controlsFor(player) {
+    if (player.control === "remote") {
+      return remoteInputs.get(player.id) || { x: 0, y: 0, dash: false };
+    }
+
+    let x = 0;
+    let y = 0;
+    if (keys.has(keyMap.left)) x -= 1;
+    if (keys.has(keyMap.right)) x += 1;
+    if (keys.has(keyMap.up)) y -= 1;
+    if (keys.has(keyMap.down)) y += 1;
+
+    if (touch.active) {
+      x += touch.x;
+      y += touch.y;
+    }
+
+    const l = Math.hypot(x, y);
+    if (l > 1) { x /= l; y /= l; }
+    return { x, y, dash: keys.has(keyMap.dash) || touch.dash };
+  }
+
+  function update(dt) {
+    if (toastTimer > 0) {
+      toastTimer -= dt;
+      if (toastTimer <= 0) msg.classList.remove("show");
+    }
+
+    if (game.over) return;
+
+    if (net.mode === "client" && isChannelOpen()) {
+      sendLocalInput(dt);
+      updateHud();
+      return;
+    }
+
+    for (const p of game.players) {
+      p.bob += dt * 7;
+      p.invuln = Math.max(0, p.invuln - dt);
+      p.dashCooldown = Math.max(0, p.dashCooldown - dt);
+      p.dashTime = Math.max(0, p.dashTime - dt);
+      p.dashTrail = p.dashTrail.filter(t => performance.now() - t.at < 190);
+
+      if (!p.alive) continue;
+
+      const c = controlsFor(p);
+      if (c.x || c.y) {
+        p.facingX = c.x;
+        p.facingY = c.y;
+      }
+
+      if (c.dash && p.dashCooldown <= 0) {
+        const l = Math.hypot(c.x, c.y);
+        p.dashX = l ? c.x / l : p.facingX;
+        p.dashY = l ? c.y / l : p.facingY;
+        p.dashTime = 0.18;
+        p.dashCooldown = 0.72;
+        p.invuln = Math.max(p.invuln, 0.18);
+        game.shake = Math.max(game.shake, 0.05);
+      }
+
+      if (p.dashTime > 0) {
+        p.vx = p.dashX * 500;
+        p.vy = p.dashY * 500;
+        p.dashTrail.push({ x: p.x, y: p.y, at: performance.now() });
+      } else {
+        p.vx = c.x * p.speed;
+        p.vy = c.y * p.speed;
+      }
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      resolveWorld(p);
+    }
+
+    updateCoins();
+    updateEnemies(dt);
+    updateWinLose();
+    sendSnapshot(dt);
+    updateHud();
+  }
+
+  function updateCoins() {
+    for (const coin of game.coins) {
+      if (coin.taken) continue;
+      for (const p of game.players) {
+        if (!p.alive) continue;
+        if (Math.hypot(p.x - coin.x, p.y - coin.y) < p.r + coin.r) {
+          coin.taken = true;
+          p.score++;
+          showMessage("Coin collected");
+          break;
+        }
+      }
+    }
+  }
+
+  function updateEnemies(dt) {
+    const active = game.players.filter(p => p.alive);
+    for (const e of game.enemies) {
+      e.stun = Math.max(0, e.stun - dt);
+
+      let tx = 0;
+      let ty = 0;
+      if (active.length && e.stun <= 0) {
+        let target = active[0];
+        let best = dist(e, target);
+        for (const p of active) {
+          const d = dist(e, p);
+          if (d < best) { best = d; target = p; }
+        }
+        if (best < 240) {
+          tx = (target.x - e.x) / best;
+          ty = (target.y - e.y) / best;
+        }
+      }
+
+      e.vx += tx * 90 * dt;
+      e.vy += ty * 90 * dt;
+      const s = Math.hypot(e.vx, e.vy);
+      const max = e.stun > 0 ? 45 : 92;
+      if (s > max) { e.vx = e.vx / s * max; e.vy = e.vy / s * max; }
+
+      e.x += e.vx * dt;
+      e.y += e.vy * dt;
+      for (const wall of solidWalls()) {
+        if (circleRectResolve(e, wall)) {
+          e.vx += (Math.random() - .5) * 40;
+          e.vy += (Math.random() - .5) * 40;
+        }
+      }
+      resolveWorld(e);
+
+      for (const player of active) {
+        const d = Math.hypot(player.x - e.x, player.y - e.y);
+        if (d < player.r + e.r && player.invuln <= 0) {
+          if (player.dashTime > 0) {
+            const nx = (e.x - player.x) / Math.max(d, .001);
+            const ny = (e.y - player.y) / Math.max(d, .001);
+            e.vx = nx * 190;
+            e.vy = ny * 190;
+            e.stun = .7;
+            showMessage("Slime bumped");
+          } else {
+            player.hp--;
+            player.invuln = 1.1;
+            game.shake = 0.18;
+            const nx = (player.x - e.x) / Math.max(d, .001);
+            const ny = (player.y - e.y) / Math.max(d, .001);
+            player.x += nx * 20;
+            player.y += ny * 20;
+            resolveWorld(player);
+            if (player.hp <= 0) {
+              player.alive = false;
+              showMessage(player.id === 0 ? "You are out" : `P${player.id + 1} is out`);
+            } else {
+              showMessage(player.id === 0 ? "Hit!" : `P${player.id + 1} hit!`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function updateWinLose() {
+    const active = game.players.filter(p => p.alive);
+    if (!active.length) {
+      game.over = true;
+      game.won = false;
+      showMessage("Game over - reset to try again");
+      return;
+    }
+
+    const collected = game.coins.filter(c => c.taken).length;
+    if (collected === game.totalCoins) {
+      for (const player of active) {
+        if (Math.hypot(player.x - game.exit.x, player.y - game.exit.y) < player.r + game.exit.r) {
+          game.over = true;
+          game.won = true;
+          showMessage("You win!");
+          break;
+        }
+      }
+    }
+  }
+
+  function draw() {
+    const shake = game.shake > 0 ? game.shake : 0;
+    game.shake = Math.max(0, game.shake - 0.016);
+    const ox = shake ? (Math.random() - .5) * 8 : 0;
+    const oy = shake ? (Math.random() - .5) * 8 : 0;
+
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.clearRect(-10, -10, W + 20, H + 20);
+    drawFloor();
+    drawExit();
+    drawWalls();
+    drawCoins();
+    drawPlayers();
+    drawEnemies();
+    drawOverlay();
+    ctx.restore();
+  }
+
+  function drawFloor() {
+    ctx.fillStyle = "#18213a";
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = "rgba(255,255,255,.045)";
+    ctx.lineWidth = 1;
+    for (let x = 24; x < W; x += 32) {
+      ctx.beginPath(); ctx.moveTo(x, 24); ctx.lineTo(x, H - 24); ctx.stroke();
+    }
+    for (let y = 24; y < H; y += 32) {
+      ctx.beginPath(); ctx.moveTo(24, y); ctx.lineTo(W - 24, y); ctx.stroke();
+    }
+
+    ctx.strokeStyle = "rgba(255,255,255,.18)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(24, 24, W - 48, H - 48);
+  }
+
+  function drawWalls() {
+    for (const wall of walls) {
+      const grd = ctx.createLinearGradient(wall.x, wall.y, wall.x, wall.y + wall.h);
+      grd.addColorStop(0, "#59627a");
+      grd.addColorStop(1, "#2d3549");
+      ctx.fillStyle = grd;
+      roundRect(wall.x, wall.y, wall.w, wall.h, 8, true, false);
+      ctx.strokeStyle = "rgba(255,255,255,.16)";
+      ctx.lineWidth = 2;
+      roundRect(wall.x + 1, wall.y + 1, wall.w - 2, wall.h - 2, 8, false, true);
+    }
+  }
+
+  function drawExit() {
+    const collected = game.coins.filter(c => c.taken).length;
+    const open = collected === game.totalCoins;
+    ctx.save();
+    ctx.translate(game.exit.x, game.exit.y);
+    ctx.fillStyle = open ? "rgba(77,255,136,.20)" : "rgba(255,255,255,.08)";
+    ctx.beginPath(); ctx.arc(0, 0, game.exit.r + 10, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = open ? "#67ff98" : "rgba(255,255,255,.22)";
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(0, 0, game.exit.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = open ? "#d8ffe3" : "rgba(255,255,255,.45)";
+    ctx.font = "900 13px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText(open ? "EXIT" : "LOCKED", 0, 5);
+    ctx.restore();
+  }
+
+  function drawCoins() {
+    const now = performance.now() / 1000;
+    for (const coin of game.coins) {
+      if (coin.taken) continue;
+      const pulse = Math.sin(now * 5 + coin.pulse) * 2;
+      ctx.fillStyle = "rgba(0,0,0,.25)";
+      ctx.beginPath(); ctx.ellipse(coin.x, coin.y + 11, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ffd166";
+      ctx.beginPath(); ctx.arc(coin.x, coin.y + pulse, coin.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff3b0";
+      ctx.beginPath(); ctx.arc(coin.x - 3, coin.y - 3 + pulse, 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function drawPlayers() {
+    for (const p of game.players) {
+      const yBob = Math.sin(p.bob) * 2;
+
+      ctx.fillStyle = "rgba(0,0,0,.28)";
+      ctx.beginPath(); ctx.ellipse(p.x, p.y + 17, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
+
+      if (p.dashTrail.length) {
+        for (const t of p.dashTrail) {
+          const age = (performance.now() - t.at) / 190;
+          ctx.globalAlpha = Math.max(0, 0.38 * (1 - age));
+          ctx.fillStyle = colors[p.id % colors.length];
+          ctx.beginPath(); ctx.arc(t.x, t.y, p.r * (1 - age * 0.25), 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      if (!p.alive) ctx.globalAlpha = .35;
+      if (p.invuln > 0 && Math.floor(p.invuln * 12) % 2 === 0) ctx.globalAlpha = .45;
+
+      ctx.fillStyle = colors[p.id % colors.length];
+      ctx.beginPath(); ctx.arc(p.x, p.y + yBob, p.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.85)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(0,0,0,.38)";
+      ctx.beginPath(); ctx.arc(p.x + p.facingX * 5, p.y - 2 + p.facingY * 5 + yBob, 4, 0, Math.PI * 2); ctx.fill();
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "900 11px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText(`P${p.id + 1}`, p.x, p.y + 4 + yBob);
+
+      ctx.globalAlpha = 1;
+      drawHearts(p.x - 16, p.y - 27 + yBob, p.hp);
+    }
+  }
+
+  function drawHearts(x, y, hp) {
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = i < hp ? "#ff4d6d" : "rgba(255,255,255,.18)";
+      ctx.fillRect(x + i * 11, y, 8, 8);
+    }
+  }
+
+  function drawEnemies() {
+    for (const e of game.enemies) {
+      ctx.fillStyle = "rgba(0,0,0,.28)";
+      ctx.beginPath(); ctx.ellipse(e.x, e.y + 15, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = e.stun > 0 ? "#a0a7ff" : "#c77dff";
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(0,0,0,.65)";
+      ctx.beginPath(); ctx.arc(e.x - 5, e.y - 3, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(e.x + 5, e.y - 3, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.55)";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(e.x, e.y + 4, 6, 0, Math.PI); ctx.stroke();
+    }
+  }
+
+  function drawOverlay() {
+    if (!game.over) return;
+    ctx.fillStyle = "rgba(0,0,0,.55)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = "900 44px system-ui";
+    ctx.fillText(game.won ? "YOU WIN" : "GAME OVER", W / 2, H / 2 - 20);
+    ctx.font = "800 18px system-ui";
+    ctx.fillText("Press Reset to play again", W / 2, H / 2 + 22);
+  }
+
+  function roundRect(x, y, w, h, r, fill, stroke) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  function setNetStatus(text) {
+    netStatus.textContent = text;
+  }
+
+  function isChannelOpen() {
+    return net.channel && net.channel.readyState === "open";
+  }
+
+  function localInputPayload() {
+    const player = game.players.find(p => p.id === net.localPlayerId) || game.players[0];
+    const c = controlsFor(player);
+    return { x: c.x, y: c.y, dash: c.dash };
+  }
+
+  function sendLocalInput(dt) {
+    net.sendTimer -= dt;
+    if (net.sendTimer > 0 || !isChannelOpen()) return;
+    net.sendTimer = 1 / 30;
+    net.channel.send(JSON.stringify({ type: "input", input: localInputPayload() }));
+  }
+
+  function sendSnapshot(dt) {
+    net.sendTimer -= dt;
+    if (net.sendTimer > 0 || !isChannelOpen() || net.mode !== "host") return;
+    net.sendTimer = 1 / 20;
+    net.channel.send(JSON.stringify({
+      type: "state",
+      players: game.players.map(p => ({
+        id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, hp: p.hp, score: p.score,
+        alive: p.alive, dashCooldown: p.dashCooldown, dashTime: p.dashTime,
+        facingX: p.facingX, facingY: p.facingY
+      })),
+      coins: game.coins.map(c => c.taken),
+      enemies: game.enemies.map(e => ({ x: e.x, y: e.y, vx: e.vx, vy: e.vy, stun: e.stun })),
+      over: game.over,
+      won: game.won
+    }));
+  }
+
+  function applySnapshot(msg) {
+    for (const src of msg.players || []) {
+      let p = game.players.find(player => player.id === src.id);
+      if (!p) {
+        p = makePlayer(src.id, src.x, src.y, src.id === net.localPlayerId ? "local" : "remote");
+        game.players.push(p);
+      }
+      Object.assign(p, src);
+      p.control = src.id === net.localPlayerId ? "local" : "remote";
+    }
+    game.players = game.players.filter(p => (msg.players || []).some(src => src.id === p.id));
+    if (msg.coins) game.coins.forEach((c, i) => { c.taken = !!msg.coins[i]; });
+    if (msg.enemies) game.enemies.forEach((e, i) => { if (msg.enemies[i]) Object.assign(e, msg.enemies[i]); });
+    game.over = !!msg.over;
+    game.won = !!msg.won;
+  }
+
+  function handleChannelMessage(event) {
+    let msg;
+    try { msg = JSON.parse(event.data); } catch { return; }
+
+    if (msg.type === "input" && net.mode === "host" && net.remotePlayerId != null) {
+      remoteInputs.set(net.remotePlayerId, msg.input);
+    } else if (msg.type === "welcome" && net.mode === "client") {
+      net.localPlayerId = msg.playerId;
+      setNetStatus(`Connected as P${msg.playerId + 1}.`);
+      showMessage(`Joined as P${msg.playerId + 1}`);
+    } else if (msg.type === "state" && net.mode === "client") {
+      applySnapshot(msg);
+      updateHud();
+    }
+  }
+
+  function setupChannel(channel) {
+    net.channel = channel;
+    channel.onmessage = handleChannelMessage;
+    channel.onopen = () => {
+      if (net.mode === "host") {
+        const id = addRemotePlayer();
+        net.remotePlayerId = id;
+        channel.send(JSON.stringify({ type: "welcome", playerId: id }));
+        setNetStatus(`Connected. Remote player is P${id + 1}.`);
+        showMessage(`P${id + 1} joined`);
+      } else {
+        setNetStatus("Connected. Waiting for host state.");
+      }
+    };
+    channel.onclose = () => setNetStatus("Disconnected.");
+  }
+
+  function addRemotePlayer() {
+    const id = net.nextRemoteId++;
+    const spots = [{ x: 130, y: 92 }, { x: 92, y: 132 }, { x: 130, y: 132 }];
+    const spot = spots[(id - 1) % spots.length];
+    game.players.push(makePlayer(id, spot.x, spot.y, "remote"));
+    return id;
+  }
+
+  function createPeer() {
+    if (!("RTCPeerConnection" in window)) {
+      throw new Error("WebRTC is not available in this browser.");
+    }
+    const peer = new RTCPeerConnection({ iceServers: [] });
+    peer.onconnectionstatechange = () => setNetStatus(`Connection: ${peer.connectionState}`);
+    return peer;
+  }
+
+  function waitIceComplete(peer) {
+    if (peer.iceGatheringState === "complete") return Promise.resolve();
+    return new Promise(resolve => {
+      const done = () => {
+        if (peer.iceGatheringState === "complete") {
+          peer.removeEventListener("icegatheringstatechange", done);
+          resolve();
+        }
+      };
+      peer.addEventListener("icegatheringstatechange", done);
+      setTimeout(resolve, 1800);
+    });
+  }
+
+  async function beginInvite() {
+    try {
+      net.mode = "host";
+      net.peer = createPeer();
+      setupChannel(net.peer.createDataChannel("coin-dash"));
+      const offer = await net.peer.createOffer();
+      await net.peer.setLocalDescription(offer);
+      await waitIceComplete(net.peer);
+      await startAcousticListen();
+      net.transmitting = true;
+      setNetStatus("Playing invite sound. Keep holding until connected.");
+      transmitWhileHeld(inviteBtn, { type: "offer", sdp: net.peer.localDescription.sdp });
+    } catch (err) {
+      setNetStatus(err.message);
+    }
+  }
+
+  async function beginJoin() {
+    try {
+      net.mode = "client";
+      await startAcousticListen();
+      setNetStatus("Listening for invite sound. Keep holding Join near host.");
+    } catch (err) {
+      setNetStatus(err.message);
+    }
+  }
+
+  async function handleAcousticPacket(packet) {
+    if (packet.type === "offer" && net.mode === "client" && !net.peer) {
+      setNetStatus("Invite heard. Answering with sound.");
+      net.peer = createPeer();
+      net.peer.ondatachannel = event => setupChannel(event.channel);
+      await net.peer.setRemoteDescription({ type: "offer", sdp: packet.sdp });
+      const answer = await net.peer.createAnswer();
+      await net.peer.setLocalDescription(answer);
+      await waitIceComplete(net.peer);
+      transmitWhileHeld(joinBtn, { type: "answer", sdp: net.peer.localDescription.sdp });
+    } else if (packet.type === "answer" && net.mode === "host" && net.peer && !net.peer.currentRemoteDescription) {
+      setNetStatus("Answer heard. Connecting...");
+      await net.peer.setRemoteDescription({ type: "answer", sdp: packet.sdp });
+    }
+  }
+
+  function textToHex(text) {
+    return Array.from(new TextEncoder().encode(text), b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function hexToText(hex) {
+    const bytes = hex.match(/.{1,2}/g).map(h => parseInt(h, 16));
+    return new TextDecoder().decode(new Uint8Array(bytes));
+  }
+
+  function makeFrame(packet) {
+    const payload = textToHex(JSON.stringify(packet));
+    return `cd55${payload.length.toString(16).padStart(5, "0")}${payload}`;
+  }
+
+  async function transmitWhileHeld(button, packet) {
+    if (!button.classList.contains("down")) return;
+    await playToneFrame(makeFrame(packet));
+    if (button.classList.contains("down") && !isChannelOpen()) {
+      setTimeout(() => transmitWhileHeld(button, packet), 250);
+    }
+  }
+
+  async function getAudio() {
+    if (!net.audio) {
+      net.audio = { ctx: new (window.AudioContext || window.webkitAudioContext)() };
+    }
+    if (net.audio.ctx.state === "suspended") await net.audio.ctx.resume();
+    return net.audio.ctx;
+  }
+
+  async function playToneFrame(frame) {
+    const ctxAudio = await getAudio();
+    const freqs = [700, 760, 820, 880, 940, 1000, 1060, 1120, 1180, 1240, 1300, 1360, 1420, 1480, 1540, 1600];
+    const symbol = 0.035;
+    let t = ctxAudio.currentTime + 0.02;
+    for (const ch of frame) {
+      const n = parseInt(ch, 16);
+      const osc = ctxAudio.createOscillator();
+      const gain = ctxAudio.createGain();
+      osc.frequency.value = freqs[n];
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.08, t + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + symbol - 0.004);
+      osc.connect(gain).connect(ctxAudio.destination);
+      osc.start(t);
+      osc.stop(t + symbol);
+      t += symbol;
+    }
+    return new Promise(resolve => setTimeout(resolve, (t - ctxAudio.currentTime) * 1000 + 60));
+  }
+
+  async function startAcousticListen() {
+    if (net.listening) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Microphone access is required for sound joining.");
+    }
+    const ctxAudio = await getAudio();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+    const source = ctxAudio.createMediaStreamSource(stream);
+    const analyser = ctxAudio.createAnalyser();
+    analyser.fftSize = 4096;
+    source.connect(analyser);
+    net.listening = true;
+
+    const freqs = [700, 760, 820, 880, 940, 1000, 1060, 1120, 1180, 1240, 1300, 1360, 1420, 1480, 1540, 1600];
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    let lastAt = 0;
+
+    const read = () => {
+      if (!net.listening) return;
+      requestAnimationFrame(read);
+      const now = performance.now();
+      if (now - lastAt < 34) return;
+      lastAt = now;
+      analyser.getByteFrequencyData(data);
+      let best = 0;
+      let bestPower = 0;
+      for (let i = 0; i < freqs.length; i++) {
+        const bin = Math.round(freqs[i] / (ctxAudio.sampleRate / analyser.fftSize));
+        const power = (data[bin - 1] || 0) + (data[bin] || 0) + (data[bin + 1] || 0);
+        if (power > bestPower) { bestPower = power; best = i; }
+      }
+      if (bestPower < 75) return;
+      net.heard = (net.heard + best.toString(16)).slice(-90000);
+      tryReadFrame();
+    };
+    read();
+  }
+
+  function tryReadFrame() {
+    const start = net.heard.indexOf("cd55");
+    if (start < 0) return;
+    if (start > 0) net.heard = net.heard.slice(start);
+    if (net.heard.length < 9) return;
+    const len = parseInt(net.heard.slice(4, 9), 16);
+    if (!Number.isFinite(len) || len <= 0) {
+      net.heard = net.heard.slice(4);
+      return;
+    }
+    if (net.heard.length < 9 + len) return;
+    const payload = net.heard.slice(9, 9 + len);
+    net.heard = net.heard.slice(9 + len);
+    try {
+      handleAcousticPacket(JSON.parse(hexToText(payload)));
+    } catch {
+      setNetStatus("Heard sound, but could not read it. Keep holding the buttons close together.");
+    }
+  }
+
+  function updateHud() {
+    const collected = game.coins.filter(c => c.taken).length;
+    coinHud.textContent = collected;
+    coinMaxHud.textContent = game.totalCoins;
+
+    const secs = Math.floor((performance.now() - game.startedAt) / 1000);
+    timeHud.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+
+    playerHud.innerHTML = game.players.map(p => {
+      const dash = p.alive && p.dashCooldown > 0 ? " · Dash" : "";
+      const state = p.alive ? `${p.hp} HP · ${p.score}${dash}` : "DOWN";
+      return `<span class="badge"><span class="dot" style="background:${colors[p.id % colors.length]}"></span>P${p.id + 1}: ${state}</span>`;
+    }).join("");
+  }
+
+  function loop(now) {
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function resetGame() {
+    game = makeGame();
+    touch.dash = false;
+    dashBtn.classList.remove("down");
+    showMessage("Collect all coins, then reach the exit");
+    updateHud();
+  }
+
+  window.addEventListener("keydown", (e) => {
+    keys.add(e.code);
+    if (["Space"].includes(e.code)) e.preventDefault();
+  });
+  window.addEventListener("keyup", (e) => keys.delete(e.code));
+
+  resetBtn.addEventListener("click", resetGame);
+  netBtn.addEventListener("click", () => netPanel.classList.toggle("show"));
+
+  function bindHoldButton(el, prop) {
+    const down = (e) => { e.preventDefault(); touch[prop] = true; el.classList.add("down"); };
+    const up = (e) => { e.preventDefault(); touch[prop] = false; el.classList.remove("down"); };
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    el.addEventListener("pointerleave", up);
+  }
+  bindHoldButton(dashBtn, "dash");
+
+  function bindNetHoldButton(el, start) {
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      el.classList.add("down");
+      start();
+    });
+    const stop = (e) => {
+      e.preventDefault();
+      el.classList.remove("down");
+      if (!isChannelOpen()) setNetStatus("Hold Invite or Join again to keep pairing.");
+    };
+    el.addEventListener("pointerup", stop);
+    el.addEventListener("pointercancel", stop);
+    el.addEventListener("pointerleave", stop);
+  }
+  bindNetHoldButton(inviteBtn, beginInvite);
+  bindNetHoldButton(joinBtn, beginJoin);
+
+  function joyPos(e) {
+    const rect = joyBase.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = e.clientX - cx;
+    let dy = e.clientY - cy;
+    const max = rect.width * .34;
+    const l = Math.hypot(dx, dy);
+    if (l > max) { dx = dx / l * max; dy = dy / l * max; }
+    joyStick.style.left = `${rect.width / 2 - 25 + dx}px`;
+    joyStick.style.top = `${rect.height / 2 - 25 + dy}px`;
+    touch.x = dx / max;
+    touch.y = dy / max;
+  }
+
+  joyBase.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    joyBase.setPointerCapture(e.pointerId);
+    touch.active = true;
+    joyPos(e);
+  });
+  joyBase.addEventListener("pointermove", (e) => {
+    if (!touch.active) return;
+    e.preventDefault();
+    joyPos(e);
+  });
+  function joyUp(e) {
+    e.preventDefault();
+    touch.active = false;
+    touch.x = 0;
+    touch.y = 0;
+    joyStick.style.left = "38px";
+    joyStick.style.top = "38px";
+  }
+  joyBase.addEventListener("pointerup", joyUp);
+  joyBase.addEventListener("pointercancel", joyUp);
+
+  resetGame();
+  requestAnimationFrame((t) => { last = t; requestAnimationFrame(loop); });
+})();
+</script>
+</body>
+</html>
