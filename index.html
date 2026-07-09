@@ -15,6 +15,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);c
 button,textarea{font:inherit}
 button{appearance:none;border:0}
 .hide{display:none!important}
+.version-tag{position:fixed;right:8px;bottom:calc(var(--safe-bottom) + 4px);z-index:9;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.04em;opacity:.36;pointer-events:none;user-select:none}
 
 .app{position:fixed;inset:0;height:100dvh;background:radial-gradient(circle at 50% -8%,#2553a333,#070b14 46%,#03050b 100%)}
 .screen{position:absolute;inset:0;width:100%;height:100%}
@@ -272,6 +273,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
       </div>
     </section>
   </section>
+  <div class="version-tag">v1.0.1</div>
 </main>
 <script>
 
@@ -305,13 +307,29 @@ let game=makeGame(),last=performance.now(),net=netState(),audio=null;
 function r(x,y,w,h){return{x,y,w,h}}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function hypot(x,y){return Math.hypot(x,y)}
+function num(v,d=0){v=Number(v);return Number.isFinite(v)?v:d}
+function inputSafe(v){let x=num(v&&v.x),y=num(v&&v.y),l=hypot(x,y);if(l>1){x/=l;y/=l}return{x,y,dash:!!(v&&v.dash)}}
+function isGoodNum(v){return typeof v==='number'&&Number.isFinite(v)}
+function repairGameState(){
+  if(!game||!Array.isArray(game.players))return;
+  for(const p of game.players){
+    let r=isGoodNum(p.r)?p.r:15;
+    if(!isGoodNum(p.x)||!isGoodNum(p.y)){p.x=clamp(isGoodNum(p.x)?p.x:W/2,r+24,W-r-24);p.y=clamp(isGoodNum(p.y)?p.y:H/2,r+24,H-r-24)}
+    p.vx=isGoodNum(p.vx)?p.vx:0;p.vy=isGoodNum(p.vy)?p.vy:0;
+    p.dx=isGoodNum(p.dx)?p.dx:1;p.dy=isGoodNum(p.dy)?p.dy:0;
+    p.faceX=isGoodNum(p.faceX)?p.faceX:p.dx;p.faceY=isGoodNum(p.faceY)?p.faceY:p.dy;
+    p.dt=isGoodNum(p.dt)?p.dt:0;p.cd=isGoodNum(p.cd)?p.cd:0;
+    if(!Array.isArray(p.trail))p.trail=[];
+    p.trail=p.trail.filter(t=>isGoodNum(t.x)&&isGoodNum(t.y));
+  }
+}
 function player(id,x,y,control='local'){return{id,x,y,vx:0,vy:0,r:15,hp:5,score:0,alive:true,control,cd:0,dt:0,dx:1,dy:0,faceX:1,faceY:0,inv:0,bob:Math.random()*9,trail:[],dashHit:0}}
 function enemy(x,y){let a=Math.random()*6.28;
 return{x,y,vx:Math.cos(a)*70,vy:Math.sin(a)*70,r:14,stun:0}}
 function makeGame(){let coins=coinPos.map((p,i)=>({x:p[0],y:p[1],r:9,taken:false,pulse:i*.3}));
 return{players:[player(0,92,92)],coins,enemies:[enemy(520,86),enemy(760,275),enemy(535,470)],phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:{x:W-68,y:H/2,r:28},shake:0,total:coins.length}}
 function netState(){return{role:'solo',pc:null,dc:null,channels:new Map(),localId:0,nextId:1,timer:0}}
-function control(p){if(p.control==='remote')return remoteInputs.get(p.id)||{x:0,y:0,dash:false};
+function control(p){if(p.control==='remote')return inputSafe(remoteInputs.get(p.id));
 let x=0,y=0;
 if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;
 if(keys.has('KeyD')||keys.has('ArrowRight'))x++;
@@ -321,7 +339,7 @@ if(touch.on){x+=touch.x;
 y+=touch.y}
 let l=hypot(x,y);
 if(l>1){x/=l;
-y/=l}return{x,y,dash:keys.has('Space')||touch.dash}}
+y/=l}return inputSafe({x,y,dash:keys.has('Space')||touch.dash})}
 function circleRect(o,b){let cx0=clamp(o.x,b.x,b.x+b.w),cy0=clamp(o.y,b.y,b.y+b.h),dx=o.x-cx0,dy=o.y-cy0,d=hypot(dx,dy);
 if(d>=o.r)return false;
 if(d<.001){let a=[Math.abs(o.x-b.x),Math.abs(o.x-b.x-b.w),Math.abs(o.y-b.y),Math.abs(o.y-b.y-b.h)],m=Math.min(...a);
@@ -348,7 +366,7 @@ function restartRun(){if(net.role==='client')return startGame();beginRun()}
 function restoreRemotes(){if(net.role!=='host')return;
 for(const [id] of net.channels){if(!game.players.some(p=>p.id===id))game.players.push(player(id,90+id*30,110+id*20,'remote'))}}
 
-function startDash(p,c){p.dt=.2;
+function startDash(p,c){c=inputSafe(c);let l=hypot(c.x,c.y);if(l<.001)return;c.x/=l;c.y/=l;p.dt=.2;
 	p.cd=.45;
 	p.dx=c.x;
 	p.dy=c.y;
@@ -523,19 +541,45 @@ function bytesIp(a){return a.join('.')}
 function isHex(s){return /^[0-9a-f]+$/i.test(s)}
 function glyphPack(write){let out='',acc=0,bits=0,put=(v,n)=>{for(;n;){let take=Math.min(n,20-bits);acc=(acc<<take)|((v>>(n-take))&((1<<take)-1));bits+=take;n-=take;if(bits===20){out+=String.fromCodePoint(0x10000+acc);acc=bits=0}}};write(put);if(bits)out+=String.fromCodePoint(0x10000+(acc<<(20-bits)));return out}
 function glyphRead(s){let vals=[...s].map(c=>c.codePointAt(0)-0x10000),i=0,acc=0,bits=0;return n=>{let v=0;for(;n;){if(!bits){if(i>=vals.length)throw Error('bad code');acc=vals[i++];bits=20}let take=Math.min(n,bits);v=(v<<take)|((acc>>(bits-take))&((1<<take)-1));bits-=take;n-=take}return v}}
-function pickCand(s){let c=s.split(/\r?\n/).filter(x=>x.startsWith('a=candidate:')).map(x=>x.slice(12).trim());return c.find(x=>/ UDP /i.test(x)&&/ typ host/i.test(x))||c[0]||''}
-function makeSdp(type,setup,uf,pw,fp,addr,port){let cand=addr?`a=candidate:0 1 UDP 2122252543 ${addr} ${port} typ host\r\na=end-of-candidates\r\n`:'';
-  return{type,sdp:'v=0\r\no=- 0 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0\r\na=msid-semantic: WMS\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 0.0.0.0\r\na=mid:0\r\na=ice-ufrag:'+uf+'\r\na=ice-pwd:'+pw+'\r\na=ice-options:trickle\r\na=fingerprint:sha-256 '+colons(fp)+'\r\na=setup:'+setup+'\r\na=sctp-port:5000\r\na=max-message-size:262144\r\n'+cand}}
-function writeDesc(d){let s=d.sdp,a=[],cand=pickCand(s),p=cand.split(/\s+/),addr=p[4]||'',port=+p[5]||0,uuid=uuidBytes(addr),flags=(d.type==='answer'?1:0)|(setupId(sdpLine(s,/a=setup:([^\r\n]+)/))*2);
+function cleanCandidate(c){c=String(c||'').trim();if(c.startsWith('a=candidate:'))c='candidate:'+c.slice(12);return c}
+function candidateParts(c){return cleanCandidate(c).replace(/^candidate:/,'').split(/\s+/)}
+function pickCand(s,extra=''){let c=[];if(extra)c.push(cleanCandidate(extra));c.push(...s.split(/\r?\n/).filter(x=>x.startsWith('a=candidate:')).map(x=>cleanCandidate(x)));return c.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x))||c[0]||''}
+function makeSdp(type,setup,uf,pw,fp,addr,port){
+  let id=Date.now()*1000+Math.floor(Math.random()*999);
+  let cand=addr&&port?`a=candidate:0 1 UDP 2122252543 ${addr} ${port} typ host generation 0 network-id 1 network-cost 10`:'';
+  let lines=[
+    'v=0',
+    'o=- '+id+' 2 IN IP4 127.0.0.1',
+    's=-',
+    't=0 0',
+    'a=group:BUNDLE 0',
+    'a=extmap-allow-mixed',
+    'a=msid-semantic: WMS',
+    'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
+    'c=IN IP4 0.0.0.0',
+    'a=mid:0',
+    'a=sctp-port:5000',
+    'a=max-message-size:262144',
+    'a=ice-ufrag:'+uf,
+    'a=ice-pwd:'+pw,
+    'a=ice-options:trickle',
+    'a=fingerprint:sha-256 '+colons(fp),
+    'a=setup:'+setup
+  ];
+  if(cand)lines.push(cand,'a=end-of-candidates');
+  lines.push('');
+  return{type,sdp:lines.join('\r\n'),_hasIce:!!cand};
+}
+function writeDesc(d,extraCand=''){let s=d.sdp,a=[],cand=pickCand(s,extraCand),p=candidateParts(cand),addr=p[4]||'',port=+p[5]||0,uuid=uuidBytes(addr),flags=(d.type==='answer'?1:0)|(setupId(sdpLine(s,/a=setup:([^\r\n]+)/))*2);
   if(cand)flags|=8;if(uuid)flags|=16;a.push(flags);putStr(a,sdpLine(s,/a=ice-ufrag:([^\r\n]+)/));putStr(a,sdpLine(s,/a=ice-pwd:([^\r\n]+)/));a.push(...hexBytes(sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'')));if(cand){putVar(a,port);uuid?a.push(...uuid):putStr(a,addr)}return Uint8Array.from(a)}
-function readDesc(bin){let r={a:bin,i:0},f=r.a[r.i++],type=f&1?'answer':'offer',setup=setupName((f>>1)&3),uf=getStr(r),pw=getStr(r),fp=toHex(r.a.slice(r.i,r.i+32));r.i+=32,addr='',port=0;if(f&8){port=getVar(r);addr=f&16?bytesUuid(r.a.slice(r.i,r.i+=16)):getStr(r)}return makeSdp(type,setup,uf,pw,fp,addr,port)}
+function readDesc(bin){let r={a:bin,i:0},f=r.a[r.i++],type=f&1?'answer':'offer',setup=setupName((f>>1)&3),uf=getStr(r),pw=getStr(r),fp=toHex(r.a.slice(r.i,r.i+32));r.i+=32;let addr='',port=0;if(f&8){port=getVar(r);addr=f&16?bytesUuid(r.a.slice(r.i,r.i+=16)):getStr(r)}return makeSdp(type,setup,uf,pw,fp,addr,port)}
 function dense(a){let all=[(a.length>>8)&255,a.length&255,...a],out='',buf=0,bits=0;for(const x of all){buf=(buf<<8)|x;bits+=8;while(bits>=14){bits-=14;out+=String.fromCharCode(0x4E00+((buf>>bits)&0x3fff));buf&=(1<<bits)-1}}if(bits)out+=String.fromCharCode(0x4E00+((buf<<(14-bits))&0x3fff));return out}
 function undense(s){let out=[],buf=0,bits=0;for(const ch of s){let v=ch.charCodeAt(0)-0x4E00;if(v<0||v>0x3fff)throw Error('bad short code');buf=(buf<<14)|v;bits+=14;while(bits>=8){bits-=8;out.push((buf>>bits)&255);buf&=(1<<bits)-1}}let n=(out[0]<<8)|out[1];return Uint8Array.from(out.slice(2,2+n))}
-function writeUltra(d){let s=d.sdp,c=pickCand(s),p=c.split(/\s+/),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),ib=ipBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
+function writeUltra(d){let s=d.sdp,c=pickCand(s),p=candidateParts(c),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),ib=ipBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
   if(!c||!port||(!ub&&!ib)||!isHex(uf)||!isHex(pw)||!isHex(fp)||uf.length>31||pw.length>63)throw Error('fallback');
   return glyphPack(put=>{put(d.type==='answer'?1:0,1);put(setupId(sdpLine(s,/a=setup:([^\r\n]+)/)),2);put(ub?1:0,1);put(uf.length,5);put(pw.length,6);for(const x of uf+pw)put(parseInt(x,16),4);for(const x of hexBytes(fp))put(x,8);for(const x of (ub||ib))put(x,8);put(port,16)})}
 function readUltra(s){let g=glyphRead(s),type=g(1)?'answer':'offer',setup=setupName(g(2)),uuid=g(1),ul=g(5),pl=g(6),hex=n=>{let h='';while(n--)h+=g(4).toString(16);return h},uf=hex(ul),pw=hex(pl),fp=hex(64),addrBytes=[];for(let i=0;i<(uuid?16:4);i++)addrBytes.push(g(8));let port=g(16),addr=uuid?bytesUuid(addrBytes):bytesIp(addrBytes);return makeSdp(type,setup,uf,pw,fp,addr,port)}
-function writeNano(d){let s=d.sdp,c=pickCand(s),p=c.split(/\s+/),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
+function writeNano(d){let s=d.sdp,c=pickCand(s),p=candidateParts(c),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
   if(!ub||port<49152||port>65535||!isHex(uf)||!isHex(pw)||!isHex(fp)||uf.length!==8||pw.length!==32||fp.length!==64)throw Error('fallback');
   return glyphPack(put=>{put(d.type==='answer'?1:0,1);for(const x of uf+pw)put(parseInt(x,16),4);for(const x of hexBytes(fp))put(x,8);for(const x of ub)put(x,8);put(port-49152,14)})}
 function readNano(s){let g=glyphRead(s),type=g(1)?'answer':'offer',setup=type==='answer'?'active':'actpass',hex=n=>{let h='';while(n--)h+=g(4).toString(16);return h},uf=hex(8),pw=hex(32),fp=hex(64),ub=[];for(let i=0;i<16;i++)ub.push(g(8));return makeSdp(type,setup,uf,pw,fp,bytesUuid(ub),49152+g(14))}
@@ -551,27 +595,47 @@ function bytesFromB64Url(s){
   for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);
   return out;
 }
-async function encodeDesc(d){return 'CD'+b64UrlBytes(writeDesc(d))}
+function textToBytes(s){return te.encode(String(s||''))}
+function textFromBytes(bytes){return td.decode(bytes)}
+async function gzipText(s){
+  if(!('CompressionStream' in window))throw Error('No compression');
+  let stream=new Blob([s]).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function gunzipText(bytes){
+  if(!('DecompressionStream' in window))throw Error('No decompression');
+  let stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return await new Response(stream).text();
+}
+function rtcDesc(d){return{type:d.type,sdp:d.sdp}}
 function cleanCode(s){
   s=String(s||'').replace(/[\s\u200B-\u200D\uFEFF]+/g,'').trim();
-  let m=s.match(/CD[0-9A-Za-z_-]+/);
+  let m=s.match(/CDv[12]\.[0-9A-Za-z_-]+|CD[0-9A-Za-z_-]+/);
   return m?m[0]:s;
 }
+function checkDesc(d){
+  if(!d||!/^(offer|answer)$/.test(d.type)||typeof d.sdp!=='string'||!d.sdp.includes('m=application'))throw Error('Bad code');
+  return d;
+}
+async function encodeDesc(d,cand=''){return 'CD'+b64UrlBytes(writeDesc(d,cand))}
 async function decodeDesc(s){
   s=cleanCode(s);
   if(!s)throw Error('Missing code');
-  if(s.startsWith('CD'))return readDesc(bytesFromB64Url(s.slice(2)));
-  if(s.codePointAt(0)>=0x10000)return readNano(s);
-  if(s[0]==='U')return readUltra(s.slice(1));
-  if(s[0]==='M')return readDesc(undense(s.slice(1)));
-  return unpack(s);
+  if(s.startsWith('CDv2.'))return checkDesc(JSON.parse(await gunzipText(bytesFromB64Url(s.slice(5)))));
+  if(s.startsWith('CDv1.'))return checkDesc(JSON.parse(textFromBytes(bytesFromB64Url(s.slice(5)))));
+  if(s.startsWith('CD'))return checkDesc(readDesc(bytesFromB64Url(s.slice(2))));
+  if(s.codePointAt(0)>=0x10000)return checkDesc(readNano(s));
+  if(s[0]==='U')return checkDesc(readUltra(s.slice(1)));
+  if(s[0]==='M')return checkDesc(readDesc(undense(s.slice(1))));
+  return checkDesc(unpack(s));
+}
+async function addDecodedIce(d){
+  if(d&&d._ice&&net.pc&&!d._hasIce)try{await net.pc.addIceCandidate(d._ice)}catch(e){console.warn('ICE candidate skipped',e)}
 }
 function visibleLen(s){return [...s].length}
-function pc(){return new RTCPeerConnection({iceServers:[]})}
-function iceDone(p){return new Promise(res=>{if(p.iceGatheringState==='complete')return res();
-let t=setTimeout(res,1800);
-p.onicegatheringstatechange=()=>{if(p.iceGatheringState==='complete'){clearTimeout(t);
-res()}}})}
+function pc(){let p=new RTCPeerConnection({iceServers:[]});p._localCandidates=[];p.addEventListener('icecandidate',e=>{if(e.candidate&&e.candidate.candidate)p._localCandidates.push(e.candidate.candidate)});return p}
+function bestCandidate(p){let s=p&&p.localDescription?p.localDescription.sdp:'',fromSdp=s.split(/\r?\n/).filter(x=>x.startsWith('a=candidate:')).map(x=>cleanCandidate(x)),all=[...(p&&p._localCandidates?p._localCandidates:[]),...fromSdp].map(cleanCandidate).filter(Boolean);return all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x)&&/( 10\.| 192\.168\.| 172\.(1[6-9]|2\d|3[01])\.|\.local )/i.test(' '+x+' '))||all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x))||all[0]||''}
+function iceDone(p,ms=5200){return new Promise(res=>{if(bestCandidate(p)||p.iceGatheringState==='complete')return res();let done=false,finish=()=>{if(done)return;done=true;clearTimeout(t);res()},t=setTimeout(finish,ms);p.addEventListener('icecandidate',()=>{if(bestCandidate(p))setTimeout(finish,80)});p.addEventListener('icegatheringstatechange',()=>{if(p.iceGatheringState==='complete')finish()})})}
 function setStatus(s){els.status.textContent=s}
 function showPairButtons(names){
   for(const b of [els.copyInvite,els.copyAnswer,els.answer,els.use])b.classList.add('hide');
@@ -642,7 +706,14 @@ setStatus('Player disconnected.')}}
 async function safePair(btn,working,fn){
   if(btn){btn.disabled=true;btn.dataset.oldText=btn.textContent;btn.textContent=working}
   try{await fn()}
-  catch(e){setStatus(e&&e.message==='Missing code'?'Enter the code first.':'Code could not be read. Copy the full code again.');console.error(e)}
+  catch(e){
+    let msg='Pairing failed. Make a fresh code on both updated devices.';
+    if(e&&e.message==='Missing code')msg='Enter the code first.';
+    else if(e&&e.message==='Old code rejected')msg='That older code format failed. Make a new code with this updated file.';
+    else if(e&&e.message==='Wrong code type')msg='That code is not for this step.';
+    setStatus(msg);
+    console.error(e)
+  }
   finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.oldText||btn.textContent}}
 }
 async function invite(){return safePair(els.invite,'Making invite...',async()=>{
@@ -658,7 +729,9 @@ net.dc=ch;
 let offer=await net.pc.createOffer();
 await net.pc.setLocalDescription(offer);
 await iceDone(net.pc);
-els.code.value=await encodeDesc(net.pc.localDescription);
+let cand=bestCandidate(net.pc);
+if(!cand){setStatus('No local Wi-Fi address found. Both devices must be on the same Wi-Fi.');return}
+els.code.value=await encodeDesc(net.pc.localDescription,cand);
 showPairButtons(['copyInvite','answer']);
 setStatus('Invite ready.');
 })}
@@ -674,13 +747,18 @@ setStatus('Enter invite.')}
 async function useInvite(){return safePair(els.use,'Making...',async()=>{
 setStatus('Making answer...');
 let offer=await decodeDesc(els.code.value);
-await net.pc.setRemoteDescription(offer);
+if(offer.type!=='offer')throw Error('Wrong code type');
+try{await net.pc.setRemoteDescription(rtcDesc(offer))}
+catch(e){throw e}
+await addDecodedIce(offer);
 let ans=await net.pc.createAnswer();
 await net.pc.setLocalDescription(ans);
 await iceDone(net.pc);
 els.answerField.classList.remove('hide');
 els.answerLabel.textContent='2. Answer';
-els.answerCode.value=await encodeDesc(net.pc.localDescription);
+let cand=bestCandidate(net.pc);
+if(!cand){setStatus('No local Wi-Fi address found. Both devices must be on the same Wi-Fi.');return}
+els.answerCode.value=await encodeDesc(net.pc.localDescription,cand);
 showPairButtons(['copyAnswer']);
 els.inviteField.classList.add('hide');
 els.pairHint.textContent='Join';
@@ -689,9 +767,12 @@ setStatus('Answer ready.');
 async function useAnswer(){return safePair(els.answer,'Connecting...',async()=>{
 setStatus('Connecting...');
 let ans=await decodeDesc(els.answerCode.value);
-await net.pc.setRemoteDescription(ans);
+if(ans.type!=='answer')throw Error('Wrong code type');
+try{await net.pc.setRemoteDescription(rtcDesc(ans))}
+catch(e){throw e}
+await addDecodedIce(ans);
 showPairButtons([]);
-setStatus('Connected. Start game.');
+setStatus('Answer accepted. Waiting for player...');
 })}
 function closeNet(){try{net.dc&&net.dc.close();
 net.pc&&net.pc.close();
@@ -699,8 +780,8 @@ for(const c of net.channels.values())c.close()}catch(e){}
 remoteInputs.clear()}
 function send(o){let ch=net.dc;
 if(ch&&ch.readyState==='open')ch.send(pack(o))}
-function msgNet(o,ch,id){if(o.t==='input'&&net.role==='host')remoteInputs.set(id,o.v);
-if(o.t==='snap'&&net.role==='client'){game=o.g;
+function msgNet(o,ch,id){if(o.t==='input'&&net.role==='host')remoteInputs.set(id,inputSafe(o.v));
+if(o.t==='snap'&&net.role==='client'){game=o.g;repairGameState();
 if(game.phase!=='menu')showPlay();
 syncGameMenu();
 ui()}
@@ -712,6 +793,7 @@ function broadcast(dt=1){if(net.role!=='host')return;
 net.timer+=dt;
 if(dt&&net.timer<.05)return;
 net.timer=0;
+repairGameState();
 let data=pack({t:'snap',g:game});
 for(const c of net.channels.values())if(c.readyState==='open')c.send(data)}
 function sendInput(dt){net.timer+=dt;
