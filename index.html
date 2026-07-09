@@ -266,10 +266,23 @@
     touch-action: manipulation;
     cursor: pointer;
   }
-  #switchCameraBtn {
+  #scanBox.focus-pulse::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 3px solid rgba(255,255,255,.9);
+    background: rgba(255,255,255,.12);
+    pointer-events: none;
+    animation: scanFocusPulse .52s ease-out forwards;
+  }
+  @keyframes scanFocusPulse {
+    from { opacity: .95; transform: scale(.96); }
+    to { opacity: 0; transform: scale(1.04); }
+  }
+  #switchCameraBtn,
+  #focusCameraBtn {
     pointer-events: auto;
     position: absolute;
-    right: 8px;
     bottom: 8px;
     color: #fff;
     background: rgba(0,0,0,.62);
@@ -279,6 +292,8 @@
     font-size: 12px;
     font-weight: 900;
   }
+  #switchCameraBtn { right: 8px; }
+  #focusCameraBtn { left: 8px; }
   @media (hover: hover) and (pointer: fine) {
     #touchControls { display: none; }
   }
@@ -389,6 +404,7 @@
   </div>
   <div id="scanBox" class="hidden">
     <video id="scanVideo" playsinline muted></video>
+    <button id="focusCameraBtn" class="hidden" type="button">Focus</button>
     <button id="switchCameraBtn" class="hidden" type="button">Switch Camera</button>
   </div>
   <div id="netStatus">Ready.</div>
@@ -1694,6 +1710,7 @@ module.exports = QRCode;
   const cancelManualBtn = document.getElementById("cancelManualBtn");
   const scanBox = document.getElementById("scanBox");
   const scanVideo = document.getElementById("scanVideo");
+  const focusCameraBtn = document.getElementById("focusCameraBtn");
   const switchCameraBtn = document.getElementById("switchCameraBtn");
   const netStatus = document.getElementById("netStatus");
   const startBtn = document.getElementById("startBtn");
@@ -1831,7 +1848,8 @@ module.exports = QRCode;
       currentDeviceId: null,
       cameraChoices: [],
       detector: null,
-      lastScanAt: 0
+      lastScanAt: 0,
+      focusBusy: false
     };
   }
 
@@ -2786,6 +2804,7 @@ module.exports = QRCode;
   function stopScan() {
     net.scanner.runId++;
     setHidden(scanBox, true);
+    setHidden(focusCameraBtn, true);
     setHidden(switchCameraBtn, true);
     try { scanVideo.pause(); } catch {}
     if (scanVideo.srcObject) scanVideo.srcObject = null;
@@ -2870,43 +2889,341 @@ module.exports = QRCode;
   }
 
   async function configureTrackControl(track, control) {
-    if (!track || !track.applyConstraints || !control) return false;
+    if (!track || !track.applyConstraints || !control || track.readyState === "ended") return false;
+
+    const clean = {};
+    for (const key of Object.keys(control)) {
+      if (control[key] !== undefined && control[key] !== null) clean[key] = control[key];
+    }
+    if (!Object.keys(clean).length) return false;
+
     try {
-      await track.applyConstraints({ advanced: [control] });
+      await track.applyConstraints({ advanced: [clean] });
       return true;
+    } catch {}
+
+    try {
+      await track.applyConstraints(clean);
+      return true;
+    } catch {}
+
+    return false;
+  }
+
+  function scannerSupportedConstraints() {
+    try {
+      return navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints
+        ? navigator.mediaDevices.getSupportedConstraints()
+        : {};
     } catch {
-      return false;
+      return {};
     }
   }
 
-  function supportedMode(caps, key, preferred) {
-    const values = caps && Array.isArray(caps[key]) ? caps[key] : [];
-    if (values.includes(preferred)) return preferred;
-    if (values.includes("continuous")) return "continuous";
-    if (values.includes("single-shot")) return "single-shot";
+  function getTrackModes(caps, key) {
+    return caps && Array.isArray(caps[key]) ? caps[key] : [];
+  }
+
+  function supportsTrackConstraint(caps, key) {
+    return !!((caps && key in caps) || scannerSupportedConstraints()[key]);
+  }
+
+  function supportedMode(caps, key, preferred, fallbacks = []) {
+    const values = getTrackModes(caps, key);
+    const choices = [preferred, ...fallbacks].filter(Boolean);
+
+    for (const choice of choices) {
+      if (values.includes(choice)) return choice;
+    }
+
+    if (!values.length && supportsTrackConstraint(caps, key)) return preferred;
     return null;
   }
 
-  async function configureScanTrack(track, focusMode = "continuous") {
-    if (!track) return false;
+  function delay(ms) {
+    return new Promise(resolve => window.setTimeout(resolve, ms));
+  }
+
+  function scanStatusText(extra = "Tap video or Focus.") {
+    const scanText = net.mode === "host" ? "Scan answer QR." : "Scan host QR.";
+    return `${scanText}${currentScannerCameraText()} ${extra}`.trim();
+  }
+
+  function flashScannerFocus() {
+    scanBox.classList.remove("focus-pulse");
+    void scanBox.offsetWidth;
+    scanBox.classList.add("focus-pulse");
+    window.setTimeout(() => scanBox.classList.remove("focus-pulse"), 520);
+  }
+
+  function normalizedVideoTapPoint(event) {
+    if (!event || typeof event.clientX !== "number" || typeof event.clientY !== "number") {
+      return { x: 0.5, y: 0.5 };
+    }
+
+    const rect = scanVideo.getBoundingClientRect();
+    if (!rect.width || !rect.height) return { x: 0.5, y: 0.5 };
+
+    let x = (event.clientX - rect.left) / rect.width;
+    let y = (event.clientY - rect.top) / rect.height;
+
+    const videoW = scanVideo.videoWidth || 0;
+    const videoH = scanVideo.videoHeight || 0;
+    if (videoW && videoH) {
+      const viewRatio = rect.width / rect.height;
+      const videoRatio = videoW / videoH;
+
+      if (videoRatio > viewRatio) {
+        const visibleWidth = viewRatio / videoRatio;
+        x = (x - (1 - visibleWidth) / 2) / visibleWidth;
+      } else if (videoRatio < viewRatio) {
+        const visibleHeight = videoRatio / viewRatio;
+        y = (y - (1 - visibleHeight) / 2) / visibleHeight;
+      }
+    }
+
+    return { x: clamp(x, 0, 1), y: clamp(y, 0, 1) };
+  }
+
+  function focusPointControls(track, point) {
+    if (!track || !point) return [];
     const caps = track.getCapabilities ? track.getCapabilities() : {};
+    const controls = [];
+
+    if (supportsTrackConstraint(caps, "pointsOfInterest")) {
+      controls.push({ pointsOfInterest: [point] });
+    }
+    if (supportsTrackConstraint(caps, "focusPoint")) {
+      controls.push({ focusPoint: point });
+    }
+
+    return controls;
+  }
+
+  async function applyScannerFocusPoint(track, point) {
+    let changed = false;
+    for (const control of focusPointControls(track, point)) {
+      changed = await configureTrackControl(track, control) || changed;
+    }
+    return changed;
+  }
+
+  function makeScanTrackResult() {
+    return {
+      changed: false,
+      focusChanged: false,
+      pointChanged: false,
+      torchChanged: false,
+      controls: []
+    };
+  }
+
+  async function configureScanTrack(track, focusMode = "continuous", options = {}) {
+    const result = makeScanTrackResult();
+    if (!track || track.readyState === "ended") return result;
+
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    const point = options.point || null;
+    const focusOnly = !!options.focusOnly;
+
+    const mark = async (control, name, isFocusControl = false) => {
+      const applied = await configureTrackControl(track, control);
+      if (applied) {
+        result.changed = true;
+        result.controls.push(name);
+        if (isFocusControl) result.focusChanged = true;
+      }
+      return applied;
+    };
+
+    if (focusMode === "single-shot") {
+      const singleShot = supportedMode(caps, "focusMode", "single-shot");
+      const pointControls = focusPointControls(track, point);
+
+      if (singleShot) {
+        if (pointControls.length) {
+          for (const control of pointControls) {
+            const applied = await mark({ ...control, focusMode: singleShot }, "tap-single-shot", true);
+            if (applied) {
+              result.pointChanged = true;
+              break;
+            }
+          }
+        }
+
+        if (!result.focusChanged) {
+          if (pointControls.length) result.pointChanged = await applyScannerFocusPoint(track, point) || result.pointChanged;
+          await mark({ focusMode: singleShot }, `focus-${singleShot}`, true);
+        }
+      } else if (pointControls.length) {
+        result.pointChanged = await applyScannerFocusPoint(track, point) || result.pointChanged;
+        result.focusChanged = result.pointChanged || result.focusChanged;
+      }
+    } else if (focusMode) {
+      const focus = supportedMode(caps, "focusMode", focusMode, focusMode === "continuous" ? ["single-shot"] : ["continuous"]);
+      if (focus) await mark({ focusMode: focus }, `focus-${focus}`, true);
+      if (point) result.pointChanged = await applyScannerFocusPoint(track, point) || result.pointChanged;
+    }
+
+    if (!focusOnly) {
+      const exposure = supportedMode(caps, "exposureMode", "continuous");
+      if (exposure) await mark({ exposureMode: exposure }, `exposure-${exposure}`);
+
+      const whiteBalance = supportedMode(caps, "whiteBalanceMode", "continuous");
+      if (whiteBalance) await mark({ whiteBalanceMode: whiteBalance }, `white-balance-${whiteBalance}`);
+
+      if (caps.zoom && Number.isFinite(caps.zoom.min) && Number.isFinite(caps.zoom.max)) {
+        const zoom = clamp(scannerZoomTarget, caps.zoom.min, caps.zoom.max);
+        if (Number.isFinite(zoom)) await mark({ zoom }, "zoom");
+      }
+    }
+
+    return result;
+  }
+
+  function uniqueNumbers(values) {
+    const out = [];
+    for (const value of values) {
+      if (!Number.isFinite(value)) continue;
+      if (!out.some(existing => Math.abs(existing - value) < 0.001)) out.push(value);
+    }
+    return out;
+  }
+
+  async function pulseManualFocusDistance(track, caps) {
+    const distance = caps && caps.focusDistance;
+    if (!distance) return false;
+
+    const min = Number.isFinite(distance.min) ? distance.min : 0;
+    const rawMax = Number.isFinite(distance.max) ? distance.max : Math.max(min + 1, 2);
+    const max = rawMax > min ? rawMax : min + 1;
+    const range = max - min;
+    if (range <= 0) return false;
+
+    const focusModes = getTrackModes(caps, "focusMode");
     let changed = false;
 
-    const focus = supportedMode(caps, "focusMode", focusMode);
-    if (focus) changed = await configureTrackControl(track, { focusMode: focus }) || changed;
+    if (focusModes.includes("manual")) {
+      changed = await configureTrackControl(track, { focusMode: "manual" }) || changed;
+      await delay(80);
+    }
 
-    const exposure = supportedMode(caps, "exposureMode", "continuous");
-    if (exposure) changed = await configureTrackControl(track, { exposureMode: exposure }) || changed;
+    const settings = track.getSettings ? track.getSettings() : {};
+    const current = Number.isFinite(settings.focusDistance) ? settings.focusDistance : null;
+    const candidates = max <= 10
+      ? [0.25, 0.35, 0.5, min + range * 0.3]
+      : [min + range * 0.18, min + range * 0.32];
 
-    const whiteBalance = supportedMode(caps, "whiteBalanceMode", "continuous");
-    if (whiteBalance) changed = await configureTrackControl(track, { whiteBalanceMode: whiteBalance }) || changed;
-
-    if (caps.zoom && Number.isFinite(caps.zoom.min) && Number.isFinite(caps.zoom.max)) {
-      const zoom = clamp(scannerZoomTarget, caps.zoom.min, caps.zoom.max);
-      if (Number.isFinite(zoom)) changed = await configureTrackControl(track, { zoom }) || changed;
+    for (const value of uniqueNumbers(candidates.map(v => clamp(v, min, max))).slice(0, 2)) {
+      if (current !== null && Math.abs(current - value) < 0.001) continue;
+      changed = await configureTrackControl(track, { focusDistance: value }) || changed;
+      await delay(110);
     }
 
     return changed;
+  }
+
+  async function pulseContinuousFocus(track, caps, point) {
+    const focusModes = getTrackModes(caps, "focusMode");
+    let changed = false;
+
+    if (focusModes.includes("manual")) {
+      changed = await configureTrackControl(track, { focusMode: "manual" }) || changed;
+      await delay(110);
+    } else if (focusModes.includes("none")) {
+      changed = await configureTrackControl(track, { focusMode: "none" }) || changed;
+      await delay(110);
+    }
+
+    if (point) changed = await applyScannerFocusPoint(track, point) || changed;
+
+    if (focusModes.includes("continuous")) {
+      changed = await configureTrackControl(track, { focusMode: "continuous" }) || changed;
+      await delay(220);
+    }
+
+    return changed;
+  }
+
+  async function pulseScannerTorch(track) {
+    const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+    const settings = track && track.getSettings ? track.getSettings() : {};
+    if (!supportsTrackConstraint(caps, "torch") || settings.torch === true) return false;
+
+    const on = await configureTrackControl(track, { torch: true });
+    if (!on) return false;
+
+    await delay(240);
+    await configureTrackControl(track, { torch: false });
+    return true;
+  }
+
+  async function requestScannerHardwareFocus(track, event) {
+    const result = makeScanTrackResult();
+    if (!track || track.readyState === "ended") return result;
+
+    const point = normalizedVideoTapPoint(event);
+    let caps = track.getCapabilities ? track.getCapabilities() : {};
+
+    const merge = (part) => {
+      result.changed = part.changed || result.changed;
+      result.focusChanged = part.focusChanged || result.focusChanged;
+      result.pointChanged = part.pointChanged || result.pointChanged;
+      result.torchChanged = part.torchChanged || result.torchChanged;
+      result.controls.push(...(part.controls || []));
+    };
+
+    merge(await configureScanTrack(track, "single-shot", { point, focusOnly: true }));
+    await delay(180);
+
+    caps = track.getCapabilities ? track.getCapabilities() : caps;
+    if (await pulseManualFocusDistance(track, caps)) {
+      result.changed = true;
+      result.focusChanged = true;
+      result.controls.push("focus-distance-pulse");
+    } else if (await pulseContinuousFocus(track, caps, point)) {
+      result.changed = true;
+      result.focusChanged = true;
+      result.controls.push("continuous-focus-pulse");
+    }
+
+    const didHardFocusNudge = result.controls.includes("focus-distance-pulse") ||
+      result.controls.includes("continuous-focus-pulse");
+    if (!didHardFocusNudge && await pulseScannerTorch(track)) {
+      result.changed = true;
+      result.torchChanged = true;
+      result.controls.push("torch-pulse");
+    }
+
+    merge(await configureScanTrack(track, "continuous", { point }));
+    return result;
+  }
+
+  async function restartCurrentScanStream() {
+    const oldStream = net.scanner.stream;
+    const oldTrack = oldStream && oldStream.getVideoTracks()[0];
+    const oldSettings = getCameraSettings(oldTrack);
+    const deviceId = net.scanner.currentDeviceId || oldSettings.deviceId || net.scanner.preferredDeviceId;
+    let stream = null;
+
+    if (deviceId) {
+      try {
+        stream = await openCameraStream({ deviceId: { exact: deviceId } });
+      } catch {}
+    }
+    if (!stream) stream = await getBestScanStream();
+
+    const track = stream.getVideoTracks()[0];
+    await configureScanTrack(track, "continuous");
+    scanVideo.srcObject = stream;
+    await scanVideo.play();
+    await waitForVideoReady(scanVideo);
+    net.scanner.stream = stream;
+    stopStream(oldStream);
+
+    const settings = getCameraSettings(track);
+    if (settings.deviceId) net.scanner.currentDeviceId = settings.deviceId;
+    return true;
   }
 
   async function getBestScanStream() {
@@ -2988,15 +3305,52 @@ module.exports = QRCode;
     await scanIncomingCode();
   }
 
-  async function refocusScanner() {
+  async function refocusScanner(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (net.scanner.focusBusy) return;
+
     const track = net.scanner.stream && net.scanner.stream.getVideoTracks()[0];
-    if (!track) return;
+    if (!track || track.readyState === "ended") return;
+
+    const focusRun = net.scanner.runId;
+    net.scanner.focusBusy = true;
+    focusCameraBtn.textContent = "Focusing...";
+    flashScannerFocus();
     setNetStatus("Refocusing...");
-    const focused = await configureScanTrack(track, "single-shot");
-    window.setTimeout(() => {
-      configureScanTrack(track, "continuous");
-      setNetStatus(net.mode === "host" ? "Scan answer QR. Tap video to refocus." : "Scan host QR. Tap video to refocus.");
-    }, focused ? 700 : 250);
+
+    try {
+      const result = await requestScannerHardwareFocus(track, event);
+      await delay(260);
+
+      const currentTrack = net.scanner.stream && net.scanner.stream.getVideoTracks()[0];
+      if (currentTrack && currentTrack.readyState !== "ended") {
+        await configureScanTrack(currentTrack, "continuous");
+      }
+
+      if (focusRun === net.scanner.runId && net.scanner.stream) {
+        flashScannerFocus();
+        const msg = result.focusChanged || result.torchChanged
+          ? "Focus pulse sent."
+          : "Focus controls not exposed here.";
+        setNetStatus(scanStatusText(msg));
+      }
+
+      window.setTimeout(() => {
+        if (focusRun === net.scanner.runId && net.scanner.stream) {
+          setNetStatus(scanStatusText());
+        }
+      }, 950);
+    } catch {
+      if (focusRun === net.scanner.runId && net.scanner.stream) {
+        setNetStatus(scanStatusText("Focus unavailable. Use Switch Camera or paste code."));
+      }
+    } finally {
+      focusCameraBtn.textContent = "Focus";
+      net.scanner.focusBusy = false;
+    }
   }
 
   function canScanQr() {
@@ -3045,13 +3399,13 @@ module.exports = QRCode;
       net.scanner.stream = stream;
       scanVideo.srcObject = stream;
       setHidden(scanBox, false);
+      setHidden(focusCameraBtn, false);
       setHidden(switchCameraBtn, net.scanner.cameraChoices.length < 2);
       await scanVideo.play();
       await waitForVideoReady(scanVideo);
       net.scanner.lastScanAt = 0;
       const run = ++net.scanner.runId;
-      const scanText = net.mode === "host" ? "Scan answer QR." : "Scan host QR.";
-      setNetStatus(`${scanText}${currentScannerCameraText()} Tap video to refocus.`);
+      setNetStatus(scanStatusText());
       requestAnimationFrame(() => detectQrFrame(net.scanner.detector, run));
     } catch {
       stopScan();
@@ -3212,6 +3566,11 @@ module.exports = QRCode;
   useCodeBtn.addEventListener("click", useIncomingCode);
   scanCodeBtn.addEventListener("click", scanIncomingCode);
   scanVideo.addEventListener("pointerdown", refocusScanner);
+  focusCameraBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    refocusScanner();
+  });
   switchCameraBtn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
