@@ -280,7 +280,8 @@
     to { opacity: 0; transform: scale(1.04); }
   }
   #switchCameraBtn,
-  #focusCameraBtn {
+  #focusCameraBtn,
+  #closeCameraBtn {
     pointer-events: auto;
     position: absolute;
     bottom: 8px;
@@ -294,6 +295,7 @@
   }
   #switchCameraBtn { right: 8px; }
   #focusCameraBtn { left: 8px; }
+  #closeCameraBtn { left: 50%; transform: translateX(-50%); }
   @media (hover: hover) and (pointer: fine) {
     #touchControls { display: none; }
   }
@@ -405,6 +407,7 @@
   <div id="scanBox" class="hidden">
     <video id="scanVideo" playsinline muted></video>
     <button id="focusCameraBtn" class="hidden" type="button">Focus</button>
+    <button id="closeCameraBtn" class="hidden" type="button">Close-Up</button>
     <button id="switchCameraBtn" class="hidden" type="button">Switch Camera</button>
   </div>
   <div id="netStatus">Ready.</div>
@@ -1711,6 +1714,7 @@ module.exports = QRCode;
   const scanBox = document.getElementById("scanBox");
   const scanVideo = document.getElementById("scanVideo");
   const focusCameraBtn = document.getElementById("focusCameraBtn");
+  const closeCameraBtn = document.getElementById("closeCameraBtn");
   const switchCameraBtn = document.getElementById("switchCameraBtn");
   const netStatus = document.getElementById("netStatus");
   const startBtn = document.getElementById("startBtn");
@@ -1732,6 +1736,7 @@ module.exports = QRCode;
     aspectRatio: { ideal: 4 / 3 }
   };
   const scannerZoomTarget = 1.45;
+  const scannerCloseZoomTarget = 2.65;
   const scannerDetectInterval = 140;
 
   const keys = new Set();
@@ -1849,7 +1854,9 @@ module.exports = QRCode;
       cameraChoices: [],
       detector: null,
       lastScanAt: 0,
-      focusBusy: false
+      focusBusy: false,
+      closeMode: false,
+      lastFocusAt: 0
     };
   }
 
@@ -2805,6 +2812,7 @@ module.exports = QRCode;
     net.scanner.runId++;
     setHidden(scanBox, true);
     setHidden(focusCameraBtn, true);
+    setHidden(closeCameraBtn, true);
     setHidden(switchCameraBtn, true);
     try { scanVideo.pause(); } catch {}
     if (scanVideo.srcObject) scanVideo.srcObject = null;
@@ -2848,6 +2856,76 @@ module.exports = QRCode;
   function cameraLooksUltraWide(device) {
     const label = normalizeCameraLabel(device);
     return /ultra\s*wide|ultrawide|super\s*wide|0\s*[.,]\s*5\s*x?|\b\.5\s*x\b|wide\s*angle/.test(label);
+  }
+
+  function cameraLooksCloseFocus(device) {
+    const label = normalizeCameraLabel(device);
+    return /(^|\b)(macro|close\s*up|closefocus)(\b|$)|ultra\s*wide|ultrawide|super\s*wide|0\s*[.,]\s*5\s*x?|\b\.5\s*x\b|wide\s*angle/.test(label);
+  }
+
+  function closeCameraScore(device) {
+    const label = normalizeCameraLabel(device);
+    if (!label) return 0;
+
+    let score = 0;
+    if (/(^|\b)(front|user|selfie|face ?time)(\b|$)|facing front/.test(label)) score -= 800;
+    if (/(^|\b)(back|rear|environment)(\b|$)|facing back/.test(label)) score += 140;
+
+    if (/(^|\b)(depth|tof|infrared|ir camera|auxiliary)(\b|$)/.test(label)) score -= 700;
+    if (/(^|\b)(macro|close\s*up|closefocus)(\b|$)/.test(label)) score += 420;
+    if (/ultra\s*wide|ultrawide|super\s*wide|0\s*[.,]\s*5\s*x?|\b\.5\s*x\b|wide\s*angle/.test(label)) score += 300;
+    if (/camera2\s*[23]\b.*facing back/.test(label)) score += 120;
+    if (/camera2\s*0\b.*facing back/.test(label)) score += 30;
+    if (/(^|\b)(main|standard|normal|default|primary)(\b|$)/.test(label)) score += 20;
+    if (/(^|[^0-9])1(?:[.,]0)?\s*x(\b|$)/.test(label)) score -= 25;
+    if (/(^|\b)(tele|telephoto|depth|tof|infrared|ir camera)(\b|$)/.test(label)) score -= 220;
+
+    return score;
+  }
+
+  function rankedCloseCameraDevices(devices) {
+    return devices
+      .filter(device => device.kind === "videoinput")
+      .map((device, index) => ({
+        device,
+        score: closeCameraScore(device),
+        baseScore: cameraScore(device),
+        closeScore: closeCameraScore(device),
+        index
+      }))
+      .filter(choice => choice.score > -260)
+      .sort((a, b) => (b.score - a.score) || (a.index - b.index));
+  }
+
+  function bestCloseCameraDevice(devices) {
+    return rankedCloseCameraDevices(devices)[0] || null;
+  }
+
+  function scannerCameraChoices(devices, options = {}) {
+    const byId = new Map();
+    const add = (choice, source) => {
+      const id = choice.device.deviceId || `${source}-${choice.index}`;
+      const existing = byId.get(id);
+      const normalScore = choice.baseScore ?? cameraScore(choice.device);
+      const closeScore = choice.closeScore ?? closeCameraScore(choice.device);
+      const sortScore = Math.max(normalScore, closeScore - 60);
+      if (!existing || sortScore > existing.sortScore) {
+        byId.set(id, {
+          device: choice.device,
+          score: sortScore,
+          baseScore: normalScore,
+          closeScore,
+          index: choice.index
+        });
+      }
+    };
+
+    rankedCameraDevices(devices, options).forEach(choice => add(choice, "normal"));
+    rankedCloseCameraDevices(devices).forEach(choice => add(choice, "close"));
+
+    return [...byId.values()]
+      .filter(choice => choice.baseScore > -320 || choice.closeScore > -100)
+      .sort((a, b) => (b.score - a.score) || (a.index - b.index));
   }
 
   function cameraDebugName(device) {
@@ -2896,6 +2974,16 @@ module.exports = QRCode;
       if (control[key] !== undefined && control[key] !== null) clean[key] = control[key];
     }
     if (!Object.keys(clean).length) return false;
+
+    try {
+      if ("ImageCapture" in window) {
+        const capture = new ImageCapture(track);
+        if (capture && capture.setOptions) {
+          await capture.setOptions(clean);
+          return true;
+        }
+      }
+    } catch {}
 
     try {
       await track.applyConstraints({ advanced: [clean] });
@@ -3073,7 +3161,10 @@ module.exports = QRCode;
       if (whiteBalance) await mark({ whiteBalanceMode: whiteBalance }, `white-balance-${whiteBalance}`);
 
       if (caps.zoom && Number.isFinite(caps.zoom.min) && Number.isFinite(caps.zoom.max)) {
-        const zoom = clamp(scannerZoomTarget, caps.zoom.min, caps.zoom.max);
+        const zoomTarget = Number.isFinite(options.zoom)
+          ? options.zoom
+          : (net.scanner.closeMode ? scannerCloseZoomTarget : scannerZoomTarget);
+        const zoom = clamp(zoomTarget, caps.zoom.min, caps.zoom.max);
         if (Number.isFinite(zoom)) await mark({ zoom }, "zoom");
       }
     }
@@ -3111,10 +3202,10 @@ module.exports = QRCode;
     const settings = track.getSettings ? track.getSettings() : {};
     const current = Number.isFinite(settings.focusDistance) ? settings.focusDistance : null;
     const candidates = max <= 10
-      ? [0.25, 0.35, 0.5, min + range * 0.3]
-      : [min + range * 0.18, min + range * 0.32];
+      ? [min, min + range * 0.04, min + range * 0.1, 0.12, 0.18, 0.25, 0.35]
+      : [min, min + range * 0.04, min + range * 0.12, min + range * 0.25];
 
-    for (const value of uniqueNumbers(candidates.map(v => clamp(v, min, max))).slice(0, 2)) {
+    for (const value of uniqueNumbers(candidates.map(v => clamp(v, min, max))).slice(0, 3)) {
       if (current !== null && Math.abs(current - value) < 0.001) continue;
       changed = await configureTrackControl(track, { focusDistance: value }) || changed;
       await delay(110);
@@ -3234,20 +3325,31 @@ module.exports = QRCode;
       const devices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
       const currentSettings = getCameraSettings(selectedTrack);
       const currentDevice = devices.find(device => device.deviceId === currentSettings.deviceId);
-      const currentScore = currentDevice ? cameraScore(currentDevice) : -20;
-      const ranked = rankedCameraDevices(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
-      net.scanner.cameraChoices = ranked;
+      const currentNormalScore = currentDevice ? cameraScore(currentDevice) : -20;
+      const currentCloseScore = currentDevice ? closeCameraScore(currentDevice) : -20;
+      const normalRanked = rankedCameraDevices(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
+      const closeRanked = rankedCloseCameraDevices(devices);
+      net.scanner.cameraChoices = scannerCameraChoices(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
 
-      const manual = ranked.find(choice => choice.device.deviceId === net.scanner.manualDeviceId);
-      const best = manual || bestCameraDevice(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
-      const currentIsBad = !currentDevice || currentScore < 80 || cameraLooksUltraWide(currentDevice);
-      const shouldSwitch = best && best.device.deviceId && best.device.deviceId !== currentSettings.deviceId &&
-        (manual || currentIsBad || best.score > currentScore);
+      const manual = net.scanner.cameraChoices.find(choice => choice.device.deviceId === net.scanner.manualDeviceId);
+      const bestNormal = bestCameraDevice(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
+      const bestClose = bestCloseCameraDevice(devices);
+      const target = manual || (net.scanner.closeMode ? bestClose : bestNormal);
+
+      const currentIsBad = net.scanner.closeMode
+        ? (!currentDevice || currentCloseScore < 120)
+        : (!currentDevice || currentNormalScore < 80 || cameraLooksUltraWide(currentDevice));
+      const targetScore = target
+        ? (net.scanner.closeMode ? (target.closeScore ?? closeCameraScore(target.device)) : (target.baseScore ?? cameraScore(target.device)))
+        : -999;
+      const currentScore = net.scanner.closeMode ? currentCloseScore : currentNormalScore;
+      const shouldSwitch = target && target.device.deviceId && target.device.deviceId !== currentSettings.deviceId &&
+        (manual || net.scanner.closeMode || currentIsBad || targetScore > currentScore);
 
       if (shouldSwitch) {
         try {
           const oldStream = stream;
-          stream = await openCameraStream({ deviceId: { exact: best.device.deviceId } });
+          stream = await openCameraStream({ deviceId: { exact: target.device.deviceId } });
           stopStream(oldStream);
         } catch {
           net.scanner.manualDeviceId = null;
@@ -3258,10 +3360,11 @@ module.exports = QRCode;
       selectedTrack = stream.getVideoTracks()[0];
       const selectedSettings = getCameraSettings(selectedTrack);
       let selectedDevice = devices.find(device => device.deviceId === selectedSettings.deviceId);
-      let selectedScore = selectedDevice ? cameraScore(selectedDevice) : -20;
+      let selectedNormalScore = selectedDevice ? cameraScore(selectedDevice) : -20;
+      let selectedCloseScore = selectedDevice ? closeCameraScore(selectedDevice) : -20;
 
-      if ((!selectedDevice || selectedScore < 0 || cameraLooksUltraWide(selectedDevice)) && ranked.length) {
-        for (const choice of ranked) {
+      if (!net.scanner.closeMode && (!selectedDevice || selectedNormalScore < 0 || cameraLooksUltraWide(selectedDevice)) && normalRanked.length) {
+        for (const choice of normalRanked) {
           if (!choice.device.deviceId || choice.device.deviceId === selectedSettings.deviceId || cameraLooksUltraWide(choice.device)) continue;
           try {
             const oldStream = stream;
@@ -3269,7 +3372,24 @@ module.exports = QRCode;
             stopStream(oldStream);
             selectedTrack = stream.getVideoTracks()[0];
             selectedDevice = choice.device;
-            selectedScore = cameraScore(choice.device);
+            selectedNormalScore = cameraScore(choice.device);
+            selectedCloseScore = closeCameraScore(choice.device);
+            break;
+          } catch {}
+        }
+      }
+
+      if (net.scanner.closeMode && (!selectedDevice || selectedCloseScore < 120) && closeRanked.length) {
+        for (const choice of closeRanked) {
+          if (!choice.device.deviceId || choice.device.deviceId === selectedSettings.deviceId) continue;
+          try {
+            const oldStream = stream;
+            stream = await openCameraStream({ deviceId: { exact: choice.device.deviceId } });
+            stopStream(oldStream);
+            selectedTrack = stream.getVideoTracks()[0];
+            selectedDevice = choice.device;
+            selectedNormalScore = cameraScore(choice.device);
+            selectedCloseScore = closeCameraScore(choice.device);
             break;
           } catch {}
         }
@@ -3277,9 +3397,9 @@ module.exports = QRCode;
 
       const finalSettings = getCameraSettings(selectedTrack);
       const finalDevice = devices.find(device => device.deviceId === finalSettings.deviceId) || selectedDevice;
-      const finalScore = finalDevice ? cameraScore(finalDevice) : selectedScore;
+      const finalNormalScore = finalDevice ? cameraScore(finalDevice) : selectedNormalScore;
       net.scanner.currentDeviceId = finalSettings.deviceId || (finalDevice && finalDevice.deviceId) || null;
-      net.scanner.preferredDeviceId = finalScore >= 80 ? net.scanner.currentDeviceId : null;
+      net.scanner.preferredDeviceId = (!net.scanner.closeMode && finalNormalScore >= 80) ? net.scanner.currentDeviceId : null;
     } catch {}
 
     await configureScanTrack(selectedTrack, "continuous");
@@ -3288,20 +3408,34 @@ module.exports = QRCode;
 
   function currentScannerCameraText() {
     const current = net.scanner.cameraChoices.find(choice => choice.device.deviceId === net.scanner.currentDeviceId);
-    if (!current) return "";
-    return ` Camera: ${cameraDebugName(current.device)} (${Math.round(current.baseScore)}).`;
+    if (!current) return net.scanner.closeMode ? " Close-up mode." : "";
+    const score = net.scanner.closeMode ? current.closeScore : current.baseScore;
+    const mode = net.scanner.closeMode ? " Close-up." : "";
+    return ` Camera: ${cameraDebugName(current.device)} (${Math.round(score)}).${mode}`;
+  }
+
+  async function getManualScannerChoices() {
+    if (net.scanner.cameraChoices.length) return net.scanner.cameraChoices;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return scannerCameraChoices(devices, { preferredDeviceId: net.scanner.preferredDeviceId });
   }
 
   async function switchScannerCamera() {
-    const choices = net.scanner.cameraChoices.length
-      ? net.scanner.cameraChoices
-      : rankedCameraDevices(await navigator.mediaDevices.enumerateDevices(), { preferredDeviceId: net.scanner.preferredDeviceId });
+    const choices = await getManualScannerChoices();
     if (choices.length < 2) return;
     const currentIndex = Math.max(0, choices.findIndex(choice => choice.device.deviceId === net.scanner.currentDeviceId));
     const next = choices[(currentIndex + 1) % choices.length];
     if (!next || !next.device.deviceId) return;
     net.scanner.manualDeviceId = next.device.deviceId;
     setNetStatus(`Switching to ${cameraDebugName(next.device)}...`);
+    await scanIncomingCode();
+  }
+
+  async function toggleCloseScanMode() {
+    net.scanner.closeMode = !net.scanner.closeMode;
+    net.scanner.manualDeviceId = null;
+    closeCameraBtn.textContent = net.scanner.closeMode ? "Normal" : "Close-Up";
+    setNetStatus(net.scanner.closeMode ? "Trying close-up camera..." : "Returning to main camera...");
     await scanIncomingCode();
   }
 
@@ -3314,6 +3448,21 @@ module.exports = QRCode;
 
     const track = net.scanner.stream && net.scanner.stream.getVideoTracks()[0];
     if (!track || track.readyState === "ended") return;
+
+    const now = performance.now();
+    const closeCandidate = net.scanner.cameraChoices.some(choice =>
+      choice.device && choice.device.deviceId !== net.scanner.currentDeviceId && choice.closeScore > 180
+    );
+    if (!net.scanner.closeMode && closeCandidate && now - net.scanner.lastFocusAt < 4500) {
+      net.scanner.closeMode = true;
+      net.scanner.manualDeviceId = null;
+      net.scanner.lastFocusAt = 0;
+      closeCameraBtn.textContent = "Normal";
+      setNetStatus("Still blurry. Trying close-up camera...");
+      await scanIncomingCode();
+      return;
+    }
+    net.scanner.lastFocusAt = now;
 
     const focusRun = net.scanner.runId;
     net.scanner.focusBusy = true;
@@ -3333,8 +3482,8 @@ module.exports = QRCode;
       if (focusRun === net.scanner.runId && net.scanner.stream) {
         flashScannerFocus();
         const msg = result.focusChanged || result.torchChanged
-          ? "Focus pulse sent."
-          : "Focus controls not exposed here.";
+          ? (net.scanner.closeMode ? "Close-up focus sent." : "Focus sent. Still blurry? tap Focus again or use Close-Up.")
+          : "Focus controls not exposed here. Use Close-Up or move back.";
         setNetStatus(scanStatusText(msg));
       }
 
@@ -3400,6 +3549,8 @@ module.exports = QRCode;
       scanVideo.srcObject = stream;
       setHidden(scanBox, false);
       setHidden(focusCameraBtn, false);
+      setHidden(closeCameraBtn, false);
+      closeCameraBtn.textContent = net.scanner.closeMode ? "Normal" : "Close-Up";
       setHidden(switchCameraBtn, net.scanner.cameraChoices.length < 2);
       await scanVideo.play();
       await waitForVideoReady(scanVideo);
@@ -3570,6 +3721,13 @@ module.exports = QRCode;
     e.preventDefault();
     e.stopPropagation();
     refocusScanner();
+  });
+  closeCameraBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleCloseScanMode().catch(() => {
+      setNetStatus("Could not switch close-up mode. Use Switch Camera or paste code.");
+    });
   });
   switchCameraBtn.addEventListener("click", (e) => {
     e.preventDefault();
