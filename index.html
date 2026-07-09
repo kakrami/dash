@@ -290,7 +290,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
       </div>
     </section>
   </section>
-  <div class="version-tag">v1.0.9</div>
+  <div class="version-tag">v1.0.10</div>
 </main>
 <script>
 
@@ -360,7 +360,7 @@ function enemy(x,y){let a=Math.random()*6.28;
 return{x,y,vx:Math.cos(a)*70,vy:Math.sin(a)*70,r:14,stun:0}}
 function makeGame(){let coins=coinPos.map((p,i)=>({x:p[0],y:p[1],r:9,taken:false,pulse:i*.3})),s=spawnPoint(0);
 return{players:[player(0,s.x,s.y)],coins,enemies:[enemy(520,86),enemy(760,275),enemy(535,470)],phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:{x:W-68,y:H/2,r:28},shake:0,total:coins.length}}
-function netState(){return{role:'solo',pc:null,dc:null,channels:new Map(),knownIds:new Set(),pendingSlots:new Map(),joinPeers:new Map(),localId:0,nextId:1,timer:0,roomSlots:ROOM_JOINERS}}
+function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,channels:new Map(),knownIds:new Set(),pendingSlots:new Map(),joinPeers:new Map(),acceptedClients:new Set(),localId:0,nextId:1,timer:0,roomSlots:ROOM_JOINERS}}
 function control(p){if(p.control==='remote')return inputSafe(remoteInputs.get(p.id));
 let x=0,y=0;
 if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;
@@ -391,10 +391,10 @@ function hideGameMenu(){els.pauseOverlay.classList.add('hide')}
 function showSetup(){game.paused=true;hideGameMenu();els.play.classList.add('hide');els.setup.classList.remove('hide');ui()}
 function showPlay(){els.setup.classList.add('hide');els.play.classList.remove('hide');setTimeout(()=>{fitCanvas();centerStick()},0)}
 function beginRun(){game=makeGame();restoreRemotes();game.phase='count';game.count=3;game.paused=false;hideGameMenu();showPlay();beep('start');broadcastPulse();ui()}
-function startGame(){if(net.role==='client'){hideGameMenu();showPlay();return send({t:'start'})}beginRun()}
+function startGame(){if(net.role==='client'){setStatus('Waiting for Host to start.');return}beginRun()}
 function openGameMenu(){if(game.phase==='menu')return;if(!game.over)game.paused=true;syncGameMenu();broadcastNow();ui()}
 function resumeGame(){if(game.over)return;game.paused=false;hideGameMenu();broadcastPulse();ui()}
-function restartRun(){if(net.role==='client')return startGame();beginRun()}
+function restartRun(){if(net.role==='client'){setStatus('Only Host can restart the run.');return}beginRun()}
 function restoreRemotes(){ensureHostPlayers(true)}
 function ensureHostPlayers(reset=false){if(net.role!=='host'||!game||!Array.isArray(game.players))return;
   let ids=new Set([...(net.knownIds||new Set()),...net.channels.keys()]);
@@ -703,12 +703,13 @@ async function decodeRoomInvite(s){
   if(!room.slots.length)throw Error('Bad code');
   return room;
 }
-async function encodeRoomAnswer(slot,desc,cand=''){return encodeJsonCode('CDA',{k:'answer',v:1,slot,desc:await encodeDesc(desc,cand)})}
-async function encodeRoomAnswers(answers){return encodeJsonCode('CDA',{k:'answers',v:2,answers})}
+async function encodeRoomAnswer(slot,desc,cand='',client=''){return encodeJsonCode('CDA',{k:'answer',v:2,client,slot,desc:await encodeDesc(desc,cand)})}
+async function encodeRoomAnswers(answers,client=''){return encodeJsonCode('CDA',{k:'answers',v:3,client,answers})}
 async function decodeRoomAnswer(s){
   let ans=await decodeJsonCode(s,'CDA');
   if(!ans)return null;
-  if(ans.k==='answer')return{answers:[{slot:Math.max(1,Math.round(num(ans.slot,1))),desc:await decodeDesc(ans.desc)}]};
+  let client=String(ans.client||'').trim();
+  if(ans.k==='answer')return{client,answers:[{slot:Math.max(1,Math.round(num(ans.slot,1))),desc:await decodeDesc(ans.desc)}]};
   if(ans.k==='answers'&&Array.isArray(ans.answers)){
     let answers=[];
     for(const item of ans.answers){
@@ -716,7 +717,7 @@ async function decodeRoomAnswer(s){
       answers.push({slot,desc});
     }
     if(!answers.length)throw Error('Bad code');
-    return{answers};
+    return{client,answers};
   }
   throw Error('Bad code');
 }
@@ -727,7 +728,7 @@ async function decodeInviteCode(s){
 }
 async function decodeAnswerCode(s){
   let ans=await decodeRoomAnswer(s);
-  if(ans)return{kind:'room',answers:ans.answers};
+  if(ans)return{kind:'room',client:ans.client,answers:ans.answers};
   return{kind:'single',desc:await decodeDesc(s)};
 }
 async function addDecodedIce(d){
@@ -737,6 +738,7 @@ async function addIceToPeer(peer,d){
   if(d&&d._ice&&peer&&!d._hasIce)try{await peer.addIceCandidate(d._ice)}catch(e){console.warn('ICE candidate skipped',e)}
 }
 function visibleLen(s){return [...s].length}
+function newClientToken(){let c=typeof crypto!=='undefined'?crypto:null;return (c&&c.randomUUID?c.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)).replace(/[^a-z0-9-]/gi,'')}
 function pc(){let p=new RTCPeerConnection({iceServers:[]});p._localCandidates=[];p.addEventListener('icecandidate',e=>{if(e.candidate&&e.candidate.candidate)p._localCandidates.push(e.candidate.candidate)});return p}
 function bestCandidate(p){let s=p&&p.localDescription?p.localDescription.sdp:'',fromSdp=s.split(/\r?\n/).filter(x=>x.startsWith('a=candidate:')).map(x=>cleanCandidate(x)),all=[...(p&&p._localCandidates?p._localCandidates:[]),...fromSdp].map(cleanCandidate).filter(Boolean);return all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x)&&/( 10\.| 192\.168\.| 172\.(1[6-9]|2\d|3[01])\.|\.local )/i.test(' '+x+' '))||all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x))||all[0]||''}
 function iceDone(p,ms=5200){return new Promise(res=>{if(bestCandidate(p)||p.iceGatheringState==='complete')return res();let done=false,finish=()=>{if(done)return;done=true;clearTimeout(t);res()},t=setTimeout(finish,ms);p.addEventListener('icecandidate',()=>{if(bestCandidate(p))setTimeout(finish,80)});p.addEventListener('icegatheringstatechange',()=>{if(p.iceGatheringState==='complete')finish()})})}
@@ -762,7 +764,7 @@ function pairReset(){
   els.answerCode.value='';
   els.code.readOnly=false;
   els.answerCode.readOnly=false;
-  closeNet();
+  resetNetwork();
   setStatus('Ready.');
 }
 function pairMode(mode){
@@ -806,6 +808,19 @@ async function copyTextFrom(el,label){
   }
 }
 function sendTo(ch,o){if(ch&&ch.readyState==='open'){ch.send(pack(o));return true}return false}
+function resetNetwork(role='solo'){closeNet();net=netState();net.role=role;inputSeq=0;inputDashDown=false;inputAim={x:1,y:0}}
+function sameSession(session){return net&&net.session===session}
+function markRemoteDisconnected(id){
+  if(!id)return;
+  if(net.channels)net.channels.delete(id);
+  if(net.knownIds)net.knownIds.delete(id);
+  if(net.pendingSlots&&net.pendingSlots.has(id)){let slot=net.pendingSlots.get(id);slot.done=false;slot.accepted=false}
+  remoteInputs.delete(id);
+  if(game&&Array.isArray(game.players)){let p=game.players.find(x=>x.id===id);if(p){p.alive=false;p.hp=0}}
+  setStatus('P'+(id+1)+' disconnected.');
+  broadcastPulse();
+  ui();
+}
 function sendWhenOpen(ch,o,tries=80){
   if(!ch)return;
   if(sendTo(ch,o))return;
@@ -813,14 +828,14 @@ function sendWhenOpen(ch,o,tries=80){
   setTimeout(()=>sendWhenOpen(ch,o,tries-1),125);
 }
 function closeUnusedJoinPeers(active){if(net.role!=='client'||!net.joinPeers)return;for(const [slot,peer] of net.joinPeers){if(peer!==active){try{peer.close()}catch(e){}net.joinPeers.delete(slot)}}}
-function hostSyncTo(ch,id){
-  if(net.role!=='host'||!ch)return;
+function hostSyncTo(ch,id,session=net.session){
+  if(net.role!=='host'||!sameSession(session)||!ch)return;
   ensureHostPlayers(false);
   repairGameState();
   sendWhenOpen(ch,{t:'welcome',id,g:game});
   sendWhenOpen(ch,{t:'snap',g:game});
 }
-function pulseHostSync(ch,id){[0,120,420,900,1600,2600,4200].forEach(ms=>setTimeout(()=>hostSyncTo(ch,id),ms))}
+function pulseHostSync(ch,id){let session=net.session;[0,120,420,900,1600,2600,4200].forEach(ms=>setTimeout(()=>hostSyncTo(ch,id,session),ms))}
 function applyClientSnapshot(g){
   if(!g||typeof g!=='object')return;
   game=g;
@@ -835,9 +850,10 @@ function markClientJoined(id,g){
   setStatus('Joined as '+label+'. '+(g&&g.phase!=='menu'?'Game starting.':'Waiting for Host.'));
   if(els.pairHint)els.pairHint.textContent='Joined as '+label+'. Waiting for Host.';
   if(g)applyClientSnapshot(g);
+  else ui();
 }
-function open(ch,id,peer=null){let opened=false,handleOpen=()=>{
-if(opened)return;opened=true;
+function open(ch,id,peer=null){let session=net.session,opened=false,handleOpen=()=>{
+if(opened||!sameSession(session))return;opened=true;
 if(net.role==='host'){
 net.channels.set(id,ch);
 net.knownIds.add(id);
@@ -848,11 +864,11 @@ pulseHostSync(ch,id);
 broadcastPulse();}
 else{if(peer){net.pc=peer;closeUnusedJoinPeers(peer)}net.dc=ch;setStatus('Connected to Host. Waiting for player spot...');sendWhenOpen(ch,{t:'join'})}};
 ch.onopen=handleOpen;
-ch.onmessage=e=>msgNet(unpack(e.data),ch,id);
-ch.onclose=()=>{if(net.role==='host'){net.channels.delete(id);if(net.knownIds)net.knownIds.delete(id);setStatus('Player disconnected.')}};
+ch.onmessage=e=>{if(sameSession(session))msgNet(unpack(e.data),ch,id)};
+ch.onclose=()=>{if(!sameSession(session))return;if(net.role==='host')markRemoteDisconnected(id);else if(net.role==='client'){setStatus('Disconnected from Host. Return to setup and join again.')}};
 if(ch.readyState==='open')setTimeout(handleOpen,0);
 else{
-  let tries=80,poll=()=>{if(ch.readyState==='open')handleOpen();else if(--tries>0&&ch.readyState!=='closed')setTimeout(poll,125)};
+  let tries=80,poll=()=>{if(!sameSession(session))return;if(ch.readyState==='open')handleOpen();else if(--tries>0&&ch.readyState!=='closed')setTimeout(poll,125)};
   setTimeout(poll,125);
 }}
 async function safePair(btn,working,fn){
@@ -884,21 +900,18 @@ async function makeHostSlot(id){
   return{id,code:slot.code};
 }
 async function invite(){return safePair(els.invite,'Making invite...',async()=>{
-closeNet();
+resetNetwork('host');
 pairMode('host');
 setStatus('Making reusable invite...');
-net=netState();
-net.role='host';
 let ids=Array.from({length:ROOM_JOINERS},(_,i)=>i+1);
 let slots=await Promise.all(ids.map(id=>makeHostSlot(id)));
 els.code.value=await encodeRoomInvite(slots);
 showPairButtons(['copyInvite','answer']);
 setStatus('Reusable invite ready. Share the same invite with each player.');
 })}
-async function join(){closeNet();
+async function join(){
+resetNetwork('client');
 pairMode('join');
-net=netState();
-net.role='client';
 showPairButtons(['use']);
 setStatus('Enter invite.')}
 async function makeJoinAnswerForSlot(slot){
@@ -922,11 +935,11 @@ try{net.dc&&net.dc.close();net.pc&&net.pc.close();if(net.joinPeers)for(const p o
 net.joinPeers=new Map();
 let decoded=await decodeInviteCode(els.code.value);
 if(decoded.kind==='room'){
-  let answers=[];
+  let answers=[],clientToken=newClientToken();
   for(const slot of decoded.room.slots)answers.push(await makeJoinAnswerForSlot(slot));
   els.answerField.classList.remove('hide');
   els.answerLabel.textContent='Your answer';
-  els.answerCode.value=await encodeRoomAnswers(answers);
+  els.answerCode.value=await encodeRoomAnswers(answers,clientToken);
   showPairButtons(['copyAnswer']);
   els.inviteField.classList.add('hide');
   els.pairHint.textContent='Give this answer to Host. This device will update automatically after Host accepts it.';
@@ -957,6 +970,7 @@ async function acceptAnswerCode(raw){
   let ans=await decodeAnswerCode(raw);
   if(ans.kind==='room'){
     if(!net.pendingSlots)throw Error('Wrong code type');
+    if(ans.client&&net.acceptedClients&&net.acceptedClients.has(ans.client))throw Error('Answer already used');
     let bySlot=new Map(ans.answers.map(a=>[a.slot,a]));
     for(const [slotId,slot] of net.pendingSlots){
       if(slot.done||slot.pc.currentRemoteDescription)continue;
@@ -966,6 +980,7 @@ async function acceptAnswerCode(raw){
       await slot.pc.setRemoteDescription(rtcDesc(picked.desc));
       await addIceToPeer(slot.pc,picked.desc);
       slot.accepted=true;
+      if(ans.client&&net.acceptedClients)net.acceptedClients.add(ans.client);
       net.channels.set(slotId,slot.ch);
       net.knownIds.add(slotId);
       ensureHostPlayers(game.phase==='menu'||game.over);
@@ -998,18 +1013,24 @@ async function menuAcceptAnswer(){return safePair(els.menuAcceptAnswer,'Acceptin
   syncMenuPair();
   setStatus(res.msg);
 })}
-function closeNet(){try{net.dc&&net.dc.close();
-net.pc&&net.pc.close();
-for(const c of net.channels.values())c.close();
+function closeNet(){try{
+if(net.dc){try{net.dc.close()}catch(e){}}
+if(net.pc){try{net.pc.close()}catch(e){}}
+if(net.channels)for(const c of net.channels.values())try{c.close()}catch(e){}
 if(net.pendingSlots)for(const s of net.pendingSlots.values()){try{s.ch&&s.ch.close();s.pc&&s.pc.close()}catch(e){}}
 if(net.joinPeers)for(const p of net.joinPeers.values()){try{p.close()}catch(e){}}
 }catch(e){}
-remoteInputs.clear()}
+remoteInputs.clear();
+if(net.channels)net.channels.clear();
+if(net.knownIds)net.knownIds.clear();
+if(net.pendingSlots)net.pendingSlots.clear();
+if(net.joinPeers)net.joinPeers.clear();
+net.dc=null;net.pc=null;net.localId=0;net.timer=0}
 function send(o){sendWhenOpen(net.dc,o)}
-function msgNet(o,ch,id){if(o.t==='input'&&net.role==='host')remoteInputs.set(id,inputSafe(o.v));
+function msgNet(o,ch,id){if(!o||typeof o!=='object')return;
+if(o.t==='input'&&net.role==='host')remoteInputs.set(id,inputSafe(o.v));
 if(o.t==='snap'&&net.role==='client')applyClientSnapshot(o.g);
 if(o.t==='welcome'&&net.role==='client')markClientJoined(o.id,o.g);
-if(o.t==='start'&&net.role==='host')startGame();
 if(o.t==='join'&&net.role==='host'){net.channels.set(id,ch);net.knownIds.add(id);ensureHostPlayers(game.phase==='menu'||game.over);pulseHostSync(ch,id);broadcastPulse()}}
 function broadcastNow(){if(net.role!=='host')return;
 net.timer=0;
