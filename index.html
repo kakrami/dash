@@ -290,7 +290,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
       </div>
     </section>
   </section>
-  <div class="version-tag">v1.0.8</div>
+  <div class="version-tag">v1.0.9</div>
 </main>
 <script>
 
@@ -805,16 +805,22 @@ async function copyTextFrom(el,label){
     try{document.execCommand('copy');setStatus(label+' copied.')}catch(e2){setStatus(label+' selected. Copy it manually.')}
   }
 }
-function sendTo(ch,o){if(ch&&ch.readyState==='open')ch.send(pack(o))}
+function sendTo(ch,o){if(ch&&ch.readyState==='open'){ch.send(pack(o));return true}return false}
+function sendWhenOpen(ch,o,tries=80){
+  if(!ch)return;
+  if(sendTo(ch,o))return;
+  if(tries<=0)return;
+  setTimeout(()=>sendWhenOpen(ch,o,tries-1),125);
+}
 function closeUnusedJoinPeers(active){if(net.role!=='client'||!net.joinPeers)return;for(const [slot,peer] of net.joinPeers){if(peer!==active){try{peer.close()}catch(e){}net.joinPeers.delete(slot)}}}
 function hostSyncTo(ch,id){
-  if(net.role!=='host'||!ch||ch.readyState!=='open')return;
+  if(net.role!=='host'||!ch)return;
   ensureHostPlayers(false);
   repairGameState();
-  sendTo(ch,{t:'welcome',id,g:game});
-  sendTo(ch,{t:'snap',g:game});
+  sendWhenOpen(ch,{t:'welcome',id,g:game});
+  sendWhenOpen(ch,{t:'snap',g:game});
 }
-function pulseHostSync(ch,id){[0,120,420].forEach(ms=>setTimeout(()=>hostSyncTo(ch,id),ms))}
+function pulseHostSync(ch,id){[0,120,420,900,1600,2600,4200].forEach(ms=>setTimeout(()=>hostSyncTo(ch,id),ms))}
 function applyClientSnapshot(g){
   if(!g||typeof g!=='object')return;
   game=g;
@@ -830,7 +836,8 @@ function markClientJoined(id,g){
   if(els.pairHint)els.pairHint.textContent='Joined as '+label+'. Waiting for Host.';
   if(g)applyClientSnapshot(g);
 }
-function open(ch,id,peer=null){ch.onopen=()=>{
+function open(ch,id,peer=null){let opened=false,handleOpen=()=>{
+if(opened)return;opened=true;
 if(net.role==='host'){
 net.channels.set(id,ch);
 net.knownIds.add(id);
@@ -838,10 +845,16 @@ let slot=net.pendingSlots&&net.pendingSlots.get(id);if(slot){slot.done=true;slot
 ensureHostPlayers(game.phase==='menu'||game.over);
 setStatus('Player P'+(id+1)+' joined.');
 pulseHostSync(ch,id);
-broadcastNow();}
-else{if(peer){net.pc=peer;closeUnusedJoinPeers(peer)}net.dc=ch;setStatus('Connected to Host. Waiting for player spot...');send({t:'join'})}};
+broadcastPulse();}
+else{if(peer){net.pc=peer;closeUnusedJoinPeers(peer)}net.dc=ch;setStatus('Connected to Host. Waiting for player spot...');sendWhenOpen(ch,{t:'join'})}};
+ch.onopen=handleOpen;
 ch.onmessage=e=>msgNet(unpack(e.data),ch,id);
-ch.onclose=()=>{if(net.role==='host'){net.channels.delete(id);if(net.knownIds)net.knownIds.delete(id);setStatus('Player disconnected.')}}}
+ch.onclose=()=>{if(net.role==='host'){net.channels.delete(id);if(net.knownIds)net.knownIds.delete(id);setStatus('Player disconnected.')}};
+if(ch.readyState==='open')setTimeout(handleOpen,0);
+else{
+  let tries=80,poll=()=>{if(ch.readyState==='open')handleOpen();else if(--tries>0&&ch.readyState!=='closed')setTimeout(poll,125)};
+  setTimeout(poll,125);
+}}
 async function safePair(btn,working,fn){
   if(btn){btn.disabled=true;btn.dataset.oldText=btn.textContent;btn.textContent=working}
   try{await fn()}
@@ -953,14 +966,12 @@ async function acceptAnswerCode(raw){
       await slot.pc.setRemoteDescription(rtcDesc(picked.desc));
       await addIceToPeer(slot.pc,picked.desc);
       slot.accepted=true;
-      slot.done=true;
       net.channels.set(slotId,slot.ch);
       net.knownIds.add(slotId);
       ensureHostPlayers(game.phase==='menu'||game.over);
-      if(slot.ch&&slot.ch.readyState==='open')pulseHostSync(slot.ch,slotId);
-      else setTimeout(()=>pulseHostSync(slot.ch,slotId),180);
+      pulseHostSync(slot.ch,slotId);
       broadcastPulse();
-      return{room:true,msg:'P'+(slotId+1)+' added. Paste the next answer when ready.'};
+      return{room:true,msg:'P'+(slotId+1)+' answer accepted. It will join automatically.'};
     }
     throw Error('No open player spot');
   }
@@ -994,19 +1005,19 @@ if(net.pendingSlots)for(const s of net.pendingSlots.values()){try{s.ch&&s.ch.clo
 if(net.joinPeers)for(const p of net.joinPeers.values()){try{p.close()}catch(e){}}
 }catch(e){}
 remoteInputs.clear()}
-function send(o){sendTo(net.dc,o)}
+function send(o){sendWhenOpen(net.dc,o)}
 function msgNet(o,ch,id){if(o.t==='input'&&net.role==='host')remoteInputs.set(id,inputSafe(o.v));
 if(o.t==='snap'&&net.role==='client')applyClientSnapshot(o.g);
 if(o.t==='welcome'&&net.role==='client')markClientJoined(o.id,o.g);
 if(o.t==='start'&&net.role==='host')startGame();
-if(o.t==='join'&&net.role==='host'){net.knownIds.add(id);ensureHostPlayers(game.phase==='menu'||game.over);pulseHostSync(ch,id);broadcastNow()}}
+if(o.t==='join'&&net.role==='host'){net.channels.set(id,ch);net.knownIds.add(id);ensureHostPlayers(game.phase==='menu'||game.over);pulseHostSync(ch,id);broadcastPulse()}}
 function broadcastNow(){if(net.role!=='host')return;
 net.timer=0;
 ensureHostPlayers(false);
 repairGameState();
-let data=pack({t:'snap',g:game});
-for(const c of net.channels.values())if(c.readyState==='open')c.send(data)}
-function broadcastPulse(){broadcastNow();[120,420,900].forEach(ms=>setTimeout(broadcastNow,ms))}
+let snap={t:'snap',g:game};
+for(const c of net.channels.values())sendWhenOpen(c,snap,20)}
+function broadcastPulse(){broadcastNow();[120,420,900,1600,2600].forEach(ms=>setTimeout(broadcastNow,ms))}
 function broadcast(dt=1){if(net.role!=='host')return;
 net.timer+=dt;
 if(dt&&net.timer<.05)return;
