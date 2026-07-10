@@ -360,7 +360,7 @@ function enemy(x,y){let a=Math.random()*6.28;
 return{x,y,vx:Math.cos(a)*70,vy:Math.sin(a)*70,r:14,stun:0}}
 function makeGame(){let coins=coinPos.map((p,i)=>({x:p[0],y:p[1],r:9,taken:false,pulse:i*.3})),s=spawnPoint(0);
 return{players:[player(0,s.x,s.y)],coins,enemies:[enemy(520,86),enemy(760,275),enemy(535,470)],phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:{x:W-68,y:H/2,r:28},shake:0,total:coins.length}}
-function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,channels:new Map(),knownIds:new Set(),pendingSlots:new Map(),joinPeers:new Map(),acceptedClients:new Set(),localId:0,nextId:1,timer:0,roomSlots:ROOM_JOINERS}}
+function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,channels:new Map(),knownIds:new Set(),joinedIds:new Set(),pendingSlots:new Map(),joinPeers:new Map(),acceptedClients:new Set(),localId:0,nextId:1,timer:0,roomSlots:ROOM_JOINERS}}
 function control(p){if(p.control==='remote')return inputSafe(remoteInputs.get(p.id));
 let x=0,y=0;
 if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;
@@ -397,7 +397,8 @@ function resumeGame(){if(game.over)return;game.paused=false;hideGameMenu();broad
 function restartRun(){if(net.role==='client'){setStatus('Only Host can restart the run.');return}beginRun()}
 function restoreRemotes(){ensureHostPlayers(true)}
 function ensureHostPlayers(reset=false){if(net.role!=='host'||!game||!Array.isArray(game.players))return;
-  let ids=new Set([...(net.knownIds||new Set()),...net.channels.keys()]);
+  // joinedIds is the durable host roster; channels/knownIds are only live connection state.
+  let ids=new Set([...(net.joinedIds||new Set()),...(net.knownIds||new Set()),...net.channels.keys()]);
   for(const id of ids){
     if(id===0)continue;
     let p=game.players.find(x=>x.id===id);
@@ -895,9 +896,11 @@ function markRemoteDisconnected(id,ch=null){
   if(!wasConnected)return;
   if(net.channels)net.channels.delete(id);
   if(net.knownIds)net.knownIds.delete(id);
+  // Do not remove id from joinedIds: a dropped channel must not erase an accepted player.
+  if(net.joinedIds)net.joinedIds.add(id);
   if(slot&&(!ch||slot.ch===ch)){slot.done=false;slot.accepted=false;slot.connected=false}
   remoteInputs.delete(id);
-  if(game&&Array.isArray(game.players)){let p=game.players.find(x=>x.id===id);if(p){p.alive=false;p.hp=0}}
+  if(game&&Array.isArray(game.players)){let p=game.players.find(x=>x.id===id);if(!p){ensureHostPlayers(false);p=game.players.find(x=>x.id===id)}if(p){p.control='remote';p.alive=false;p.hp=0}}
   setStatus('P'+(id+1)+' disconnected.');
   broadcastPulse();
   ui();
@@ -940,6 +943,7 @@ let slot=net.pendingSlots&&net.pendingSlots.get(id);
 if(slot&&slot.ch!==ch)return;
 net.channels.set(id,ch);
 net.knownIds.add(id);
+net.joinedIds.add(id);
 if(slot){slot.done=true;slot.accepted=true;slot.connected=true}
 remoteInputs.set(id,inputSafe(remoteInputs.get(id)));
 ensureHostPlayers(game.phase==='menu'||game.over);
@@ -1103,6 +1107,7 @@ if(net.joinPeers)for(const p of net.joinPeers.values()){try{p.close()}catch(e){}
 remoteInputs.clear();
 if(net.channels)net.channels.clear();
 if(net.knownIds)net.knownIds.clear();
+if(net.joinedIds)net.joinedIds.clear();
 if(net.pendingSlots)net.pendingSlots.clear();
 if(net.joinPeers)net.joinPeers.clear();
 net.dc=null;net.pc=null;net.localId=0;net.timer=0}
@@ -1111,7 +1116,7 @@ function msgNet(o,ch,id){if(!o||typeof o!=='object')return;
 if(o.t==='input'&&net.role==='host'){let active=net.channels&&net.channels.get(id);if(active!==ch)return;remoteInputs.set(id,inputSafe(o.v));}
 if(o.t==='snap'&&net.role==='client')applyClientSnapshot(o.g);
 if(o.t==='welcome'&&net.role==='client')markClientJoined(o.id,o.g);
-if(o.t==='join'&&net.role==='host'){let active=net.channels&&net.channels.get(id);if(active&&active!==ch)return;let slot=net.pendingSlots&&net.pendingSlots.get(id);if(slot&&slot.ch!==ch)return;net.channels.set(id,ch);net.knownIds.add(id);if(slot){slot.done=true;slot.accepted=true;slot.connected=true}ensureHostPlayers(game.phase==='menu'||game.over);pulseHostSync(ch,id);broadcastPulse()}}
+if(o.t==='join'&&net.role==='host'){let active=net.channels&&net.channels.get(id);if(active&&active!==ch)return;let slot=net.pendingSlots&&net.pendingSlots.get(id);if(slot&&slot.ch!==ch)return;net.channels.set(id,ch);net.knownIds.add(id);net.joinedIds.add(id);if(slot){slot.done=true;slot.accepted=true;slot.connected=true}ensureHostPlayers(game.phase==='menu'||game.over);pulseHostSync(ch,id);broadcastPulse()}}
 function broadcastNow(){if(net.role!=='host')return;
 net.timer=0;
 ensureHostPlayers(false);
