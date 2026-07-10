@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry</title>
-<!-- v1.0.50 -->
-<meta name="application-version" content="1.0.50">
+<!-- v1.0.51 -->
+<meta name="application-version" content="1.0.51">
 <style>
 :root{
   --bg:#010207;--surface:#060d1a;--surface-2:#0d1930;--surface-3:#02050c;
@@ -327,6 +327,104 @@ background:linear-gradient(90deg,#fff,#8eeaff,#c8b4ff);-webkit-background-clip:t
 .menu-footer{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:1px}
 .menu-footer .btn{min-height:38px;font-size:13px;color:var(--muted);background:#ffffff08;box-shadow:none}
 .confirm-overlay{z-index:40}
+
+/* Multiplayer room chat */
+.game-chat{
+position:fixed;right:max(6px,env(safe-area-inset-right,0px));top:50%;z-index:35;
+transform:translateY(-50%);pointer-events:none
+}
+.chat-launcher{
+pointer-events:auto;position:absolute;right:-7px;top:50%;transform:translateY(-50%);
+width:48px;height:50px;padding:0 7px 0 3px;border-radius:15px 0 0 15px;
+display:grid;place-items:center;color:#fff;cursor:pointer;
+border:1px solid #ffb14a80;border-right:0;
+background:linear-gradient(145deg,#ff9a24,#d73722 64%,#68101e);
+box-shadow:0 12px 32px #000a,inset 0 1px #ffffff60,0 0 22px #ff5a1f38;
+transition:transform .12s ease,filter .12s ease
+}
+.chat-launcher:hover{filter:brightness(1.13)}
+.chat-launcher:active{transform:translateY(-50%) scale(.96)}
+.chat-launcher-icon{font-size:21px;line-height:1;filter:drop-shadow(0 2px 3px #0008)}
+.chat-unread{
+position:absolute;left:-4px;top:-6px;min-width:20px;height:20px;padding:0 5px;
+display:grid;place-items:center;border-radius:999px;
+font-size:10px;font-weight:1000;line-height:1;color:#170603;
+background:#ffd166;border:2px solid #250a05;box-shadow:0 3px 10px #0009
+}
+.chat-panel{
+pointer-events:auto;width:min(340px,calc(100vw - 18px));height:min(470px,72dvh);
+display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;
+border:1px solid #ffb14a72;border-radius:18px;
+background:
+linear-gradient(160deg,#160b08fa,#05070dfa) padding-box,
+linear-gradient(135deg,#ffb14aa0,#ff4b3470 52%,#4fdcff65) border-box;
+box-shadow:0 28px 80px #000d,0 0 34px #ff541f25,inset 0 1px #ffffff18;
+backdrop-filter:blur(18px)
+}
+.game-chat:not(.open) .chat-panel{display:none}
+.game-chat.open .chat-launcher{display:none}
+.chat-header{
+min-height:58px;padding:10px 10px 10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+border-bottom:1px solid #ffffff14;background:linear-gradient(180deg,#ffffff09,#0000)
+}
+.chat-heading{min-width:0;display:grid;gap:2px}
+.chat-title{font-size:15px;font-weight:1000;letter-spacing:.035em;text-transform:uppercase}
+.chat-room{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ffc47a;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.chat-close{
+width:38px;height:38px;display:grid;place-items:center;flex:0 0 auto;border-radius:11px;
+color:#fff;font-size:21px;font-weight:800;cursor:pointer;
+background:linear-gradient(180deg,#27364d,#101722);border:1px solid #ffffff24;
+box-shadow:inset 0 1px #ffffff20
+}
+.chat-messages{
+min-height:0;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:12px;
+overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:#ff8a2455 transparent
+}
+.chat-messages:empty::before{
+content:'No messages yet';margin:auto;color:#8995a9;font-size:12px;font-weight:800
+}
+.chat-message{display:flex;flex-direction:column;align-items:flex-start;gap:3px;max-width:84%}
+.chat-message.own{align-self:flex-end;align-items:flex-end}
+.chat-message.system{align-self:center;align-items:center;max-width:94%}
+.chat-meta{display:flex;align-items:center;gap:6px;padding-inline:4px;color:#aeb9cb;font-size:9px;font-weight:900}
+.chat-author{color:var(--chat-color,#7fe8ff)}
+.chat-bubble{
+padding:8px 10px;border-radius:5px 14px 14px 14px;
+color:#fff;font-size:13px;font-weight:750;line-height:1.3;overflow-wrap:anywhere;white-space:pre-wrap;
+background:linear-gradient(145deg,#19364b,#102333);border:1px solid #6fe7ff32;
+box-shadow:0 6px 16px #0006,inset 0 1px #ffffff10
+}
+.chat-message.own .chat-bubble{
+border-radius:14px 5px 14px 14px;
+background:linear-gradient(145deg,#a93620,#5f1816);border-color:#ffb14a55
+}
+.chat-message.system .chat-meta{display:none}
+.chat-message.system .chat-bubble{
+padding:5px 9px;border-radius:999px;color:#ccd4e1;font-size:10px;font-weight:850;
+background:#ffffff0a;border-color:#ffffff12;box-shadow:none
+}
+.chat-compose{
+display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;padding:10px;
+border-top:1px solid #ffffff14;background:#020307d9
+}
+.chat-input{
+width:100%;min-height:43px;max-height:86px;resize:none;padding:10px 11px;
+border-radius:12px;color:#fff;caret-color:#ffb14a;font-size:13px;font-weight:750;line-height:1.25;
+background:#0c111b;border:1px solid #ffffff22;box-shadow:inset 0 2px 10px #0008;
+touch-action:manipulation
+}
+.chat-input::placeholder{color:#7e899a}
+.chat-send{min-width:68px;min-height:43px;padding-inline:12px}
+body.chat-open #playScreen .touch-deck{pointer-events:none;opacity:.4}
+body.chat-open #playScreen .game-stage{pointer-events:none}
+@media(max-width:600px){
+  .game-chat{right:max(3px,env(safe-area-inset-right,0px))}
+  .chat-panel{width:calc(100vw - 14px);height:min(430px,68dvh);border-radius:16px}
+  .chat-launcher{right:-5px;width:45px;height:48px}
+  .chat-messages{padding:10px}
+  .chat-bubble{font-size:12px}
+}
+
 .confirm-card{width:min(360px,100%)}
 
 /* Touch controls */
@@ -712,7 +810,28 @@ text-shadow:0 1px #ffffff55
     </div>
   </section>
 </main>
-  <div class="version-tag" aria-label="Version 1.0.50">v1.0.50</div>
+
+  <aside id="gameChat" class="game-chat hide" aria-label="Multiplayer room chat">
+    <button type="button" id="chatLauncher" class="chat-launcher" aria-label="Open room chat" aria-expanded="false">
+      <span class="chat-launcher-icon" aria-hidden="true">💬</span>
+      <span id="chatUnread" class="chat-unread hide" aria-label="Unread messages">0</span>
+    </button>
+    <section id="chatPanel" class="chat-panel" aria-label="Room chat panel">
+      <header class="chat-header">
+        <div class="chat-heading">
+          <div class="chat-title">Room Chat</div>
+          <div id="chatRoom" class="chat-room">Multiplayer</div>
+        </div>
+        <button type="button" id="chatClose" class="chat-close" aria-label="Close room chat">×</button>
+      </header>
+      <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+      <form id="chatForm" class="chat-compose" autocomplete="off">
+        <textarea id="chatInput" class="chat-input" rows="1" maxlength="160" enterkeyhint="send" placeholder="Message the room" aria-label="Chat message"></textarea>
+        <button type="submit" id="chatSend" class="btn btn-primary chat-send">Send</button>
+      </form>
+    </section>
+  </aside>
+  <div class="version-tag" aria-label="Version 1.0.51">v1.0.51</div>
 
 <script>
 
@@ -894,7 +1013,7 @@ const REMOTE_INPUT_TIMEOUT=240;
 const CLIENT_UI_INTERVAL=.1;
 const SNAPSHOT_INTERVAL=1/15;
 
-const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),levelStatus:$('levelStatus'),clock:$('clock'),powerStatus:$('powerStatus'),players:$('players'),net:$('net'),difficultySetting:$('difficultySetting'),difficultyHint:$('difficultyHint'),difficultyButtons:[...document.querySelectorAll('[data-difficulty]')],levelSelect:$('levelSelectScreen'),levelHint:$('levelHint'),levelOptions:$('levelOptions'),levelPreviewCanvas:$('levelPreviewCanvas'),levelPreviewKicker:$('levelPreviewKicker'),levelPreviewName:$('levelPreviewName'),levelPreviewDescription:$('levelPreviewDescription'),levelBack:$('levelBackBtn'),levelPlay:$('levelPlayBtn'),setupActions:$('setupActions'),start:$('startBtn'),pause:$('pauseBtn'),sound:$('soundBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),menuActions:$('menuActions'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),menuManagePlayers:$('menuManagePlayersBtn'),menuFooter:$('menuFooter'),soundGame:$('soundGameBtn'),fullGame:$('fullGameBtn'),confirmOverlay:$('confirmOverlay'),confirmTitle:$('confirmTitle'),confirmText:$('confirmText'),confirmCancel:$('confirmCancelBtn'),confirmAction:$('confirmActionBtn'),sessionPanel:$('sessionPanel'),sessionTitle:$('sessionTitle'),sessionState:$('sessionState'),sessionPlayers:$('sessionPlayers'),sessionActions:$('sessionActions'),manageSession:$('manageSessionBtn'),endSession:$('endSessionBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairPlayers:$('pairPlayers'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),codeLabel:$('codeLabel'),copyInvite:$('copyInviteBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),use:$('useBtn'),code:$('code'),menuPair:$('menuPair'),menuPairTitle:$('menuPairTitle'),menuPairHint:$('menuPairHint'),menuRoomCode:$('menuRoomCode'),menuPairActions:$('menuPairActions'),menuCopyInvite:$('menuCopyInviteBtn'),menuPairStatus:$('menuPairStatus'),status:$('status'),joy:$('joy'),stick:$('stick'),superButtons:[...document.querySelectorAll('[data-super-slot]')],dash:$('dash')};
+const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),levelStatus:$('levelStatus'),clock:$('clock'),powerStatus:$('powerStatus'),players:$('players'),net:$('net'),difficultySetting:$('difficultySetting'),difficultyHint:$('difficultyHint'),difficultyButtons:[...document.querySelectorAll('[data-difficulty]')],levelSelect:$('levelSelectScreen'),levelHint:$('levelHint'),levelOptions:$('levelOptions'),levelPreviewCanvas:$('levelPreviewCanvas'),levelPreviewKicker:$('levelPreviewKicker'),levelPreviewName:$('levelPreviewName'),levelPreviewDescription:$('levelPreviewDescription'),levelBack:$('levelBackBtn'),levelPlay:$('levelPlayBtn'),setupActions:$('setupActions'),start:$('startBtn'),pause:$('pauseBtn'),sound:$('soundBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),menuActions:$('menuActions'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),menuManagePlayers:$('menuManagePlayersBtn'),menuFooter:$('menuFooter'),soundGame:$('soundGameBtn'),fullGame:$('fullGameBtn'),confirmOverlay:$('confirmOverlay'),confirmTitle:$('confirmTitle'),confirmText:$('confirmText'),confirmCancel:$('confirmCancelBtn'),confirmAction:$('confirmActionBtn'),sessionPanel:$('sessionPanel'),sessionTitle:$('sessionTitle'),sessionState:$('sessionState'),sessionPlayers:$('sessionPlayers'),sessionActions:$('sessionActions'),manageSession:$('manageSessionBtn'),endSession:$('endSessionBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairPlayers:$('pairPlayers'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),codeLabel:$('codeLabel'),copyInvite:$('copyInviteBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),use:$('useBtn'),code:$('code'),menuPair:$('menuPair'),menuPairTitle:$('menuPairTitle'),menuPairHint:$('menuPairHint'),menuRoomCode:$('menuRoomCode'),menuPairActions:$('menuPairActions'),menuCopyInvite:$('menuCopyInviteBtn'),menuPairStatus:$('menuPairStatus'),status:$('status'),chat:$('gameChat'),chatLauncher:$('chatLauncher'),chatUnread:$('chatUnread'),chatPanel:$('chatPanel'),chatRoom:$('chatRoom'),chatClose:$('chatClose'),chatMessages:$('chatMessages'),chatForm:$('chatForm'),chatInput:$('chatInput'),chatSend:$('chatSend'),joy:$('joy'),stick:$('stick'),superButtons:[...document.querySelectorAll('[data-super-slot]')],dash:$('dash')};
 
 const G={floorA:'#100906',floorB:'#2b130b',grid:'#ff8a2424',wall:'#35211a',wallTop:'#7b5a45',wallEdge:'#090403',coin:'#ffd31f',coinHot:'#fff8bd',enemy:'#ff3e24',enemyDark:'#351008',exit:'#65ffb3'};
 function rr(x,y,w,h,r,fill,stroke){cx.beginPath();cx.roundRect(x,y,w,h,r);if(fill){cx.fillStyle=fill;cx.fill()}if(stroke){cx.strokeStyle=stroke;cx.stroke()}}
@@ -974,6 +1093,7 @@ let audioMaster=null,audioCompressor=null,audioSfx=null,audioMusic=null,audioLev
 let audioUnlocked=false,introPlayed=false,introMusicPlaying=false,introMusicTimer=0,introMusicGeneration=0,introVoices=[],levelIntroVoices=[],levelIntroTimer=0,levelIntroGeneration=0,pendingLevelIntro=0,activePowerAudio=new Map();
 let inputSeq=0,inputSuperSeq=0,inputPacketSeq=0,inputDashDown=false,inputSuperDown=false,inputAim={x:1,y:0};
 let menuOpen=false,menuPairOpen=false,endMenuDismissed=false,pairView='intro',pendingConfirm=null;
+let chatOpen=false,chatUnread=0,chatLocalSeq=0,chatHistory=[],chatSeen=new Set();
 const uiCache={coins:'',coinMax:'',level:'',clock:'',power:'',players:'',menu:''};
 
 function r(x,y,w,h){return{x,y,w,h}}
@@ -985,6 +1105,119 @@ function inputSafe(v){let x=num(v&&v.x),y=num(v&&v.y),l=hypot(x,y);if(l>1){x/=l;
   if(dl>.001){dashX/=dl;dashY/=dl}else{dashX=x;dashY=y}
   let superSlot=Math.round(num(v&&v.superSlot,-1));if(superSlot!==0&&superSlot!==1)superSlot=-1;
   return{x,y,dash:!!(v&&v.dash),super:!!(v&&v.super)&&superSlot>=0,superSlot,dashSeq:Math.max(0,Math.round(num(v&&v.dashSeq,0))),superSeq:Math.max(0,Math.round(num(v&&v.superSeq,0))),dashX,dashY}}
+
+function sanitizeChatText(value){
+  return String(value||'').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,'').replace(/\s+/g,' ').trim().slice(0,160);
+}
+function currentChatPlayerId(){return net.role==='client'?Math.max(0,Math.round(num(net.localId,0))):0}
+function chatSenderName(playerId){
+  playerId=Math.round(num(playerId,-1));
+  if(playerId<0)return'';
+  return playerId===0?'Host':'P'+(playerId+1);
+}
+function chatTimeLabel(value){
+  let date=new Date(num(value,Date.now()));
+  try{return date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}
+  catch(e){return''}
+}
+function updateChatBadge(){
+  els.chatUnread.textContent=chatUnread>99?'99+':String(chatUnread);
+  els.chatUnread.classList.toggle('hide',chatUnread<=0);
+}
+function renderChatMessage(message){
+  let playerId=Math.round(num(message.playerId,-1)),system=playerId<0,own=!system&&playerId===currentChatPlayerId();
+  let article=document.createElement('article');
+  article.className='chat-message'+(own?' own':'')+(system?' system':'');
+  article.style.setProperty('--chat-color',colors[Math.max(0,playerId)%colors.length]);
+  let meta=document.createElement('div');meta.className='chat-meta';
+  let author=document.createElement('span');author.className='chat-author';author.textContent=system?'':chatSenderName(playerId);
+  let time=document.createElement('time');time.textContent=system?'':chatTimeLabel(message.time);
+  meta.append(author,time);
+  let bubble=document.createElement('div');bubble.className='chat-bubble';bubble.textContent=message.text;
+  article.append(meta,bubble);
+  els.chatMessages.append(article);
+}
+function appendChatMessage(message,{silent=false}={}){
+  if(!message||typeof message!=='object')return;
+  let textValue=sanitizeChatText(message.text);
+  if(!textValue)return;
+  let id=String(message.id||'local-'+(++chatLocalSeq));
+  if(chatSeen.has(id))return;
+  chatSeen.add(id);
+  let normalized={id,playerId:Math.round(num(message.playerId,-1)),text:textValue,time:num(message.time,Date.now())};
+  chatHistory.push(normalized);
+  if(chatHistory.length>60)chatHistory.splice(0,chatHistory.length-60);
+  renderChatMessage(normalized);
+  if(els.chatMessages.children.length>60)els.chatMessages.firstElementChild?.remove();
+  let own=normalized.playerId===currentChatPlayerId();
+  if(!chatOpen&&!own&&normalized.playerId>=0){chatUnread++;updateChatBadge()}
+  if(!silent&&!own&&normalized.playerId>=0)beep('chat');
+  if(chatOpen)requestAnimationFrame(()=>{els.chatMessages.scrollTop=els.chatMessages.scrollHeight});
+}
+function appendChatNotice(textValue){
+  appendChatMessage({id:'notice-'+Date.now()+'-'+(++chatLocalSeq),playerId:-1,text:textValue,time:Date.now()},{silent:true});
+}
+function receiveChatHistory(messages){
+  if(!Array.isArray(messages))return;
+  for(const message of messages.slice(-30))appendChatMessage(message,{silent:true});
+  if(chatOpen)requestAnimationFrame(()=>{els.chatMessages.scrollTop=els.chatMessages.scrollHeight});
+}
+function resetGameplayInputForChat(){
+  keys.clear();touch.dash=false;touch.super=false;touch.superSlot=-1;inputDashDown=false;inputSuperDown=false;
+  if(typeof joyEnd==='function')joyEnd();
+  els.dash.classList.remove('down');
+  for(const button of els.superButtons)button.classList.remove('down');
+}
+function openChat(){
+  if(els.chat.classList.contains('hide'))return;
+  chatOpen=true;chatUnread=0;updateChatBadge();resetGameplayInputForChat();
+  els.chat.classList.add('open');els.chatLauncher.setAttribute('aria-expanded','true');document.body.classList.add('chat-open');
+  requestAnimationFrame(()=>{
+    els.chatMessages.scrollTop=els.chatMessages.scrollHeight;
+    els.chatInput.focus({preventScroll:true});
+  });
+}
+function closeChat(){
+  chatOpen=false;els.chat.classList.remove('open');els.chatLauncher.setAttribute('aria-expanded','false');document.body.classList.remove('chat-open');
+  els.chatInput.blur();
+}
+function resetChatSession(){
+  closeChat();chatUnread=0;chatHistory=[];chatSeen.clear();els.chatMessages.replaceChildren();updateChatBadge();
+}
+function chatAvailable(){
+  if(net.role==='host')return !!net.roomCode;
+  if(net.role==='client')return !!net.localId&&connectedClient();
+  return false;
+}
+function syncChatAvailability(){
+  let available=chatAvailable();
+  els.chat.classList.toggle('hide',!available);
+  els.chatRoom.textContent=net.roomCode?'Room '+net.roomCode:'Multiplayer';
+  if(!available&&chatOpen)closeChat();
+}
+function allowChatFrom(playerId){
+  let now=Date.now(),items=net.chatRate.get(playerId)||[];
+  items=items.filter(time=>now-time<6000);
+  if(items.length>=5){net.chatRate.set(playerId,items);return false}
+  items.push(now);net.chatRate.set(playerId,items);return true;
+}
+function publishHostChat(playerId,textValue){
+  if(net.role!=='host')return false;
+  let clean=sanitizeChatText(textValue);if(!clean)return false;
+  let message={t:'chat',id:net.session+'-'+(++net.chatSeq),playerId:Math.round(num(playerId,0)),text:clean,time:Date.now()};
+  appendChatMessage(message);
+  for(const channel of net.channels.values())sendWhenOpen(channel,message);
+  return true;
+}
+function sendChatMessage(){
+  let clean=sanitizeChatText(els.chatInput.value);if(!clean)return;
+  let sent=false;
+  if(net.role==='host')sent=publishHostChat(0,clean);
+  else if(net.role==='client'&&net.dc&&net.dc.readyState==='open')sent=sendTo(net.dc,{t:'chatSend',text:clean});
+  if(sent){els.chatInput.value='';els.chatInput.focus({preventScroll:true})}
+  else appendChatNotice('Chat is reconnecting.');
+}
+
 function sanitizeSuperSlots(v){
   let source=Array.isArray(v)?v:[];
   return[0,1].map(i=>{
@@ -1095,12 +1328,13 @@ function completeLevel(){
   for(const p of game.players)if(p.connected!==false)gainSuperEnergy(p,24,'survival');
   if(game.level<LEVELS.length)loadLevel(game.level+1);else end(true)
 }
-function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,stateDc:null,channels:new Map(),stateChannels:new Map(),roster:new Map(),pendingSlots:new Map(),joinPeers:new Map(),clientSlots:new Map(),signal:null,signalPeers:new Map(),signalMembers:new Set(),signalRetries:new Map(),signalHost:'',signalReady:false,roomCode:'',iceServers:[],pendingFireEvents:[],clientFireIds:new Set(),fireSeq:0,clientToken:'',certificate:null,certificatePromise:null,localId:0,nextId:1,timer:0,uiTimer:0,roomSlots:ROOM_JOINERS,stateSeq:0,lastStateSeq:0,eventSeq:0,lastEventSeq:0,clientTarget:null,clientDashTime:0,clientDashDir:{x:1,y:0}}}
+function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,stateDc:null,channels:new Map(),stateChannels:new Map(),roster:new Map(),pendingSlots:new Map(),joinPeers:new Map(),clientSlots:new Map(),signal:null,signalPeers:new Map(),signalMembers:new Set(),signalRetries:new Map(),signalHost:'',signalReady:false,roomCode:'',iceServers:[],pendingFireEvents:[],clientFireIds:new Set(),fireSeq:0,chatSeq:0,chatRate:new Map(),clientToken:'',certificate:null,certificatePromise:null,localId:0,nextId:1,timer:0,uiTimer:0,roomSlots:ROOM_JOINERS,stateSeq:0,lastStateSeq:0,eventSeq:0,lastEventSeq:0,clientTarget:null,clientDashTime:0,clientDashDir:{x:1,y:0}}}
 function remoteInputRecord(id){return remoteInputs.get(id)||null}
 function remoteDashSeq(id){let r=remoteInputRecord(id);return r&&r.value?Math.max(0,Math.round(num(r.value.dashSeq,0))):0}
 function remoteSuperSeq(id){let r=remoteInputRecord(id);return r&&r.value?Math.max(0,Math.round(num(r.value.superSeq,0))):0}
 function remoteControl(id){let r=remoteInputRecord(id),dashSeq=remoteDashSeq(id),superSeq=remoteSuperSeq(id);if(!r||performance.now()-r.at>REMOTE_INPUT_TIMEOUT)return inputSafe({dashSeq,superSeq});return inputSafe(r.value)}
 function control(p){if(p.control==='remote')return remoteControl(p.id);
+if(chatOpen)return inputSafe({dashSeq:inputSeq,superSeq:inputSuperSeq});
 let x=0,y=0;
 if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;
 if(keys.has('KeyD')||keys.has('ArrowRight'))x++;
@@ -2574,7 +2808,7 @@ function updateAbilityButtons(p){
     }
   }
 }
-function ui(force=false){let got=game.coins.filter(c=>c.taken).length,coinMax=String(game.total),levelText='Level '+game.level+'/'+LEVELS.length;
+function ui(force=false){syncChatAvailability();let got=game.coins.filter(c=>c.taken).length,coinMax=String(game.total),levelText='Level '+game.level+'/'+LEVELS.length;
 if(force||uiCache.coins!==String(got)){uiCache.coins=String(got);els.coins.textContent=got}
 if(force||uiCache.coinMax!==coinMax){uiCache.coinMax=coinMax;els.coinMax.textContent=coinMax}
 if(force||uiCache.level!==levelText){uiCache.level=levelText;els.levelStatus.textContent=levelText}
@@ -2778,7 +3012,10 @@ function beep(type){
   let ctx=ensureAudio();if(!ctx||!soundEnabled)return;
   let t=ctx.currentTime+.004;
   try{
-    if(type==='coin'){
+    if(type==='chat'){
+      synthTone(740,.075,{when:t,type:'sine',gain:.026,endFreq:930});
+      synthTone(1175,.11,{when:t+.045,type:'triangle',gain:.024});
+    }else if(type==='coin'){
       synthTone(1047,.08,{when:t,type:'triangle',gain:.055,endFreq:1319});
       synthTone(1568,.11,{when:t+.045,type:'sine',gain:.04});
     }else if(type==='dash'){
@@ -3553,7 +3790,7 @@ function hostSyncTo(ch,id,session=net.session){
   ensureHostPlayers(false);
   repairGameState();
   let g=publicGameState();
-  sendWhenOpen(ch,{t:'welcome',id,eventSeq:net.eventSeq,g});
+  sendWhenOpen(ch,{t:'welcome',id,eventSeq:net.eventSeq,g,chat:chatHistory.slice(-30)});
   let stateCh=net.stateChannels.get(id);
   if(stateCh)sendState(stateCh,{t:'snap',seq:++net.stateSeq,s:compactGameState(false)});
 }
@@ -3723,16 +3960,24 @@ function closeNet(){try{
 }catch(e){}
   remoteInputs.clear();if(net.channels)net.channels.clear();if(net.stateChannels)net.stateChannels.clear();if(net.roster)net.roster.clear();if(net.pendingSlots)net.pendingSlots.clear();if(net.joinPeers)net.joinPeers.clear();if(net.clientSlots)net.clientSlots.clear();if(net.signalPeers)net.signalPeers.clear();if(net.signalMembers)net.signalMembers.clear();if(net.signalRetries)net.signalRetries.clear();if(net.clientFireIds)net.clientFireIds.clear();if(net.pendingFireEvents)net.pendingFireEvents.length=0;
   net.signal=null;net.signalReady=false;net.dc=null;net.stateDc=null;net.pc=null;net.localId=0;net.timer=0;net.clientTarget=null;
+  resetChatSession();
 }
 function send(o){sendWhenOpen(net.dc,o)}
 function msgNet(o,ch,id,kind='control'){if(!o||typeof o!=='object')return;
+  if(o.t==='chatSend'&&net.role==='host'){
+    if(kind!=='control'||net.channels.get(id)!==ch)return;
+    if(!allowChatFrom(id)){sendWhenOpen(ch,{t:'chatNotice',text:'Please wait before sending more messages.'});return}
+    publishHostChat(id,o.text);return;
+  }
+  if(o.t==='chat'&&net.role==='client'){appendChatMessage(o);return}
+  if(o.t==='chatNotice'&&net.role==='client'){appendChatNotice(sanitizeChatText(o.text)||'Message not sent.');return}
   if(o.t==='input'&&net.role==='host'){
     let active=net.stateChannels.get(id)||net.channels.get(id);if(active!==ch)return;
     let seq=Math.max(0,Math.round(num(o.seq,0))),old=remoteInputs.get(id);if(old&&seq&&seq<=old.seq)return;
     remoteInputs.set(id,{value:inputSafe(o.v),seq,at:performance.now()});setRosterConnected(id,true);
   }
   if(o.t==='snap'&&net.role==='client')applyCompactSnapshot(o.s,o.seq);
-  if(o.t==='welcome'&&net.role==='client'){net.lastEventSeq=Math.max(net.lastEventSeq,Math.round(num(o.eventSeq,0)));markClientJoined(o.id,o.g)}
+  if(o.t==='welcome'&&net.role==='client'){net.lastEventSeq=Math.max(net.lastEventSeq,Math.round(num(o.eventSeq,0)));markClientJoined(o.id,o.g);receiveChatHistory(o.chat)}
   if(o.t==='event'&&net.role==='client'){
     let seq=Math.max(0,Math.round(num(o.seq,0)));if(seq&&seq<=net.lastEventSeq)return;net.lastEventSeq=seq;
     if(o.kind==='run'||o.kind==='resume'||o.kind==='go'||o.kind==='setup'){menuOpen=false;endMenuDismissed=false}
@@ -3860,14 +4105,19 @@ function pointer(e){
   els.stick.style.left=g.centerX+nx*visualDistance+'px';
   els.stick.style.top=g.centerY+ny*visualDistance+'px';
 }
+function isTextEntryTarget(target){
+  return !!target&&(target.tagName==='INPUT'||target.tagName==='TEXTAREA'||target.isContentEditable);
+}
 window.addEventListener('keydown',e=>{
 if(e.code==='Escape'){
+  if(chatOpen){closeChat();e.preventDefault();return}
   if(!els.confirmOverlay.classList.contains('hide')){closeConfirm();e.preventDefault();return}
   if(game.paused&&!game.over)resumeGame();
   else openGameMenu();
   e.preventDefault();
   return;
 }
+if(chatOpen||isTextEntryTarget(e.target))return;
 keys.add(e.code);
 if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault()});
 window.addEventListener('keyup',e=>keys.delete(e.code));
@@ -3917,6 +4167,14 @@ els.confirmCancel.onclick=closeConfirm;
 els.confirmAction.onclick=()=>{let action=pendingConfirm;closeConfirm();if(action)action()};
 els.sound.onclick=toggleSound;
 els.soundGame.onclick=toggleSound;
+els.chatLauncher.onclick=openChat;
+els.chatClose.onclick=closeChat;
+els.chatForm.addEventListener('submit',e=>{e.preventDefault();sendChatMessage()});
+els.chatInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMessage()}
+  e.stopPropagation();
+});
+els.chatPanel.addEventListener('pointerdown',e=>e.stopPropagation());
 document.addEventListener('pointerdown',unlockAudioFromGesture,{passive:true});
 document.addEventListener('keydown',unlockAudioFromGesture);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAllPowerLoops(.04);else syncActivePowerAudio()});
@@ -3951,6 +4209,7 @@ window.addEventListener('resize',refreshLayout);
 window.addEventListener('orientationchange',()=>setTimeout(refreshLayout,250));
 
 try{localStorage.removeItem('coinDashUnlockedLevel')}catch(e){}
+resetChatSession();
 updateSoundButtons();
 updateFullscreenLabels();
 syncSetupUI();
