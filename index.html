@@ -290,7 +290,7 @@ canvas{display:block;image-rendering:auto;background:#10192f;border:1px solid #6
       </div>
     </section>
   </section>
-  <div class="version-tag">v1.0.10</div>
+  <div class="version-tag">v1.0.12</div>
 </main>
 <script>
 
@@ -627,11 +627,11 @@ function writeDesc(d,extraCand=''){let s=d.sdp,a=[],cand=pickCand(s,extraCand),p
 function readDesc(bin){let r={a:bin,i:0},f=r.a[r.i++],type=f&1?'answer':'offer',setup=setupName((f>>1)&3),uf=getStr(r),pw=getStr(r),fp=toHex(r.a.slice(r.i,r.i+32));r.i+=32;let addr='',port=0;if(f&8){port=getVar(r);addr=f&16?bytesUuid(r.a.slice(r.i,r.i+=16)):getStr(r)}return makeSdp(type,setup,uf,pw,fp,addr,port)}
 function dense(a){let all=[(a.length>>8)&255,a.length&255,...a],out='',buf=0,bits=0;for(const x of all){buf=(buf<<8)|x;bits+=8;while(bits>=14){bits-=14;out+=String.fromCharCode(0x4E00+((buf>>bits)&0x3fff));buf&=(1<<bits)-1}}if(bits)out+=String.fromCharCode(0x4E00+((buf<<(14-bits))&0x3fff));return out}
 function undense(s){let out=[],buf=0,bits=0;for(const ch of s){let v=ch.charCodeAt(0)-0x4E00;if(v<0||v>0x3fff)throw Error('bad short code');buf=(buf<<14)|v;bits+=14;while(bits>=8){bits-=8;out.push((buf>>bits)&255);buf&=(1<<bits)-1}}let n=(out[0]<<8)|out[1];return Uint8Array.from(out.slice(2,2+n))}
-function writeUltra(d){let s=d.sdp,c=pickCand(s),p=candidateParts(c),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),ib=ipBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
+function writeUltra(d,extraCand=''){let s=d.sdp,c=pickCand(s,extraCand),p=candidateParts(c),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),ib=ipBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
   if(!c||!port||(!ub&&!ib)||!isHex(uf)||!isHex(pw)||!isHex(fp)||uf.length>31||pw.length>63)throw Error('fallback');
   return glyphPack(put=>{put(d.type==='answer'?1:0,1);put(setupId(sdpLine(s,/a=setup:([^\r\n]+)/)),2);put(ub?1:0,1);put(uf.length,5);put(pw.length,6);for(const x of uf+pw)put(parseInt(x,16),4);for(const x of hexBytes(fp))put(x,8);for(const x of (ub||ib))put(x,8);put(port,16)})}
 function readUltra(s){let g=glyphRead(s),type=g(1)?'answer':'offer',setup=setupName(g(2)),uuid=g(1),ul=g(5),pl=g(6),hex=n=>{let h='';while(n--)h+=g(4).toString(16);return h},uf=hex(ul),pw=hex(pl),fp=hex(64),addrBytes=[];for(let i=0;i<(uuid?16:4);i++)addrBytes.push(g(8));let port=g(16),addr=uuid?bytesUuid(addrBytes):bytesIp(addrBytes);return makeSdp(type,setup,uf,pw,fp,addr,port)}
-function writeNano(d){let s=d.sdp,c=pickCand(s),p=candidateParts(c),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
+function writeNano(d,extraCand=''){let s=d.sdp,c=pickCand(s,extraCand),p=candidateParts(c),addr=p[4]||'',port=+p[5]||0,ub=uuidBytes(addr),uf=sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw=sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp=sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'');
   if(!ub||port<49152||port>65535||!isHex(uf)||!isHex(pw)||!isHex(fp)||uf.length!==8||pw.length!==32||fp.length!==64)throw Error('fallback');
   return glyphPack(put=>{put(d.type==='answer'?1:0,1);for(const x of uf+pw)put(parseInt(x,16),4);for(const x of hexBytes(fp))put(x,8);for(const x of ub)put(x,8);put(port-49152,14)})}
 function readNano(s){let g=glyphRead(s),type=g(1)?'answer':'offer',setup=type==='answer'?'active':'actpass',hex=n=>{let h='';while(n--)h+=g(4).toString(16);return h},uf=hex(8),pw=hex(32),fp=hex(64),ub=[];for(let i=0;i<16;i++)ub.push(g(8));return makeSdp(type,setup,uf,pw,fp,bytesUuid(ub),49152+g(14))}
@@ -662,19 +662,29 @@ async function gunzipText(bytes){
 function rtcDesc(d){return{type:d.type,sdp:d.sdp}}
 function cleanAnyCode(s){
   s=String(s||'').replace(/[\s\u200B-\u200D\uFEFF]+/g,'').trim();
-  let m=s.match(/CD[RA][12]\.[0-9A-Za-z_-]+|CDv[12]\.[0-9A-Za-z_-]+|CD[0-9A-Za-z_-]+/);
-  return m?m[0]:s;
+  let short=s.match(/[RA]1\.[0-9A-Za-z_-]+/);
+  if(short)return short[0];
+  let legacy=s.match(/CD[RA][12]\.[0-9A-Za-z_-]+|CDv[12]\.[0-9A-Za-z_-]+|CD[0-9A-Za-z_-]+/);
+  return legacy?legacy[0]:s;
 }
 function cleanCode(s){return cleanAnyCode(s)}
 function checkDesc(d){
   if(!d||!/^(offer|answer)$/.test(d.type)||typeof d.sdp!=='string'||!d.sdp.includes('m=application'))throw Error('Bad code');
   return d;
 }
-async function encodeDesc(d,cand=''){return 'CD'+b64UrlBytes(writeDesc(d,cand))}
+function bestShortCode(list){return list.filter(Boolean).sort((a,b)=>visibleLen(a)-visibleLen(b))[0]}
+async function encodeDesc(d,cand=''){
+  let opts=[];
+  try{opts.push(writeNano(d,cand))}catch(e){}
+  try{opts.push('U'+writeUltra(d,cand))}catch(e){}
+  try{opts.push('M'+dense(writeDesc(d,cand)))}catch(e){}
+  opts.push('CD'+b64UrlBytes(writeDesc(d,cand)));
+  return bestShortCode(opts);
+}
 async function decodeDesc(s){
   s=cleanCode(s);
   if(!s)throw Error('Missing code');
-  if(s.startsWith('CDR')||s.startsWith('CDA'))throw Error('Wrong code type');
+  if(s.startsWith('CDR')||s.startsWith('CDA')||s.startsWith('R1.')||s.startsWith('A1.'))throw Error('Wrong code type');
   if(s.startsWith('CDv2.'))return checkDesc(JSON.parse(await gunzipText(bytesFromB64Url(s.slice(5)))));
   if(s.startsWith('CDv1.'))return checkDesc(JSON.parse(textFromBytes(bytesFromB64Url(s.slice(5)))));
   if(s.startsWith('CD'))return checkDesc(readDesc(bytesFromB64Url(s.slice(2))));
@@ -694,8 +704,60 @@ async function decodeJsonCode(s,prefix){
   if(s.startsWith(prefix+'1.'))return JSON.parse(textFromBytes(bytesFromB64Url(s.slice(prefix.length+2))));
   return null;
 }
-async function encodeRoomInvite(slots){return encodeJsonCode('CDR',{k:'room',v:1,slots})}
+function descParts(d,cand=''){
+  let s=d.sdp,c=pickCand(s,cand),p=candidateParts(c),addr=p[4]||'',port=+p[5]||0;
+  return{type:d.type,setup:sdpLine(s,/a=setup:([^\r\n]+)/)||'actpass',uf:sdpLine(s,/a=ice-ufrag:([^\r\n]+)/),pw:sdpLine(s,/a=ice-pwd:([^\r\n]+)/),fp:sdpLine(s,/a=fingerprint:sha-256 ([^\r\n]+)/).replace(/:/g,'').toLowerCase(),addr,port};
+}
+function putBytes(a,b){putVar(a,b.length);for(const x of b)a.push(x)}
+function getBytes(r){let n=getVar(r),b=r.a.slice(r.i,r.i+n);r.i+=n;return b}
+function writeAddr(a,addr){let ub=uuidBytes(addr),ib=ipBytes(addr);if(!addr)a.push(0);else if(ub){a.push(1,...ub)}else if(ib){a.push(2,...ib)}else{a.push(3);putStr(a,addr)}}
+function readAddr(r){let t=r.a[r.i++];if(t===1){let b=r.a.slice(r.i,r.i+16);r.i+=16;return bytesUuid(b)}if(t===2){let b=r.a.slice(r.i,r.i+4);r.i+=4;return bytesIp(b)}if(t===3)return getStr(r);return''}
+function writeCompactRoom(prefix,items,client=''){
+  let parts=items.map(x=>({slot:Math.max(1,Math.round(num(x.slot||x.id,1))),p:x.p||x.parts})).filter(x=>x.p);
+  if(!parts.length)throw Error('Bad code');
+  let commonFp=parts.every(x=>x.p.fp===parts[0].p.fp),commonAddr=parts.every(x=>x.p.addr===parts[0].p.addr),a=[1,(commonFp?1:0)|(commonAddr?2:0)];
+  putVar(a,parts.length);
+  if(prefix==='A')putStr(a,client||'');
+  if(commonFp)a.push(...hexBytes(parts[0].p.fp));
+  if(commonAddr)writeAddr(a,parts[0].p.addr);
+  for(const x of parts){
+    let q=x.p;
+    putVar(a,x.slot);
+    putVar(a,(q.type==='answer'?1:0)|(setupId(q.setup)<<1));
+    putStr(a,q.uf);putStr(a,q.pw);
+    if(!commonFp)a.push(...hexBytes(q.fp));
+    putVar(a,q.port||0);
+    if(!commonAddr)writeAddr(a,q.addr);
+  }
+  return prefix+'1.'+b64UrlBytes(Uint8Array.from(a));
+}
+function readCompactRoom(s,prefix){
+  s=cleanAnyCode(s);
+  if(!s.startsWith(prefix+'1.'))return null;
+  let r={a:bytesFromB64Url(s.slice(3)),i:0},version=r.a[r.i++];
+  if(version!==1)throw Error('Bad code');
+  let flags=r.a[r.i++],count=getVar(r),client='',out=[];
+  if(prefix==='A')client=getStr(r);
+  let commonFp=flags&1?toHex(r.a.slice(r.i,r.i+=32)):'';
+  let commonAddr=flags&2?readAddr(r):null;
+  for(let i=0;i<count;i++){
+    let slot=getVar(r),ts=getVar(r),type=ts&1?'answer':'offer',setup=setupName((ts>>1)&3),uf=getStr(r),pw=getStr(r),fp=commonFp||toHex(r.a.slice(r.i,r.i+=32)),port=getVar(r),addr=commonAddr!==null?commonAddr:readAddr(r);
+    out.push({slot,desc:makeSdp(type,setup,uf,pw,fp,addr,port)});
+  }
+  return{client,items:out};
+}
+async function encodeRoomInvite(slots){
+  let items=[];
+  for(const slot of slots){items.push({id:slot.id,parts:descParts(await decodeDesc(slot.code))})}
+  return writeCompactRoom('R',items);
+}
 async function decodeRoomInvite(s){
+  let compact=readCompactRoom(s,'R');
+  if(compact){
+    let slots=compact.items.map(x=>({id:Math.max(1,Math.round(num(x.slot,1))),desc:x.desc}));
+    if(!slots.length)throw Error('Bad code');
+    return{k:'room',v:4,slots};
+  }
   let room=await decodeJsonCode(s,'CDR');
   if(!room)return null;
   if(room.k!=='room'||!Array.isArray(room.slots)||!room.slots.length)throw Error('Bad code');
@@ -703,9 +765,18 @@ async function decodeRoomInvite(s){
   if(!room.slots.length)throw Error('Bad code');
   return room;
 }
-async function encodeRoomAnswer(slot,desc,cand='',client=''){return encodeJsonCode('CDA',{k:'answer',v:2,client,slot,desc:await encodeDesc(desc,cand)})}
-async function encodeRoomAnswers(answers,client=''){return encodeJsonCode('CDA',{k:'answers',v:3,client,answers})}
+async function encodeRoomAnswer(slot,desc,cand='',client=''){return encodeRoomAnswers([{slot,desc:await encodeDesc(desc,cand)}],client)}
+async function encodeRoomAnswers(answers,client=''){
+  let items=[];
+  for(const ans of answers){items.push({slot:ans.slot,parts:descParts(await decodeDesc(ans.desc))})}
+  return writeCompactRoom('A',items,client);
+}
 async function decodeRoomAnswer(s){
+  let compact=readCompactRoom(s,'A');
+  if(compact){
+    if(!compact.items.length)throw Error('Bad code');
+    return{client:String(compact.client||'').trim(),answers:compact.items.map(x=>({slot:Math.max(1,Math.round(num(x.slot,1))),desc:x.desc}))};
+  }
   let ans=await decodeJsonCode(s,'CDA');
   if(!ans)return null;
   let client=String(ans.client||'').trim();
@@ -738,12 +809,12 @@ async function addIceToPeer(peer,d){
   if(d&&d._ice&&peer&&!d._hasIce)try{await peer.addIceCandidate(d._ice)}catch(e){console.warn('ICE candidate skipped',e)}
 }
 function visibleLen(s){return [...s].length}
-function newClientToken(){let c=typeof crypto!=='undefined'?crypto:null;return (c&&c.randomUUID?c.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)).replace(/[^a-z0-9-]/gi,'')}
+function newClientToken(){let c=typeof crypto!=='undefined'?crypto:null;if(c&&c.getRandomValues){let b=new Uint8Array(8);c.getRandomValues(b);return b64UrlBytes(b)}return (Date.now().toString(36)+Math.random().toString(36).slice(2,8)).replace(/[^a-z0-9]/gi,'')}
 function pc(){let p=new RTCPeerConnection({iceServers:[]});p._localCandidates=[];p.addEventListener('icecandidate',e=>{if(e.candidate&&e.candidate.candidate)p._localCandidates.push(e.candidate.candidate)});return p}
 function bestCandidate(p){let s=p&&p.localDescription?p.localDescription.sdp:'',fromSdp=s.split(/\r?\n/).filter(x=>x.startsWith('a=candidate:')).map(x=>cleanCandidate(x)),all=[...(p&&p._localCandidates?p._localCandidates:[]),...fromSdp].map(cleanCandidate).filter(Boolean);return all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x)&&/( 10\.| 192\.168\.| 172\.(1[6-9]|2\d|3[01])\.|\.local )/i.test(' '+x+' '))||all.find(x=>/ udp /i.test(x)&&/ typ host/i.test(x))||all[0]||''}
 function iceDone(p,ms=5200){return new Promise(res=>{if(bestCandidate(p)||p.iceGatheringState==='complete')return res();let done=false,finish=()=>{if(done)return;done=true;clearTimeout(t);res()},t=setTimeout(finish,ms);p.addEventListener('icecandidate',()=>{if(bestCandidate(p))setTimeout(finish,80)});p.addEventListener('icegatheringstatechange',()=>{if(p.iceGatheringState==='complete')finish()})})}
 function setStatus(s){els.status.textContent=s;if(els.menuPairStatus)els.menuPairStatus.textContent=s}
-function hasOpenRoomSlot(){if(net.role!=='host'||!net.pendingSlots)return false;for(const slot of net.pendingSlots.values())if(!slot.done&&!slot.pc.currentRemoteDescription)return true;return false}
+function hasOpenRoomSlot(){if(net.role!=='host'||!net.pendingSlots)return false;for(const slot of net.pendingSlots.values())if(!slot.done&&!slot.accepted&&!slot.connected&&!slot.pc.currentRemoteDescription)return true;return false}
 function syncMenuPair(){
   if(!els.menuPair)return;
   let show=hasOpenRoomSlot();
@@ -810,11 +881,21 @@ async function copyTextFrom(el,label){
 function sendTo(ch,o){if(ch&&ch.readyState==='open'){ch.send(pack(o));return true}return false}
 function resetNetwork(role='solo'){closeNet();net=netState();net.role=role;inputSeq=0;inputDashDown=false;inputAim={x:1,y:0}}
 function sameSession(session){return net&&net.session===session}
-function markRemoteDisconnected(id){
+function markRemoteDisconnected(id,ch=null){
   if(!id)return;
+  let active=net.channels&&net.channels.get(id),slot=net.pendingSlots&&net.pendingSlots.get(id);
+  if(ch&&active&&active!==ch)return;
+  if(ch&&slot&&slot.ch!==ch&&!active)return;
+  let wasConnected=!!active||!!(slot&&slot.connected);
+  if(ch&&slot&&slot.ch===ch&&!slot.connected&&!active){
+    slot.accepted=false;
+    slot.done=false;
+    return;
+  }
+  if(!wasConnected)return;
   if(net.channels)net.channels.delete(id);
   if(net.knownIds)net.knownIds.delete(id);
-  if(net.pendingSlots&&net.pendingSlots.has(id)){let slot=net.pendingSlots.get(id);slot.done=false;slot.accepted=false}
+  if(slot&&(!ch||slot.ch===ch)){slot.done=false;slot.accepted=false;slot.connected=false}
   remoteInputs.delete(id);
   if(game&&Array.isArray(game.players)){let p=game.players.find(x=>x.id===id);if(p){p.alive=false;p.hp=0}}
   setStatus('P'+(id+1)+' disconnected.');
@@ -855,9 +936,12 @@ function markClientJoined(id,g){
 function open(ch,id,peer=null){let session=net.session,opened=false,handleOpen=()=>{
 if(opened||!sameSession(session))return;opened=true;
 if(net.role==='host'){
+let slot=net.pendingSlots&&net.pendingSlots.get(id);
+if(slot&&slot.ch!==ch)return;
 net.channels.set(id,ch);
 net.knownIds.add(id);
-let slot=net.pendingSlots&&net.pendingSlots.get(id);if(slot){slot.done=true;slot.accepted=true}
+if(slot){slot.done=true;slot.accepted=true;slot.connected=true}
+remoteInputs.set(id,inputSafe(remoteInputs.get(id)));
 ensureHostPlayers(game.phase==='menu'||game.over);
 setStatus('Player P'+(id+1)+' joined.');
 pulseHostSync(ch,id);
@@ -865,7 +949,7 @@ broadcastPulse();}
 else{if(peer){net.pc=peer;closeUnusedJoinPeers(peer)}net.dc=ch;setStatus('Connected to Host. Waiting for player spot...');sendWhenOpen(ch,{t:'join'})}};
 ch.onopen=handleOpen;
 ch.onmessage=e=>{if(sameSession(session))msgNet(unpack(e.data),ch,id)};
-ch.onclose=()=>{if(!sameSession(session))return;if(net.role==='host')markRemoteDisconnected(id);else if(net.role==='client'){setStatus('Disconnected from Host. Return to setup and join again.')}};
+ch.onclose=()=>{if(!sameSession(session))return;if(net.role==='host')markRemoteDisconnected(id,ch);else if(net.role==='client'&&net.dc===ch){setStatus('Disconnected from Host. Return to setup and join again.')}};
 if(ch.readyState==='open')setTimeout(handleOpen,0);
 else{
   let tries=80,poll=()=>{if(!sameSession(session))return;if(ch.readyState==='open')handleOpen();else if(--tries>0&&ch.readyState!=='closed')setTimeout(poll,125)};
@@ -888,7 +972,7 @@ async function safePair(btn,working,fn){
   finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.oldText||btn.textContent}}
 }
 async function makeHostSlot(id){
-  let peer=pc(),ch=peer.createDataChannel('game'),slot={id,pc:peer,ch,code:'',done:false};
+  let peer=pc(),ch=peer.createDataChannel('game'),slot={id,pc:peer,ch,code:'',done:false,accepted:false,connected:false};
   net.pendingSlots.set(id,slot);
   open(ch,id);
   let offer=await peer.createOffer();
@@ -918,7 +1002,7 @@ async function makeJoinAnswerForSlot(slot){
   let peer=pc();
   net.joinPeers.set(slot.id,peer);
   peer.ondatachannel=e=>open(e.channel,0,peer);
-  let offer=await decodeDesc(slot.code);
+  let offer=slot.desc||await decodeDesc(slot.code);
   if(offer.type!=='offer')throw Error('Wrong code type');
   await peer.setRemoteDescription(rtcDesc(offer));
   await addDecodedIce(offer);
@@ -981,11 +1065,7 @@ async function acceptAnswerCode(raw){
       await addIceToPeer(slot.pc,picked.desc);
       slot.accepted=true;
       if(ans.client&&net.acceptedClients)net.acceptedClients.add(ans.client);
-      net.channels.set(slotId,slot.ch);
-      net.knownIds.add(slotId);
-      ensureHostPlayers(game.phase==='menu'||game.over);
       pulseHostSync(slot.ch,slotId);
-      broadcastPulse();
       return{room:true,msg:'P'+(slotId+1)+' answer accepted. It will join automatically.'};
     }
     throw Error('No open player spot');
@@ -1028,10 +1108,10 @@ if(net.joinPeers)net.joinPeers.clear();
 net.dc=null;net.pc=null;net.localId=0;net.timer=0}
 function send(o){sendWhenOpen(net.dc,o)}
 function msgNet(o,ch,id){if(!o||typeof o!=='object')return;
-if(o.t==='input'&&net.role==='host')remoteInputs.set(id,inputSafe(o.v));
+if(o.t==='input'&&net.role==='host'){let active=net.channels&&net.channels.get(id);if(active!==ch)return;remoteInputs.set(id,inputSafe(o.v));}
 if(o.t==='snap'&&net.role==='client')applyClientSnapshot(o.g);
 if(o.t==='welcome'&&net.role==='client')markClientJoined(o.id,o.g);
-if(o.t==='join'&&net.role==='host'){net.channels.set(id,ch);net.knownIds.add(id);ensureHostPlayers(game.phase==='menu'||game.over);pulseHostSync(ch,id);broadcastPulse()}}
+if(o.t==='join'&&net.role==='host'){let active=net.channels&&net.channels.get(id);if(active&&active!==ch)return;let slot=net.pendingSlots&&net.pendingSlots.get(id);if(slot&&slot.ch!==ch)return;net.channels.set(id,ch);net.knownIds.add(id);if(slot){slot.done=true;slot.accepted=true;slot.connected=true}ensureHostPlayers(game.phase==='menu'||game.over);pulseHostSync(ch,id);broadcastPulse()}}
 function broadcastNow(){if(net.role!=='host')return;
 net.timer=0;
 ensureHostPlayers(false);
