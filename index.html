@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash</title>
-<!-- v1.0.28 -->
-<meta name="application-version" content="1.0.28">
+<!-- v1.0.35 -->
+<meta name="application-version" content="1.0.35">
 <style>
 :root{
   --bg:#070b14;--surface:#0d1729;--surface-2:#111e34;--surface-3:#07101f;
@@ -58,6 +58,31 @@ button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px so
 .difficulty-btn{min-height:34px;padding:0 8px;border-radius:9px;background:transparent;border:1px solid transparent;color:var(--muted);font-size:12px;font-weight:1000;box-shadow:none;cursor:pointer}
 .difficulty-btn.active{color:var(--text);background:#ffffff16;border-color:#7edcff42;box-shadow:inset 0 1px #ffffff18}
 .difficulty-btn:disabled{cursor:default;opacity:.72}
+.level-setting{display:grid;gap:7px}
+.level-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.level-label{font-size:11px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.level-hint{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:800;color:var(--muted);text-align:right}
+.level-options{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.level-btn{position:relative;min-height:37px;padding:0;border-radius:10px;background:#050a14;border:1px solid #ffffff16;color:var(--muted);font-size:12px;font-weight:1000;cursor:pointer;box-shadow:inset 0 1px #ffffff08}
+.level-btn:hover:not(:disabled){border-color:#7edcff55;background:#ffffff0d}
+.level-btn.active{color:#fff;background:linear-gradient(180deg,#48b8ff42,#1475c52c);border-color:#7edcff80;box-shadow:inset 0 1px #ffffff22,0 0 12px #48b8ff20}
+.level-btn.locked{color:#647087;background:#03060d;border-color:#ffffff0c}
+.level-btn.locked::after{content:'◆';position:absolute;right:5px;top:4px;font-size:6px;color:#536078;transform:rotate(45deg)}
+.level-btn:disabled{cursor:default}
+.level-btn.host-selected{border-color:#ffe36b90;box-shadow:inset 0 1px #ffffff18,0 0 12px #ffe36b20}
+.level-select-card{width:min(420px,100%);display:grid;gap:14px;padding:18px;border:1px solid var(--line-strong);border-radius:18px;background:linear-gradient(180deg,#101b30f7,#060a14f8);box-shadow:var(--shadow);backdrop-filter:blur(12px)}
+.level-select-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px}
+.level-select-header .btn{min-height:38px;padding-inline:12px;font-size:13px}
+.level-select-title{text-align:center}
+.level-select-title h2{margin:0;font-size:22px;line-height:1.05;text-transform:uppercase;letter-spacing:.035em}
+.level-select-title p{margin:4px 0 0;color:var(--muted);font-size:11px;font-weight:800}
+.level-select-spacer{width:66px}
+.level-preview{display:grid;gap:4px;padding:12px 13px;border-radius:13px;background:linear-gradient(180deg,#ffffff0d,#ffffff07);border:1px solid #ffffff15;text-align:center}
+.level-preview-kicker{font-size:10px;font-weight:1000;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.level-preview-name{font-size:19px;font-weight:1000;color:var(--text)}
+.level-preview-description{min-height:17px;color:var(--muted);font-size:12px;font-weight:750;line-height:1.35}
+.level-play-actions{display:grid}
+.level-play-actions .btn-primary{min-height:48px;font-size:16px}
 .setup-footer{display:grid;padding-top:1px}
 .setup-footer .btn{min-height:38px;font-size:13px;color:var(--muted);background:#ffffff08;box-shadow:none}
 
@@ -177,6 +202,9 @@ canvas{display:block;image-rendering:auto;background:#070b13;border:1px solid #8
   .stick{width:34px;height:34px}
   .dash{width:62px;height:62px;font-size:12px}
   .game-menu-card{padding:15px;gap:11px}
+  .level-select-card{padding:15px;gap:11px}
+  .level-select-title h2{font-size:20px}
+  .level-select-spacer{width:58px}
   .game-menu h2{font-size:24px}
   .session-actions,.menu-actions,.menu-pair-actions{grid-template-columns:1fr}
 }
@@ -192,6 +220,16 @@ canvas{display:block;image-rendering:auto;background:#070b13;border:1px solid #8
   .brand h1{font-size:24px}
   .setup-actions .btn-primary{min-height:40px}
   .difficulty-btn{min-height:32px;font-size:11px}
+  .level-btn{min-height:31px;font-size:11px;border-radius:8px}
+  .level-options{gap:4px}
+  .level-select-card{width:min(560px,100%);padding:11px 13px;gap:8px;border-radius:15px}
+  .level-select-header .btn{min-height:32px;font-size:11px}
+  .level-select-title h2{font-size:19px}
+  .level-select-title p{margin-top:2px}
+  .level-preview{padding:8px 10px;gap:2px}
+  .level-preview-name{font-size:16px}
+  .level-preview-description{font-size:11px;min-height:14px}
+  .level-play-actions .btn-primary{min-height:38px;font-size:13px}
   .setup-footer .btn{min-height:32px}
   .btn{min-height:36px}
   .code-field textarea{min-height:40px;max-height:46px}
@@ -321,6 +359,31 @@ canvas{display:block;image-rendering:auto;background:#070b13;border:1px solid #8
     </div>
   </section>
 
+  <section id="levelSelectScreen" class="screen setup-screen hide" aria-label="Level selection">
+    <div class="level-select-card">
+      <header class="level-select-header">
+        <button type="button" id="levelBackBtn" class="btn btn-secondary">Back</button>
+        <div class="level-select-title">
+          <h2>Select Level</h2>
+          <p id="levelHint">All levels available</p>
+        </div>
+        <span class="level-select-spacer" aria-hidden="true"></span>
+      </header>
+
+      <div class="level-preview" aria-live="polite">
+        <div id="levelPreviewKicker" class="level-preview-kicker">Level 1 of 10</div>
+        <div id="levelPreviewName" class="level-preview-name">Crossroads</div>
+        <div id="levelPreviewDescription" class="level-preview-description">Learn the arena</div>
+      </div>
+
+      <div id="levelOptions" class="level-options" role="group" aria-label="Choose starting level"></div>
+
+      <div class="level-play-actions">
+        <button type="button" id="levelPlayBtn" class="btn btn-primary btn-wide">Play Level 1</button>
+      </div>
+    </div>
+  </section>
+
   <section id="playScreen" class="screen play-screen hide" aria-label="Gameplay">
     <header class="game-hud" aria-label="Game status">
       <section class="score-card">
@@ -362,9 +425,10 @@ canvas{display:block;image-rendering:auto;background:#070b13;border:1px solid #8
             <button type="button" id="restartBtn" class="btn btn-secondary">Restart Run</button>
             <button type="button" id="setupBtn" class="btn btn-secondary">Main Menu</button>
           </div>
+          <button type="button" id="menuManagePlayersBtn" class="btn btn-secondary btn-wide hide">Manage Players</button>
         </div>
 
-        <div id="menuPair" class="menu-pair hide" aria-label="Add a player">
+        <div id="menuPair" class="menu-pair hide" aria-label="Manage players">
           <div id="menuPairTitle" class="menu-pair-title">Add Player</div>
           <div id="menuPairHint" class="menu-pair-hint">Paste a player code to add another player.</div>
           <textarea id="menuAnswerCode" placeholder="Paste player code" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
@@ -375,7 +439,7 @@ canvas{display:block;image-rendering:auto;background:#070b13;border:1px solid #8
           <div id="menuPairStatus" class="menu-pair-status" role="status" aria-live="polite">Ready for a player code.</div>
         </div>
 
-        <div class="menu-footer">
+        <div id="menuFooter" class="menu-footer">
           <button type="button" id="fullGameBtn" class="btn btn-secondary btn-wide">Fullscreen</button>
         </div>
       </div>
@@ -429,7 +493,7 @@ const ENEMY_DEFS={
 const BORDER_WALLS=[r(0,0,W,24),r(0,H-24,W,24),r(0,0,24,H),r(W-24,0,24,H)];
 const LEVELS=[
   {
-    name:'Crossroads',floorA:'#13203b',floorB:'#1c315a',glow:'#49c7ff12',speed:1,enemyBonus:0,
+    name:'Crossroads',gimmick:'Learn the arena',accent:'#49c7ff',depth:8,floorA:'#13203b',floorB:'#1c315a',glow:'#49c7ff12',speed:1,enemyBonus:0,
     walls:[r(170,118,110,36),r(380,90,42,120),r(610,124,150,32),r(145,345,150,36),r(470,330,40,120),r(675,340,105,36)],
     coins:[[145,90],[335,78],[550,85],[815,86],[90,210],[300,220],[660,225],[875,240],[108,330],[320,315],[615,315],[860,340],[230,455],[430,455],[635,455],[805,455]],
     enemies:[[520,86],[760,275],[535,470],[835,120],[330,270],[820,440]],
@@ -437,7 +501,7 @@ const LEVELS=[
     powers:[['shield',335,270],['magnet',805,270]],exit:[892,270]
   },
   {
-    name:'Switchback',floorA:'#13263a',floorB:'#1b4256',glow:'#58ffd012',speed:1.05,enemyBonus:0,
+    name:'Switchback',gimmick:'Tight turns and ambushes',accent:'#58ffd0',depth:9,floorA:'#13263a',floorB:'#1b4256',glow:'#58ffd012',speed:1.05,enemyBonus:0,
     walls:[r(190,60,36,165),r(190,285,36,195),r(365,120,205,34),r(365,386,205,34),r(720,60,36,165),r(720,285,36,195),r(470,220,36,105)],
     coins:[[110,80],[290,80],[460,75],[650,80],[845,90],[100,250],[290,250],[410,250],[610,250],[845,250],[105,455],[300,455],[455,465],[635,455],[850,455],[625,330],[320,330]],
     enemies:[[300,160],[610,160],[300,370],[620,370],[840,150],[840,390]],
@@ -445,7 +509,7 @@ const LEVELS=[
     powers:[['boost',610,270],['freeze',320,270]],exit:[875,270]
   },
   {
-    name:'Four Corners',floorA:'#251b3e',floorB:'#47306b',glow:'#c77dff14',speed:1.1,enemyBonus:1,
+    name:'Four Corners',gimmick:'Guarded central vault',accent:'#c77dff',depth:10,floorA:'#251b3e',floorB:'#47306b',glow:'#c77dff14',speed:1.1,enemyBonus:1,
     walls:[r(350,135,260,34),r(350,371,260,34),r(350,169,34,80),r(350,291,34,80),r(576,169,34,80),r(576,291,34,80),r(120,250,130,34),r(710,250,130,34)],
     coins:[[100,80],[250,80],[430,85],[530,85],[710,80],[860,80],[95,180],[270,200],[430,270],[530,270],[690,200],[865,180],[95,360],[270,340],[430,320],[530,320],[690,340],[865,360],[160,455],[360,455],[600,455],[800,455]],
     enemies:[[280,150],[680,150],[280,390],[680,390],[470,235],[490,330]],
@@ -453,7 +517,7 @@ const LEVELS=[
     powers:[['repair',480,215],['magnet',480,90],['shield',480,455]],exit:[480,270]
   },
   {
-    name:'Zigzag',floorA:'#2b1d20',floorB:'#633534',glow:'#ff9f1c12',speed:1.16,enemyBonus:1,
+    name:'Zigzag',gimmick:'Fast alternating lanes',accent:'#ff9f1c',depth:11,floorA:'#2b1d20',floorB:'#633534',glow:'#ff9f1c12',speed:1.16,enemyBonus:1,
     walls:[r(170,90,230,34),r(365,124,35,120),r(170,244,230,34),r(170,278,35,170),r(205,414,230,34),r(560,90,230,34),r(560,124,35,120),r(560,244,230,34),r(755,278,35,170),r(525,414,230,34)],
     coins:[[100,80],[470,80],[860,80],[100,170],[280,170],[470,170],[680,170],[860,170],[100,330],[280,330],[470,330],[680,330],[860,330],[100,455],[470,460],[860,455],[470,260],[480,390]],
     enemies:[[470,150],[470,350],[110,270],[850,360],[300,475],[660,475]],
@@ -461,23 +525,89 @@ const LEVELS=[
     powers:[['boost',470,150],['freeze',470,270],['shield',470,390]],exit:[875,270]
   },
   {
-    name:'The Vault',floorA:'#18231a',floorB:'#37523b',glow:'#80ff7214',speed:1.24,enemyBonus:2,
+    name:'The Vault',gimmick:'Break into the inner chamber',accent:'#80ff72',depth:12,floorA:'#18231a',floorB:'#37523b',glow:'#80ff7214',speed:1.24,enemyBonus:2,
     walls:[r(250,90,460,34),r(250,416,460,34),r(250,124,34,115),r(250,301,34,115),r(676,124,34,115),r(676,301,34,115),r(390,205,180,34),r(390,301,180,34),r(390,239,34,62),r(536,239,34,62),r(80,180,100,34),r(780,326,100,34)],
     coins:[[100,80],[190,80],[770,80],[860,80],[90,270],[190,270],[770,270],[870,270],[100,460],[190,460],[770,460],[860,460],[330,160],[480,160],[630,160],[330,270],[630,270],[330,380],[480,380],[630,380]],
     enemies:[[330,160],[630,160],[330,380],[630,380],[170,380],[790,160]],
     enemyTypes:['brute','charger','sentinel','scout','hunter','charger'],
     powers:[['repair',480,145],['freeze',480,395],['boost',745,270],['shield',215,270]],exit:[330,335]
+  },
+  {
+    name:'Neon Causeway',gimmick:'Time the laser gates',accent:'#ff4fd8',depth:13,floorA:'#17132e',floorB:'#3b1f59',glow:'#ff4fd818',speed:1.28,enemyBonus:2,
+    walls:[r(160,88,34,130),r(160,322,34,130),r(330,160,34,220),r(500,88,34,130),r(500,322,34,130),r(670,160,34,220),r(820,88,34,130),r(820,322,34,130)],
+    coins:[[90,80],[250,80],[420,80],[590,80],[760,80],[890,80],[95,270],[245,270],[415,270],[585,270],[755,270],[890,270],[90,460],[250,460],[420,460],[590,460],[760,460],[890,460]],
+    enemies:[[260,180],[430,350],[590,180],[760,350],[875,160],[110,380],[470,270]],
+    enemyTypes:['scout','charger','sentinel','scout','hunter','charger','brute'],
+    powers:[['shield',245,150],['boost',585,390],['repair',890,390]],
+    hazards:[
+      {type:'laser',x1:194,y1:270,x2:330,y2:270,period:3.2,on:1.45,phase:0,color:'#ff4fd8'},
+      {type:'laser',x1:534,y1:270,x2:670,y2:270,period:3.2,on:1.45,phase:1.05,color:'#ff4fd8'},
+      {type:'laser',x1:704,y1:270,x2:820,y2:270,period:3.2,on:1.45,phase:2.1,color:'#ff4fd8'}
+    ],exit:[900,270]
+  },
+  {
+    name:'Reactor Rings',gimmick:'Cross the rotating energy arms',accent:'#58e8ff',depth:14,floorA:'#10232b',floorB:'#1c5260',glow:'#58e8ff18',speed:1.32,enemyBonus:2,
+    walls:[r(170,100,150,30),r(640,100,150,30),r(170,410,150,30),r(640,410,150,30),r(250,220,115,30),r(595,220,115,30),r(250,290,115,30),r(595,290,115,30)],
+    coins:[[95,80],[245,80],[480,80],[715,80],[865,80],[100,190],[250,190],[480,170],[710,190],[860,190],[95,350],[250,350],[480,370],[710,350],[865,350],[95,460],[245,460],[480,460],[715,460],[865,460]],
+    enemies:[[170,270],[790,270],[480,130],[480,410],[350,270],[610,270],[835,420]],
+    enemyTypes:['charger','charger','sentinel','sentinel','scout','brute','hunter'],
+    powers:[['freeze',480,270],['shield',95,270],['magnet',865,270]],
+    hazards:[
+      {type:'spinner',x:480,y:270,radius:170,arms:2,speed:.72,phase:0,color:'#58e8ff'},
+      {type:'pulse',x:480,y:270,maxRadius:205,period:4.2,phase:1.1,color:'#9df5ff'}
+    ],exit:[480,270]
+  },
+  {
+    name:'Gravity Garden',gimmick:'Use the gravity wells',accent:'#b26cff',depth:15,floorA:'#1d1630',floorB:'#442c68',glow:'#b26cff1c',speed:1.36,enemyBonus:3,
+    walls:[r(235,70,34,150),r(235,320,34,150),r(455,140,50,110),r(455,290,50,110),r(690,70,34,150),r(690,320,34,150),r(350,245,100,30),r(510,245,100,30)],
+    coins:[[90,80],[180,80],[350,90],[610,90],[780,80],[875,80],[100,210],[330,190],[480,100],[630,190],[860,210],[95,330],[330,350],[480,440],[630,350],[865,330],[90,460],[180,460],[350,450],[610,450],[780,460],[875,460]],
+    enemies:[[160,270],[800,270],[360,160],[600,380],[480,270],[830,100],[130,430]],
+    enemyTypes:['scout','scout','charger','charger','brute','sentinel','hunter'],
+    powers:[['boost',480,90],['shield',480,450],['repair',90,270]],
+    hazards:[
+      {type:'gravity',x:365,y:270,radius:145,strength:115,color:'#b26cff'},
+      {type:'gravity',x:595,y:270,radius:145,strength:-95,color:'#60d8ff'}
+    ],exit:[875,270]
+  },
+  {
+    name:'Foundry Flow',gimmick:'Ride the conveyor lanes',accent:'#ff7b3d',depth:16,floorA:'#2b1712',floorB:'#69321e',glow:'#ff7b3d1a',speed:1.4,enemyBonus:3,
+    walls:[r(170,90,620,28),r(170,422,620,28),r(300,190,360,28),r(300,322,360,28),r(120,220,110,28),r(730,292,110,28)],
+    coins:[[90,75],[250,75],[480,75],[710,75],[870,75],[100,160],[260,160],[480,160],[700,160],[860,160],[100,270],[260,270],[480,270],[700,270],[860,270],[100,380],[260,380],[480,380],[700,380],[860,380],[90,465],[250,465],[480,465],[710,465],[870,465]],
+    enemies:[[200,150],[760,390],[350,270],[610,270],[480,145],[480,395],[850,120]],
+    enemyTypes:['charger','charger','brute','sentinel','scout','scout','hunter'],
+    powers:[['magnet',480,270],['freeze',100,270],['repair',860,270]],
+    hazards:[
+      {type:'conveyor',x:170,y:120,w:620,h:60,dx:1,dy:0,strength:105,color:'#ff7b3d'},
+      {type:'conveyor',x:170,y:360,w:620,h:60,dx:-1,dy:0,strength:105,color:'#ff7b3d'},
+      {type:'conveyor',x:240,y:218,w:480,h:104,dx:0,dy:1,strength:82,color:'#ffc05a'},
+      {type:'pulse',x:480,y:270,maxRadius:185,period:3.8,phase:.4,color:'#ffb05a'}
+    ],exit:[895,270]
+  },
+  {
+    name:'Sky Citadel',gimmick:'Survive the final gauntlet',accent:'#ffe36b',depth:18,floorA:'#172337',floorB:'#375777',glow:'#ffe36b18',speed:1.47,enemyBonus:3,
+    walls:[r(160,85,180,30),r(620,85,180,30),r(160,425,180,30),r(620,425,180,30),r(280,180,30,180),r(650,180,30,180),r(420,135,120,30),r(420,375,120,30),r(390,240,65,60),r(505,240,65,60)],
+    coins:[[90,80],[250,80],[480,80],[710,80],[870,80],[95,180],[230,180],[480,190],[730,180],[865,180],[95,270],[230,270],[365,270],[595,270],[730,270],[865,270],[95,360],[230,360],[480,350],[730,360],[865,360],[90,460],[250,460],[480,460],[710,460],[870,460]],
+    enemies:[[180,270],[780,270],[350,140],[610,400],[480,210],[480,330],[860,100]],
+    enemyTypes:['brute','brute','charger','charger','sentinel','scout','hunter'],
+    powers:[['shield',95,270],['freeze',865,270],['boost',480,95],['repair',480,445]],
+    hazards:[
+      {type:'spinner',x:480,y:270,radius:215,arms:3,speed:.58,phase:.3,color:'#ffe36b'},
+      {type:'laser',x1:310,y1:180,x2:650,y2:180,period:3.5,on:1.25,phase:0,color:'#ff5c82'},
+      {type:'laser',x1:310,y1:360,x2:650,y2:360,period:3.5,on:1.25,phase:1.75,color:'#ff5c82'},
+      {type:'gravity',x:480,y:270,radius:125,strength:82,color:'#8ee6ff'},
+      {type:'pulse',x:480,y:270,maxRadius:230,period:4.6,phase:1.2,color:'#ffffff'}
+    ],exit:[480,270]
   }
 ];
 function normalizeLevel(v){return clamp(Math.round(num(v,1)),1,LEVELS.length)}
-function levelConfig(v){return LEVELS[normalizeLevel(v)-1]}
+function levelConfig(v){let map=LEVELS[normalizeLevel(v)-1];if(!map.hazards)map.hazards=[];return map}
 function levelWalls(v=game&&game.level){return BORDER_WALLS.concat(levelConfig(v).walls)}
 const MAX_CHANNEL_BUFFER=96*1024; // Never let replaceable realtime traffic build a stale queue.
 const MAX_INPUT_BUFFER=16*1024;
 const REMOTE_INPUT_TIMEOUT=240;
 const CLIENT_UI_INTERVAL=.1;
 
-const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),levelStatus:$('levelStatus'),clock:$('clock'),powerStatus:$('powerStatus'),players:$('players'),net:$('net'),difficultySetting:$('difficultySetting'),difficultyHint:$('difficultyHint'),difficultyButtons:[...document.querySelectorAll('[data-difficulty]')],setupActions:$('setupActions'),start:$('startBtn'),pause:$('pauseBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),menuActions:$('menuActions'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),fullGame:$('fullGameBtn'),confirmOverlay:$('confirmOverlay'),confirmTitle:$('confirmTitle'),confirmText:$('confirmText'),confirmCancel:$('confirmCancelBtn'),confirmAction:$('confirmActionBtn'),sessionPanel:$('sessionPanel'),sessionTitle:$('sessionTitle'),sessionState:$('sessionState'),sessionPlayers:$('sessionPlayers'),sessionActions:$('sessionActions'),manageSession:$('manageSessionBtn'),endSession:$('endSessionBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairPlayers:$('pairPlayers'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),answerField:$('answerField'),answerCode:$('answerCode'),codeLabel:$('codeLabel'),answerLabel:$('answerLabel'),copyInvite:$('copyInviteBtn'),copyAnswer:$('copyAnswerBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),answer:$('answerBtn'),use:$('useBtn'),code:$('code'),menuPair:$('menuPair'),menuPairTitle:$('menuPairTitle'),menuPairHint:$('menuPairHint'),menuAnswerCode:$('menuAnswerCode'),menuPairActions:$('menuPairActions'),menuAcceptAnswer:$('menuAcceptAnswerBtn'),menuCopyInvite:$('menuCopyInviteBtn'),menuPairStatus:$('menuPairStatus'),status:$('status'),joy:$('joy'),stick:$('stick'),dash:$('dash')};
+const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),levelStatus:$('levelStatus'),clock:$('clock'),powerStatus:$('powerStatus'),players:$('players'),net:$('net'),difficultySetting:$('difficultySetting'),difficultyHint:$('difficultyHint'),difficultyButtons:[...document.querySelectorAll('[data-difficulty]')],levelSelect:$('levelSelectScreen'),levelHint:$('levelHint'),levelOptions:$('levelOptions'),levelPreviewKicker:$('levelPreviewKicker'),levelPreviewName:$('levelPreviewName'),levelPreviewDescription:$('levelPreviewDescription'),levelBack:$('levelBackBtn'),levelPlay:$('levelPlayBtn'),setupActions:$('setupActions'),start:$('startBtn'),pause:$('pauseBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),menuActions:$('menuActions'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),menuManagePlayers:$('menuManagePlayersBtn'),menuFooter:$('menuFooter'),fullGame:$('fullGameBtn'),confirmOverlay:$('confirmOverlay'),confirmTitle:$('confirmTitle'),confirmText:$('confirmText'),confirmCancel:$('confirmCancelBtn'),confirmAction:$('confirmActionBtn'),sessionPanel:$('sessionPanel'),sessionTitle:$('sessionTitle'),sessionState:$('sessionState'),sessionPlayers:$('sessionPlayers'),sessionActions:$('sessionActions'),manageSession:$('manageSessionBtn'),endSession:$('endSessionBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairPlayers:$('pairPlayers'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),answerField:$('answerField'),answerCode:$('answerCode'),codeLabel:$('codeLabel'),answerLabel:$('answerLabel'),copyInvite:$('copyInviteBtn'),copyAnswer:$('copyAnswerBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),answer:$('answerBtn'),use:$('useBtn'),code:$('code'),menuPair:$('menuPair'),menuPairTitle:$('menuPairTitle'),menuPairHint:$('menuPairHint'),menuAnswerCode:$('menuAnswerCode'),menuPairActions:$('menuPairActions'),menuAcceptAnswer:$('menuAcceptAnswerBtn'),menuCopyInvite:$('menuCopyInviteBtn'),menuPairStatus:$('menuPairStatus'),status:$('status'),joy:$('joy'),stick:$('stick'),dash:$('dash')};
 
 const G={floorA:'#13203b',floorB:'#1c315a',grid:'#79d8ff14',wall:'#2c3f6f',wallTop:'#536ba7',wallEdge:'#111a31',coin:'#ffd166',coinHot:'#fff0a3',enemy:'#ef476f',enemyDark:'#35091a',exit:'#80ff72'};
 function rr(x,y,w,h,r,fill,stroke){cx.beginPath();cx.roundRect(x,y,w,h,r);if(fill){cx.fillStyle=fill;cx.fill()}if(stroke){cx.strokeStyle=stroke;cx.stroke()}}
@@ -511,15 +641,17 @@ function drawScreenVignette(){
 }
 
 
-const keys=new Set(),touch={x:0,y:0,dash:false,on:false,id:null,anchorX:0,anchorY:0},remoteInputs=new Map();
+const keys=new Set(),touch={x:0,y:0,dash:false,on:false,id:null,anchorX:0,anchorY:0,engaged:false},remoteInputs=new Map();
 
 function normalizeDifficulty(v){return Object.prototype.hasOwnProperty.call(DIFFICULTIES,v)?v:'normal'}
 function difficultyConfig(v){return DIFFICULTIES[normalizeDifficulty(v)]}
 function savedDifficulty(){try{return normalizeDifficulty(localStorage.getItem('coinDashDifficulty'))}catch(e){return'normal'}}
+function savedSelectedLevel(){try{return normalizeLevel(localStorage.getItem('coinDashSelectedLevel')||1)}catch(e){return 1}}
 let selectedDifficulty=savedDifficulty();
-let game=makeGame(selectedDifficulty),last=performance.now(),net=netState(),audio=null;
+let unlockedLevel=LEVELS.length,selectedLevel=savedSelectedLevel();
+let game=makeGame(selectedDifficulty,selectedLevel),last=performance.now(),net=netState(),audio=null;
 let inputSeq=0,inputPacketSeq=0,inputDashDown=false,inputAim={x:1,y:0};
-let menuOpen=false,endMenuDismissed=false,pairView='intro',pendingConfirm=null;
+let menuOpen=false,menuPairOpen=false,endMenuDismissed=false,pairView='intro',pendingConfirm=null;
 const uiCache={coins:'',coinMax:'',level:'',clock:'',power:'',players:'',menu:''};
 
 function r(x,y,w,h){return{x,y,w,h}}
@@ -536,8 +668,10 @@ function repairGameState(target=game){
   target.difficulty=normalizeDifficulty(target.difficulty);
   target.nextDifficulty=normalizeDifficulty(target.nextDifficulty||target.difficulty);
   target.level=normalizeLevel(target.level);
+  target.startLevel=normalizeLevel(target.startLevel||target.level);
+  target.nextLevel=normalizeLevel(target.nextLevel||target.startLevel);
   target.maxLevel=LEVELS.length;
-  target.levelName=levelConfig(target.level).name;
+  target.levelName=levelConfig(target.level).name;target.levelHint=levelConfig(target.level).gimmick||'';
   target.freeze=clamp(num(target.freeze),0,12);
   if(!Array.isArray(target.powerups))target.powerups=[];
   target.powerups=target.powerups.filter(x=>x&&POWER_DEFS[x.type]&&isGoodNum(x.x)&&isGoodNum(x.y)).map(x=>({...x,r:clamp(num(x.r,12),7,18),taken:!!x.taken,pulse:num(x.pulse)}));
@@ -588,21 +722,28 @@ function makeLevelObjects(level,difficulty){
     exit:{x:map.exit[0],y:map.exit[1],r:28}
   };
 }
-function makeGame(difficulty=selectedDifficulty){
-  difficulty=normalizeDifficulty(difficulty);let level=1,parts=makeLevelObjects(level,difficulty),s=spawnPoint(0);
-  return{players:[player(0,s.x,s.y)],coins:parts.coins,enemies:parts.enemies,powerups:parts.powerups,difficulty,nextDifficulty:difficulty,level,maxLevel:LEVELS.length,levelName:levelConfig(level).name,phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:parts.exit,shake:0,freeze:0,banner:null,total:parts.coins.length};
+function makeGame(difficulty=selectedDifficulty,startLevel=selectedLevel){
+  difficulty=normalizeDifficulty(difficulty);let level=normalizeLevel(startLevel),parts=makeLevelObjects(level,difficulty),s=spawnPoint(0);
+  return{players:[player(0,s.x,s.y)],coins:parts.coins,enemies:parts.enemies,powerups:parts.powerups,difficulty,nextDifficulty:difficulty,level,startLevel:level,nextLevel:level,maxLevel:LEVELS.length,levelName:levelConfig(level).name,levelHint:levelConfig(level).gimmick||'',phase:'menu',count:0,time:0,over:false,won:false,paused:false,exit:parts.exit,shake:0,freeze:0,banner:null,total:parts.coins.length};
 }
 function resetPlayersForLevel(){
   for(const p of game.players){let score=p.score,id=p.id,control=p.control,connected=p.connected!==false,lastDash=id?remoteDashSeq(id):0;resetPlayerState(p,id,control,lastDash,connected);p.score=score}
 }
 function loadLevel(level){
   level=normalizeLevel(level);let parts=makeLevelObjects(level,game.difficulty);
-  game.level=level;game.maxLevel=LEVELS.length;game.levelName=levelConfig(level).name;game.coins=parts.coins;game.enemies=parts.enemies;game.powerups=parts.powerups;game.exit=parts.exit;game.total=parts.coins.length;game.phase='level';game.count=2.4;game.paused=false;game.shake=0;game.freeze=0;game.banner=null;
+  game.level=level;game.maxLevel=LEVELS.length;game.levelName=levelConfig(level).name;game.levelHint=levelConfig(level).gimmick||'';game.coins=parts.coins;game.enemies=parts.enemies;game.powerups=parts.powerups;game.exit=parts.exit;game.total=parts.coins.length;game.phase='level';game.count=2.4;game.paused=false;game.shake=0;game.freeze=0;game.banner=null;
   resetPlayersForLevel();
   for(const id of remoteInputs.keys())neutralizeRemoteInput(id);
   menuOpen=false;endMenuDismissed=false;hideGameMenu();showPlay();beep('level');broadcastGameEvent('level');broadcastPulse();ui(true);
 }
-function completeLevel(){if(game.level<LEVELS.length)loadLevel(game.level+1);else end(true)}
+function saveLevelProgress(){
+  try{localStorage.setItem('coinDashSelectedLevel',String(selectedLevel))}catch(e){}
+}
+function unlockLevel(){return false}
+function completeLevel(){
+  if(game.level<LEVELS.length)loadLevel(game.level+1);
+  else end(true);
+}
 function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,stateDc:null,channels:new Map(),stateChannels:new Map(),roster:new Map(),pendingSlots:new Map(),joinPeers:new Map(),clientSlots:new Map(),clientToken:'',certificate:null,certificatePromise:null,localId:0,nextId:1,timer:0,uiTimer:0,roomSlots:ROOM_JOINERS,stateSeq:0,lastStateSeq:0,eventSeq:0,lastEventSeq:0,clientTarget:null,clientDashTime:0,clientDashDir:{x:1,y:0}}}
 function remoteInputRecord(id){return remoteInputs.get(id)||null}
 function remoteDashSeq(id){let r=remoteInputRecord(id);return r&&r.value?Math.max(0,Math.round(num(r.value.dashSeq,0))):0}
@@ -650,14 +791,64 @@ function selectDifficulty(level){
   if(net.role==='host'){broadcastGameEvent('settings');broadcastPulse()}
   ui(true);
 }
+function renderLevelButtons(){
+  els.levelOptions.innerHTML=LEVELS.map((map,i)=>`<button type="button" class="level-btn" data-level="${i+1}" aria-label="Level ${i+1}: ${map.name}" title="Level ${i+1}: ${map.name}">${i+1}</button>`).join('');
+}
+function syncLevelUI(){
+  let client=net.role==='client';
+  let hostLevel=normalizeLevel(game.nextLevel||game.startLevel||game.level);
+  let active=client?hostLevel:selectedLevel;
+  let map=levelConfig(active);
+  els.levelHint.textContent=client?'Host selected Level '+active:'All levels available';
+  els.levelPreviewKicker.textContent='Level '+active+' of '+LEVELS.length;
+  els.levelPreviewName.textContent=map.name;
+  els.levelPreviewDescription.textContent=map.gimmick||'';
+  els.levelPlay.textContent='Play Level '+active;
+  for(const btn of els.levelOptions.querySelectorAll('[data-level]')){
+    let level=normalizeLevel(btn.dataset.level),locked=client;
+    btn.classList.toggle('active',level===active);
+    btn.classList.toggle('host-selected',client&&level===active);
+    btn.classList.remove('locked');
+    btn.disabled=locked;
+    btn.setAttribute('aria-pressed',String(level===active));
+    btn.setAttribute('aria-disabled',String(locked));
+    btn.title='Level '+level+': '+levelConfig(level).name;
+  }
+}
+function selectLevel(level){
+  if(net.role==='client')return;
+  level=normalizeLevel(level);
+  selectedLevel=level;
+  saveLevelProgress();
+  game.nextLevel=selectedLevel;
+  if(game.phase==='menu'){
+    game.startLevel=selectedLevel;
+    game.level=selectedLevel;
+    game.levelName=levelConfig(selectedLevel).name;
+    game.levelHint=levelConfig(selectedLevel).gimmick||'';
+  }
+  syncLevelUI();
+  if(net.role==='host'){broadcastGameEvent('settings');broadcastPulse()}
+  ui(true);
+}
 function showLobby(){
-  menuOpen=false;endMenuDismissed=false;hideGameMenu();closeConfirm();
-  els.play.classList.add('hide');els.setup.classList.remove('hide');
+  menuOpen=false;menuPairOpen=false;endMenuDismissed=false;hideGameMenu();closeConfirm();
+  els.play.classList.add('hide');els.levelSelect.classList.add('hide');els.setup.classList.remove('hide');
   syncSetupUI();ui(true);
 }
+function openLevelSelect(){
+  if(net.role==='client')return;
+  menuPairOpen=false;closeConfirm();hideGameMenu();
+  els.setup.classList.add('hide');els.play.classList.add('hide');els.levelSelect.classList.remove('hide');
+  syncLevelUI();
+}
+function closeLevelSelect(){
+  els.levelSelect.classList.add('hide');els.setup.classList.remove('hide');
+  syncSetupUI();
+}
 function finishMainMenu(){
-  let difficulty=normalizeDifficulty(selectedDifficulty);
-  game=makeGame(difficulty);game.nextDifficulty=difficulty;
+  let difficulty=normalizeDifficulty(selectedDifficulty),startLevel=normalizeLevel(selectedLevel);
+  game=makeGame(difficulty,startLevel);game.nextDifficulty=difficulty;game.nextLevel=startLevel;
   if(net.role==='host')restoreRemotes();
   showLobby();
   if(net.role==='host'){broadcastGameEvent('setup');broadcastPulse()}
@@ -667,12 +858,13 @@ function requestMainMenu(){
   if(game.over){finishMainMenu();return}
   askConfirm('Quit to Main Menu','The current run will end.','Quit to Main Menu',finishMainMenu);
 }
-function showPlay(){let changed=els.play.classList.contains('hide');els.setup.classList.add('hide');els.play.classList.remove('hide');if(changed)setTimeout(()=>{fitCanvas();centerStick()},0)}
-function beginRun(difficulty=selectedDifficulty){let runDifficulty=normalizeDifficulty(difficulty);game=makeGame(runDifficulty);game.nextDifficulty=selectedDifficulty;restoreRemotes();game.phase='count';game.count=3;game.paused=false;menuOpen=false;endMenuDismissed=false;hideGameMenu();showPlay();beep('start');broadcastGameEvent('run');broadcastPulse();ui(true)}
-function startGame(){if(net.role!=='client')beginRun()}
+function showPlay(){let changed=els.play.classList.contains('hide');els.setup.classList.add('hide');els.levelSelect.classList.add('hide');els.play.classList.remove('hide');if(changed)setTimeout(()=>{fitCanvas();centerStick()},0)}
+function beginRun(difficulty=selectedDifficulty,startLevel=selectedLevel){let runDifficulty=normalizeDifficulty(difficulty),runLevel=normalizeLevel(startLevel);game=makeGame(runDifficulty,runLevel);game.nextDifficulty=selectedDifficulty;game.nextLevel=selectedLevel;restoreRemotes();game.phase='count';game.count=3;game.paused=false;menuOpen=false;menuPairOpen=false;endMenuDismissed=false;hideGameMenu();showPlay();beep('start');broadcastGameEvent('run');broadcastPulse();ui(true)}
+function startGame(){openLevelSelect()}
+function playSelectedLevel(){if(net.role!=='client')beginRun(selectedDifficulty,selectedLevel)}
 function openGameMenu(){
   if(game.phase==='menu')return;
-  menuOpen=true;
+  menuOpen=true;menuPairOpen=false;
   if(net.role!=='client'&&!game.over){game.paused=true;broadcastGameEvent('pause');broadcastNow()}
   syncGameMenu();ui(true);
 }
@@ -684,7 +876,37 @@ function resumeGame(){
   if(game.over)return;
   menuOpen=false;game.paused=false;hideGameMenu();broadcastGameEvent('resume');broadcastPulse();ui(true);
 }
-function restartRun(){if(net.role!=='client')beginRun(game.difficulty)}
+function restartRun(){if(net.role!=='client')beginRun(game.difficulty,game.startLevel)}
+function retryCurrentLevel(){if(net.role!=='client')beginRun(game.difficulty,game.level)}
+function chooseLevelFromGameMenu(){
+  if(net.role==='client')return;
+  selectedLevel=normalizeLevel(game.level);
+  saveLevelProgress();
+  let difficulty=normalizeDifficulty(game.difficulty);
+  game=makeGame(difficulty,selectedLevel);
+  game.nextDifficulty=selectedDifficulty;
+  game.nextLevel=selectedLevel;
+  if(net.role==='host')restoreRemotes();
+  menuOpen=false;menuPairOpen=false;hideGameMenu();
+  openLevelSelect();
+  if(net.role==='host'){broadcastGameEvent('setup');broadcastPulse()}
+}
+function menuPrimaryAction(){
+  if(game.over){
+    if(net.role==='client')return resumeGame();
+    return game.won?chooseLevelFromGameMenu():retryCurrentLevel();
+  }
+  resumeGame();
+}
+function menuSecondaryAction(){
+  if(game.over&&net.role!=='client')return chooseLevelFromGameMenu();
+  restartRun();
+}
+function toggleMenuPlayers(){
+  if(net.role!=='host'||game.over)return;
+  menuPairOpen=!menuPairOpen;
+  syncGameMenu();
+}
 function restoreRemotes(){ensureHostPlayers(true)}
 function ensureHostPlayers(reset=false){if(net.role!=='host'||!game||!Array.isArray(game.players))return;
   let ids=new Set([...(net.roster?net.roster.keys():[]),...net.channels.keys(),...net.stateChannels.keys()]);
@@ -723,6 +945,31 @@ function applyPower(p,type){
   announcePower(p,type);beep(type==='repair'?'repair':'power');
 }
 function collectCoin(p,coin){if(coin.taken)return;coin.taken=true;p.score++;beep('coin')}
+function coinBlocked(coin){
+  if(coin.taken)return false;
+  return game.enemies.some(e=>hypot(e.x-coin.x,e.y-coin.y)<e.r+coin.r+8);
+}
+function coinPickupRadius(p,coin){
+  return p.r+coin.r+(coinBlocked(coin)?18:4);
+}
+function keepEnemyOffCoins(e){
+  for(const coin of game.coins){
+    if(coin.taken)continue;
+    let dx=e.x-coin.x,dy=e.y-coin.y,d=hypot(dx,dy);
+    let clearance=e.r+coin.r+13;
+    if(d>=clearance)continue;
+    if(d<.001){
+      let a=e.phase+(e.type==='sentinel'?1.7:0);
+      dx=Math.cos(a);dy=Math.sin(a);d=1;
+    }
+    let push=clearance-d;
+    e.x+=dx/d*push;
+    e.y+=dy/d*push;
+    e.vx+=dx/d*35;
+    e.vy+=dy/d*35;
+    collideWorld(e);
+  }
+}
 function collectPower(p,item){if(item.taken)return;item.taken=true;applyPower(p,item.type)}
 function dashSmash(p,e){if(e.stun>.18)return;
   if(e.type==='brute'&&e.armor>0){e.armor=0;e.armorTimer=3.2;e.stun=.22;e.vx=p.dx*115;e.vy=p.dy*115;game.banner={text:'BRUTE ARMOR BROKEN',color:ENEMY_DEFS.brute.color,time:1.1}}
@@ -826,12 +1073,14 @@ function updateEnemy(e,dt,cfg,map){
       if(e.aiTimer<=0){e.mode='return';e.cooldown=2.7+Math.random()*.8}
       return;
     }else{
-      let hx=e.homeX-e.x,hy=e.homeY-e.y,homeDist=hypot(hx,hy);
-      if(homeDist>9)steerEnemy(e,hx,hy,accel*.9,dt,base*.68);
-      else{e.vx*=Math.max(0,1-dt*4);e.vy*=Math.max(0,1-dt*4)}
+      let patrolRadius=52;
+      let patrolX=e.homeX+Math.cos(e.phase*.58)*patrolRadius;
+      let patrolY=e.homeY+Math.sin(e.phase*.43)*patrolRadius*.7;
+      let px=patrolX-e.x,py=patrolY-e.y;
+      steerEnemy(e,px,py,accel*.82,dt,base*.62);
       if(target){
         let dx=target.x-e.x,dy=target.y-e.y,d=hypot(dx,dy);
-        if(e.cooldown<=0&&d<285){
+        if(e.cooldown<=0&&d<300){
           e.mode='beamWindup';e.aiTimer=.82;e.aimX=dx/(d||1);e.aimY=dy/(d||1);e.vx=e.vy=0;
         }
       }
@@ -865,6 +1114,52 @@ function updateEnemy(e,dt,cfg,map){
   e.x+=e.vx*dt;e.y+=e.vy*dt;collideWorld(e);
 }
 function collideWorldMove(e,dt){e.x+=e.vx*dt;e.y+=e.vy*dt;return collideWorld(e)}
+
+function environmentHitPlayer(p,x,y,push,banner,color){
+  if(!p||!p.alive||p.inv>0)return false;
+  let dx=p.x-x,dy=p.y-y,d=hypot(dx,dy)||1;
+  if(p.shield>0){
+    p.shield=0;p.inv=.55;game.banner={text:'SHIELD BLOCK',color:POWER_DEFS.shield.color,time:.9};beep('shield');
+  }else{
+    p.hp--;p.inv=difficultyConfig(game.difficulty).invulnerability;
+    game.banner={text:banner,color:color||'#fff',time:.85};beep('hit');
+  }
+  p.x+=dx/d*push;p.y+=dy/d*push;collideWorld(p);game.shake=.15;
+  if(p.hp<=0)p.alive=false;
+  return true;
+}
+function laserActive(h,t=game.time){return ((t+num(h.phase))%num(h.period,3))<num(h.on,1.4)}
+function updateHazardsForPlayer(p,dt,map){
+  for(const h of map.hazards||[]){
+    if(h.type==='conveyor'){
+      if(p.x>h.x&&p.x<h.x+h.w&&p.y>h.y&&p.y<h.y+h.h){
+        p.x+=num(h.dx)*num(h.strength,80)*dt;p.y+=num(h.dy)*num(h.strength,80)*dt;collideWorld(p);
+      }
+    }else if(h.type==='gravity'){
+      let dx=h.x-p.x,dy=h.y-p.y,d=hypot(dx,dy);
+      if(d<num(h.radius,130)&&d>1){
+        let falloff=1-d/h.radius,force=num(h.strength,100)*falloff;
+        p.x+=dx/d*force*dt;p.y+=dy/d*force*dt;collideWorld(p);
+        if(d<25)environmentHitPlayer(p,h.x,h.y,36,'GRAVITY CORE',h.color);
+      }
+    }else if(h.type==='laser'&&laserActive(h)){
+      if(pointSegmentDistance(p.x,p.y,h.x1,h.y1,h.x2,h.y2)<p.r+6){
+        environmentHitPlayer(p,(h.x1+h.x2)/2,(h.y1+h.y2)/2,34,'LASER GATE',h.color);
+      }
+    }else if(h.type==='spinner'){
+      let arms=Math.max(1,Math.round(num(h.arms,2))),angle=game.time*num(h.speed,.6)+num(h.phase);
+      for(let i=0;i<arms;i++){
+        let a=angle+i*Math.PI*2/arms,x2=h.x+Math.cos(a)*h.radius,y2=h.y+Math.sin(a)*h.radius;
+        if(pointSegmentDistance(p.x,p.y,h.x,h.y,x2,y2)<p.r+7){
+          environmentHitPlayer(p,h.x,h.y,38,'REACTOR ARM',h.color);break;
+        }
+      }
+    }else if(h.type==='pulse'){
+      let period=num(h.period,4),progress=((game.time+num(h.phase))%period)/period,radius=progress*num(h.maxRadius,180),d=hypot(p.x-h.x,p.y-h.y);
+      if(Math.abs(d-radius)<p.r+7)environmentHitPlayer(p,h.x,h.y,32,'ENERGY PULSE',h.color);
+    }
+  }
+}
 function update(dt){
 if(net.role==='client'){sendInput(dt);advanceClientView(dt);net.uiTimer+=dt;if(net.uiTimer>=CLIENT_UI_INTERVAL){net.uiTimer=0;ui()}return}
 if(game.over)return;
@@ -898,7 +1193,8 @@ if(p.control==='remote'){
 	p.x+=p.vx*dt;
 	p.y+=p.vy*dt;
 collideWorld(p);
-for(const coin of game.coins)if(!coin.taken&&hypot(p.x-coin.x,p.y-coin.y)<p.r+coin.r)collectCoin(p,coin);
+updateHazardsForPlayer(p,dt,levelConfig(game.level));
+for(const coin of game.coins)if(!coin.taken&&hypot(p.x-coin.x,p.y-coin.y)<coinPickupRadius(p,coin))collectCoin(p,coin);
 for(const item of game.powerups)if(!item.taken&&hypot(p.x-item.x,p.y-item.y)<p.r+item.r)collectPower(p,item);
 for(const e of game.enemies){let d=hypot(p.x-e.x,p.y-e.y);
 	if(d<p.r+e.r){if(p.dt>0)dashSmash(p,e);else enemyHitPlayer(p,e,e.type==='brute'?40:28)}}}
@@ -908,7 +1204,11 @@ for(const coin of game.coins)if(!coin.taken){
   if(best){let dx=best.x-coin.x,dy=best.y-coin.y,l=hypot(dx,dy)||1,s=Math.min(310,120+(190-l)*1.2);coin.x+=dx/l*s*dt;coin.y+=dy/l*s*dt;if(l<best.r+coin.r+4)collectCoin(best,coin)}
 }
 game.freeze=Math.max(0,game.freeze-dt);if(game.banner){game.banner.time=Math.max(0,game.banner.time-dt);if(!game.banner.time)game.banner=null}
-let cfg=difficultyConfig(game.difficulty),map=levelConfig(game.level);for(const e of game.enemies)updateEnemy(e,dt,cfg,map)
+let cfg=difficultyConfig(game.difficulty),map=levelConfig(game.level);
+for(const e of game.enemies){
+  updateEnemy(e,dt,cfg,map);
+  keepEnemyOffCoins(e);
+}
 let taken=game.coins.filter(c=>c.taken).length;
 if(!game.players.some(p=>p.alive)){end(false)}
 else if(taken===game.total&&game.players.some(p=>p.alive&&hypot(p.x-game.exit.x,p.y-game.exit.y)<p.r+game.exit.r)){completeLevel()}
@@ -924,6 +1224,7 @@ game.won=won;
 game.phase='over';
 game.paused=true;
 menuOpen=true;
+menuPairOpen=false;
 endMenuDismissed=false;
 beep(won?'win':'lose');
 syncGameMenu();
@@ -931,7 +1232,7 @@ broadcastGameEvent('end');
 broadcastPulse();
 ui(true)}
 function draw(){let sx=game.shake?(Math.random()-.5)*8:0,sy=game.shake?(Math.random()-.5)*8:0;
-cx.save();cx.translate(sx,sy);cx.clearRect(-10,-10,W+20,H+20);field();for(const coin of game.coins)drawCoin(coin);for(const item of game.powerups)drawPowerup(item);exitGate();for(const e of game.enemies)drawEnemyTelegraph(e);for(const p of game.players)drawPlayer(p);for(const e of game.enemies)drawEnemy(e);drawPowerBanner();drawScreenVignette();overlay();cx.restore();requestAnimationFrame(loop)}
+cx.save();cx.translate(sx,sy);cx.clearRect(-10,-10,W+20,H+20);field();drawHazards();for(const coin of game.coins)drawCoin(coin);for(const item of game.powerups)drawPowerup(item);exitGate();for(const e of game.enemies)drawEnemyTelegraph(e);for(const p of game.players)drawPlayer(p);for(const e of game.enemies)drawEnemy(e);drawPowerBanner();drawScreenVignette();overlay();cx.restore();requestAnimationFrame(loop)}
 function field(){let t=performance.now()/1000,map=levelConfig(game.level);
 cx.fillStyle=lg(0,0,0,H,map.floorB,map.floorA);cx.fillRect(0,0,W,H);
 cx.fillStyle=rg(W*.5,H*.38,560,map.glow,'#0000');cx.fillRect(0,0,W,H);
@@ -968,35 +1269,87 @@ for(const w of levelWalls())wall(w);
 /* Arena frame */
 cx.lineWidth=3;rr(24,24,W-48,H-48,18,null,'#75ddff2e');
 cx.lineWidth=1;rr(29,29,W-58,H-58,15,null,'#ffffff12');
+
+/* Perspective depth lines */
+cx.save();cx.globalAlpha=.12;cx.strokeStyle=map.accent||'#7edcff';cx.lineWidth=1;
+for(let i=-5;i<=5;i++){cx.beginPath();cx.moveTo(W/2+i*42,H*.42);cx.lineTo(W/2+i*110,H);cx.stroke()}
+for(let i=0;i<5;i++){let y=H*.43+Math.pow(i/4,1.65)*H*.55;cx.beginPath();cx.moveTo(24,y);cx.lineTo(W-24,y);cx.stroke()}
+cx.restore();
+}
+function drawHazards(){
+  let map=levelConfig(game.level),t=game.time,now=performance.now();
+  for(const h of map.hazards||[]){
+    let color=h.color||map.accent||'#7edcff';
+    cx.save();
+    if(h.type==='laser'){
+      let active=laserActive(h,t),pulse=.55+.35*Math.sin(now/70);
+      cx.globalAlpha=active?1:.2;cx.strokeStyle=color;cx.shadowColor=color;cx.shadowBlur=active?24:4;cx.lineWidth=active?10:3;
+      cx.beginPath();cx.moveTo(h.x1,h.y1);cx.lineTo(h.x2,h.y2);cx.stroke();
+      if(active){cx.strokeStyle='#fff';cx.lineWidth=2;cx.globalAlpha=pulse;cx.beginPath();cx.moveTo(h.x1,h.y1);cx.lineTo(h.x2,h.y2);cx.stroke()}
+      for(const [x,y] of [[h.x1,h.y1],[h.x2,h.y2]]){cx.globalAlpha=1;cx.fillStyle='#07101f';cx.strokeStyle=color;cx.lineWidth=3;cx.beginPath();cx.arc(x,y,11,0,7);cx.fill();cx.stroke()}
+    }else if(h.type==='spinner'){
+      let angle=t*num(h.speed,.6)+num(h.phase),arms=Math.max(1,Math.round(num(h.arms,2)));
+      cx.fillStyle=rg(h.x,h.y,28,color+'66','#050912');cx.beginPath();cx.arc(h.x,h.y,22,0,7);cx.fill();
+      for(let i=0;i<arms;i++){let a=angle+i*Math.PI*2/arms,x2=h.x+Math.cos(a)*h.radius,y2=h.y+Math.sin(a)*h.radius;
+        cx.strokeStyle=color;cx.shadowColor=color;cx.shadowBlur=18;cx.lineWidth=9;cx.globalAlpha=.72;cx.beginPath();cx.moveTo(h.x,h.y);cx.lineTo(x2,y2);cx.stroke();
+        cx.strokeStyle='#fff';cx.lineWidth=2;cx.globalAlpha=.8;cx.beginPath();cx.moveTo(h.x,h.y);cx.lineTo(x2,y2);cx.stroke();
+      }
+    }else if(h.type==='gravity'){
+      let reverse=num(h.strength)>0?1:-1;
+      cx.translate(h.x,h.y);cx.rotate(t*.45*reverse);cx.strokeStyle=color;cx.shadowColor=color;cx.shadowBlur=16;
+      for(let i=0;i<3;i++){cx.globalAlpha=.38-i*.08;cx.lineWidth=3-i*.5;cx.setLineDash([10+i*4,7]);cx.beginPath();cx.arc(0,0,36+i*24,0,7);cx.stroke()}
+      cx.setLineDash([]);cx.fillStyle=rg(-8,-8,32,'#ffffff',color+'44');cx.globalAlpha=.5;cx.beginPath();cx.arc(0,0,23,0,7);cx.fill();
+    }else if(h.type==='conveyor'){
+      cx.globalAlpha=.18;cx.fillStyle=color;rr(h.x,h.y,h.w,h.h,8,color+'2b',color+'55');
+      cx.globalAlpha=.55;cx.strokeStyle=color;cx.lineWidth=3;
+      let vertical=Math.abs(num(h.dy))>Math.abs(num(h.dx)),step=42,offset=(t*num(h.strength,80)*.25)%step;
+      if(vertical){for(let x=h.x+18;x<h.x+h.w;x+=34)for(let y=h.y-20+offset;y<h.y+h.h;y+=step){cx.beginPath();cx.moveTo(x,y);cx.lineTo(x,y+16*num(h.dy));cx.stroke()}}
+      else{for(let y=h.y+18;y<h.y+h.h;y+=28)for(let x=h.x-20+offset*num(h.dx);x<h.x+h.w;x+=step){cx.beginPath();cx.moveTo(x,y);cx.lineTo(x+16*num(h.dx),y);cx.stroke()}}
+    }else if(h.type==='pulse'){
+      let period=num(h.period,4),progress=((t+num(h.phase))%period)/period,radius=progress*num(h.maxRadius,180);
+      cx.globalAlpha=.18*(1-progress);cx.fillStyle=color;cx.beginPath();cx.arc(h.x,h.y,radius,0,7);cx.fill();
+      cx.globalAlpha=.75*(1-progress);cx.strokeStyle=color;cx.shadowColor=color;cx.shadowBlur=16;cx.lineWidth=5;cx.beginPath();cx.arc(h.x,h.y,radius,0,7);cx.stroke();
+    }
+    cx.restore();
+  }
 }
 function wall(w){
-  shadow(w.x+w.w/2,w.y+w.h+10,w.w*.48,10,.3);
+  let map=levelConfig(game.level),depth=num(map.depth,10),accent=map.accent||'#7edcff';
+  shadow(w.x+w.w/2,w.y+w.h+depth+8,w.w*.5,11,.34);
   cx.save();
-  cx.lineWidth=2;
-  rr(w.x,w.y,w.w,w.h,9,lg(w.x,w.y,w.x,w.y+w.h,'#6079b5','#24365f'),'#10182d');
-  rr(w.x+3,w.y+3,w.w-6,w.h-6,7,null,'#ffffff13');
 
-  /* Brushed top plate */
-  rr(w.x+5,w.y+4,w.w-10,7,4,lg(w.x,w.y,w.x+w.w,w.y,'#ffffff30','#9adfff12'));
+  /* Extruded bottom face */
+  cx.fillStyle=lg(w.x,w.y+w.h,w.x,w.y+w.h+depth,'#192746','#07101f');
+  cx.beginPath();cx.moveTo(w.x+8,w.y+w.h);cx.lineTo(w.x+w.w-8,w.y+w.h);cx.lineTo(w.x+w.w-3,w.y+w.h+depth);cx.lineTo(w.x+3,w.y+w.h+depth);cx.closePath();cx.fill();
+
+  /* Extruded right face */
+  cx.fillStyle='#0b1427';
+  cx.beginPath();cx.moveTo(w.x+w.w,w.y+8);cx.lineTo(w.x+w.w,w.y+w.h-4);cx.lineTo(w.x+w.w-3,w.y+w.h+depth);cx.lineTo(w.x+w.w-3,w.y+depth);cx.closePath();cx.fill();
+
+  /* Raised top block */
+  cx.lineWidth=2;
+  rr(w.x,w.y,w.w,w.h,9,lg(w.x,w.y,w.x,w.y+w.h,'#6d84bd','#263962'),'#10182d');
+  rr(w.x+3,w.y+3,w.w-6,w.h-6,7,null,'#ffffff18');
+  rr(w.x+5,w.y+4,w.w-10,7,4,lg(w.x,w.y,w.x+w.w,w.y,'#ffffff3d',accent+'18'));
   cx.fillStyle='#00000028';rr(w.x+5,w.y+w.h-9,w.w-10,5,3,'#00000028');
 
-  /* Side depth */
-  cx.fillStyle='#0b1328aa';rr(w.x+w.w-7,w.y+9,4,w.h-18,2,'#0b1328aa');
+  /* Accent edge */
+  cx.globalAlpha=.35;cx.strokeStyle=accent;cx.lineWidth=1.5;
+  cx.beginPath();cx.moveTo(w.x+10,w.y+2);cx.lineTo(w.x+w.w-10,w.y+2);cx.stroke();cx.globalAlpha=1;
 
-  /* Hardware details */
   let count=Math.max(1,Math.floor(w.w/72));
   for(let i=0;i<count;i++){
     let bx=w.x+(i+1)*w.w/(count+1),by=w.y+w.h*.52;
-    cx.fillStyle='#8be7ff32';cx.beginPath();cx.arc(bx,by,2.2,0,7);cx.fill();
+    cx.fillStyle=accent+'38';cx.shadowColor=accent;cx.shadowBlur=6;cx.beginPath();cx.arc(bx,by,2.2,0,7);cx.fill();cx.shadowBlur=0;
     cx.fillStyle='#06101f';cx.beginPath();cx.arc(bx,by,1,0,7);cx.fill();
   }
   cx.restore();
 }
 function drawCoin(c){
   if(c.taken)return;
-  let t=performance.now()/260+c.pulse,p=Math.sin(t)*1.6,spin=.35+.65*Math.abs(Math.cos(t*.72)),rw=Math.max(4,(c.r+p)*spin);
-  shadow(c.x,c.y+15,13,4,.34);
-  cx.save();cx.translate(c.x,c.y);
+  let t=performance.now()/260+c.pulse,p=Math.sin(t)*1.6,spin=.35+.65*Math.abs(Math.cos(t*.72)),rw=Math.max(4,(c.r+p)*spin),lift=5+Math.sin(t*.82)*2;
+  shadow(c.x,c.y+15,13-lift*.35,4,.34);
+  cx.save();cx.translate(c.x,c.y-lift);
   cx.shadowColor=G.coin;cx.shadowBlur=18;
   cx.fillStyle=lg(-rw,-c.r,rw,c.r,'#fff5b8','#d99200');
   cx.strokeStyle='#6d4200';cx.lineWidth=2.2;
@@ -1006,6 +1359,14 @@ function drawCoin(c){
   /* Metallic rim */
   cx.strokeStyle='#ffe59a';cx.lineWidth=1.5;
   cx.beginPath();cx.ellipse(0,0,Math.max(2,rw-2),Math.max(4,c.r-2),0,0,7);cx.stroke();
+
+  /* Guarded coins show the extended safe-claim field. */
+  if(coinBlocked(c)){
+    cx.globalAlpha=.48+.22*Math.sin(t*.9);
+    cx.strokeStyle='#fff4b8';cx.lineWidth=2;cx.setLineDash([4,5]);
+    cx.beginPath();cx.arc(0,0,c.r+14,0,7);cx.stroke();cx.setLineDash([]);
+    cx.globalAlpha=1;
+  }
 
   /* Coin face */
   cx.globalAlpha=clamp(spin*1.4,0,1);
@@ -1018,9 +1379,9 @@ function drawCoin(c){
 }
 function drawPowerup(item){
   if(item.taken)return;
-  let d=POWER_DEFS[item.type],t=performance.now()/420+item.pulse,p=2+Math.sin(t)*2;
-  shadow(item.x,item.y+17,16,5,.34);
-  cx.save();cx.translate(item.x,item.y);
+  let d=POWER_DEFS[item.type],t=performance.now()/420+item.pulse,p=2+Math.sin(t)*2,lift=6+Math.sin(t*.9)*3;
+  shadow(item.x,item.y+17,16-lift*.3,5,.34);
+  cx.save();cx.translate(item.x,item.y-lift);
   cx.shadowColor=d.color;cx.shadowBlur=20;
 
   /* Outer orbit */
@@ -1216,7 +1577,7 @@ function drawPowerBanner(){if(!game.banner||game.banner.time<=0)return;let a=Mat
 function overlay(){
   if(game.phase==='menu')msg('COIN DASH','Clear all '+LEVELS.length+' levels.');
   else if(game.phase==='count')msg(String(Math.ceil(game.count)),'Level '+game.level+' · '+game.levelName);
-  else if(game.phase==='level')msg('LEVEL '+game.level,game.levelName);
+  else if(game.phase==='level')msg('LEVEL '+game.level,game.levelName+(game.levelHint?' · '+game.levelHint:''));
 }
 function msg(a,b){cx.fillStyle='#020713b8';cx.fillRect(0,0,W,H);cx.fillStyle=rg(W/2,H/2,260,'#49c7ff2a','#0000');cx.fillRect(0,0,W,H);rr(W/2-210,H/2-78,420,138,22,'#081021d9','#7edcff55');cx.fillStyle='#fff';cx.textAlign='center';cx.shadowColor='#49c7ff';cx.shadowBlur=18;cx.font='1000 50px system-ui';cx.fillText(a,W/2,H/2-10);cx.shadowBlur=0;cx.fillStyle='#d7e9ff';cx.font='800 17px system-ui';cx.fillText(b,W/2,H/2+30)}
 function ui(force=false){let got=game.coins.filter(c=>c.taken).length,coinMax=String(game.total),levelText='Level '+game.level+'/'+LEVELS.length;
@@ -1231,7 +1592,7 @@ if(force||uiCache.power!==powerText){uiCache.power=powerText;els.powerStatus.tex
 let roster=game.players.map(p=>{let active=(p.shield?' 🛡':'')+(p.magnet>0?' M':'')+(p.boost>0?' ⚡':'');return `<span class="badge"><span class="dot" style="background:${colors[p.id%colors.length]};opacity:${p.connected===false?.35:1}"></span>P${p.id+1} ${healthMarkup(p.hp)} · ${p.score}${active}${p.connected===false?' · Disconnected':''}</span>`}).join('');
 if(force||uiCache.players!==roster){uiCache.players=roster;els.players.innerHTML=roster}
 let rosterKey=net.role==='host'?[...net.roster.values()].sort((a,b)=>a.id-b.id).map(x=>x.id+':'+Number(x.connected)).join(','):String(net.localId);
-let setupKey=[net.role,net.localId,game.phase,game.level,game.over,game.paused,pairView,rosterKey].join('|');
+let setupKey=[net.role,net.localId,game.phase,game.level,game.nextLevel,selectedLevel,unlockedLevel,game.over,game.paused,pairView,rosterKey].join('|');
 if(force||uiCache.setup!==setupKey){uiCache.setup=setupKey;syncSetupUI()}
 let menuKey=[net.role,game.level,game.over,game.won,game.paused,game.phase,menuOpen,endMenuDismissed,hasOpenRoomSlot(),rosterKey].join('|');
 if(force||uiCache.menu!==menuKey){uiCache.menu=menuKey;syncGameMenu()}}
@@ -1253,6 +1614,7 @@ function clearPairFields(){
 }
 function syncSetupUI(){
   syncDifficultyUI();
+  syncLevelUI();
   els.setupActions.classList.remove('has-run');
   els.start.textContent='Start Game';
   els.start.classList.add('btn-primary');
@@ -1272,55 +1634,86 @@ function syncSetupUI(){
   if(hosting&&!detail){
     let connected=1+[...net.roster.values()].filter(x=>x.connected).length;
     els.sessionTitle.textContent='Hosting Game';
-    els.sessionState.textContent=connected+' of '+(ROOM_JOINERS+1)+' players connected · '+difficultyConfig(selectedDifficulty).label+'.';
+    els.sessionState.textContent=connected+' of '+(ROOM_JOINERS+1)+' players connected · Level '+selectedLevel+' · '+difficultyConfig(selectedDifficulty).label+'.';
     els.manageSession.textContent=connected>=ROOM_JOINERS+1?'View Players':'Add Player';
     els.manageSession.classList.remove('hide');
     els.endSession.textContent='Stop Hosting';
   }else if(joined&&!detail){
     els.sessionTitle.textContent=connectedClient()?'Joined as P'+(net.localId+1):'Connection Lost';
-    els.sessionState.textContent=connectedClient()?(game.phase==='menu'?'Waiting for Host to start · '+difficultyConfig(game.nextDifficulty||game.difficulty).label+'.':game.paused?'Waiting for Host to continue · '+difficultyConfig(game.difficulty).label+'.':'Connected to Host · '+difficultyConfig(game.difficulty).label+'.'):'Ask the Host for the game code again.';
+    els.sessionState.textContent=connectedClient()?(game.phase==='menu'?'Waiting for Host to start Level '+normalizeLevel(game.nextLevel||game.startLevel||game.level)+' · '+difficultyConfig(game.nextDifficulty||game.difficulty).label+'.':game.paused?'Waiting for Host to continue · '+difficultyConfig(game.difficulty).label+'.':'Connected to Host · '+difficultyConfig(game.difficulty).label+'.'):'Ask the Host for the game code again.';
     els.manageSession.classList.add('hide');
     els.endSession.textContent='Leave Game';
   }
 }
 function syncGameMenu(){
-  let client=net.role==='client';
-  syncMenuPair();
+  let client=net.role==='client',host=net.role==='host';
   els.menuActions.classList.remove('single');
+  els.menuManagePlayers.classList.add('hide');
+  els.menuFooter.classList.remove('hide');
+
   if(game.over){
-    els.menuKicker.textContent=game.won?'All Levels Complete':'Run Ended';
+    menuPairOpen=false;
+    els.menuPair.classList.add('hide');
+    els.menuFooter.classList.add('hide');
+    els.menuKicker.textContent=game.won?'Campaign Complete':'Level '+game.level;
     els.menuTitle.textContent=game.won?'You Win':'Game Over';
+
     if(client){
-      els.menuSubtitle.textContent=game.won?'All '+LEVELS.length+' levels cleared. Waiting for Host.':'Level '+game.level+' ended. Waiting for Host.';
-      els.resume.classList.remove('hide');els.resume.textContent='View Results';
+      els.menuSubtitle.textContent=game.won?'The campaign is complete. Waiting for the Host.':'Waiting for the Host to choose what happens next.';
+      els.resume.classList.remove('hide');
+      els.resume.textContent='Close Results';
       els.restart.classList.add('hide');
       els.setupBack.textContent='Leave Game';
       els.menuActions.classList.add('single');
       if(!endMenuDismissed)els.pauseOverlay.classList.remove('hide');else hideGameMenu();
-    }else{
-      els.menuSubtitle.textContent=game.won?'All '+LEVELS.length+' levels cleared. Start another run or return to the main menu.':'Level '+game.level+' ended. Try again or return to the main menu.';
-      els.resume.classList.add('hide');
-      els.restart.classList.remove('hide');
-      els.setupBack.textContent='Main Menu';
-      els.pauseOverlay.classList.remove('hide');
+      return;
     }
+
+    els.resume.classList.remove('hide');
+    els.setupBack.textContent='Main Menu';
+
+    if(game.won){
+      els.menuSubtitle.textContent='All '+LEVELS.length+' levels cleared. Choose any level to play again.';
+      els.resume.textContent='Choose Level';
+      els.restart.classList.add('hide');
+      els.menuActions.classList.add('single');
+    }else{
+      els.menuSubtitle.textContent='Retry this level, choose another level, or return to the main menu.';
+      els.resume.textContent='Retry Level '+game.level;
+      els.restart.classList.remove('hide');
+      els.restart.textContent='Choose Level';
+    }
+
+    els.pauseOverlay.classList.remove('hide');
     return;
   }
+
   els.resume.classList.remove('hide');
+  els.restart.textContent='Restart Run';
+
   if(client){
     els.restart.classList.add('hide');
     els.setupBack.textContent='Leave Game';
     els.menuActions.classList.add('single');
     els.resume.textContent=game.paused?'View Game':'Return to Game';
-    els.menuTitle.textContent=game.paused?'Game Paused':'Game Menu';
-    els.menuSubtitle.textContent=game.paused?'Level '+game.level+' · Waiting for Host to continue.':'Level '+game.level+' · Return to the game or leave this session.';
+    els.menuKicker.textContent='Game Menu';
+    els.menuTitle.textContent=game.paused?'Waiting for Host':'Paused';
+    els.menuSubtitle.textContent='Level '+game.level+' of '+LEVELS.length+' · '+difficultyConfig(game.difficulty).label;
   }else{
     els.restart.classList.remove('hide');
     els.setupBack.textContent='Main Menu';
     els.resume.textContent='Resume Game';
+    els.menuKicker.textContent='Game Menu';
     els.menuTitle.textContent='Paused';
-    els.menuSubtitle.textContent='Level '+game.level+' of '+LEVELS.length+' · '+difficultyConfig(game.difficulty).label+' · Resume, restart, or return to the main menu.';
+    els.menuSubtitle.textContent='Level '+game.level+' of '+LEVELS.length+' · '+difficultyConfig(game.difficulty).label;
+
+    if(host){
+      els.menuManagePlayers.classList.remove('hide');
+      els.menuManagePlayers.textContent=menuPairOpen?'Close Player Setup':'Manage Players';
+    }
   }
+
+  syncMenuPair();
   if(menuOpen)els.pauseOverlay.classList.remove('hide');else hideGameMenu();
 }
 function beep(type){try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();
@@ -1686,9 +2079,9 @@ function slotIsOpen(slot){return !!slot&&!slot.retired&&!slot.rebuilding&&!slot.
 function hasOpenRoomSlot(){if(net.role!=='host'||!net.pendingSlots)return false;for(const slot of net.pendingSlots.values())if(slotIsOpen(slot))return true;return false}
 function syncMenuPair(){
   if(!els.menuPair)return;
-  let host=net.role==='host';
-  els.menuPair.classList.toggle('hide',!host);
-  if(!host)return;
+  let show=net.role==='host'&&menuOpen&&menuPairOpen&&!game.over;
+  els.menuPair.classList.toggle('hide',!show);
+  if(!show)return;
   let connected=[...net.roster.values()].filter(x=>x.connected).length,full=connected>=ROOM_JOINERS,open=hasOpenRoomSlot();
   els.menuPairTitle.textContent=full?'Game Full':open?'Add / Reconnect Player':'Preparing Player Spot';
   els.menuPairHint.textContent=full?'All five player spots are connected.':open?'Paste the player code created on the other device.':'A player spot is being prepared.';
@@ -1750,7 +2143,7 @@ function pairMode(mode,preserve=false){
 }
 function manageSession(){if(net.role==='host')pairMode('host',true)}
 function finishLeaveSession(){
-  resetNetwork('solo');game=makeGame();menuOpen=false;endMenuDismissed=false;pairView='intro';clearPairFields();
+  resetNetwork('solo');selectedLevel=savedSelectedLevel();game=makeGame(selectedDifficulty,selectedLevel);menuOpen=false;endMenuDismissed=false;pairView='intro';clearPairFields();
   els.setup.classList.remove('pairing');hideGameMenu();els.play.classList.add('hide');els.setup.classList.remove('hide');
   setSetupStatus('Ready.');syncSetupUI();ui(true);
 }
@@ -1876,7 +2269,7 @@ function copyPlayerFields(p,t,local){
 }
 function advanceClientView(dt){
   let target=net.clientTarget;if(!target)return;
-  game.phase=target.phase;game.over=target.over;game.won=target.won;game.paused=target.paused;game.level=target.level;game.maxLevel=target.maxLevel;game.levelName=target.levelName;game.difficulty=target.difficulty;game.nextDifficulty=target.nextDifficulty;game.total=target.total;game.exit={...target.exit};game.shake=target.shake;game.freeze=target.freeze;game.banner=target.banner?{...target.banner}:null;
+  game.phase=target.phase;game.over=target.over;game.won=target.won;game.paused=target.paused;game.level=target.level;game.startLevel=target.startLevel;game.nextLevel=target.nextLevel;game.maxLevel=target.maxLevel;game.levelName=target.levelName;game.levelHint=target.levelHint;game.difficulty=target.difficulty;game.nextDifficulty=target.nextDifficulty;game.total=target.total;game.exit={...target.exit};game.shake=target.shake;game.freeze=target.freeze;game.banner=target.banner?{...target.banner}:null;
   if(game.phase==='play'&&!game.paused&&!game.over)game.time+=dt;
   game.time+=clamp(target.time-game.time,-.25,.25)*Math.min(1,dt*5);
   game.count=target.count;
@@ -2102,7 +2495,7 @@ function loop(now){let dt=Math.min(.033,(now-last)/1000||0);
 last=now;
 update(dt);
 draw()}
-const JOY_START_DRAG=10,JOY_MIN_SPEED=.5,JOY_RESPONSE_CURVE=1.08;
+const JOY_START_DRAG=6,JOY_STOP_DRAG=3,JOY_MIN_SPEED=.5,JOY_RESPONSE_CURVE=1.08;
 function joystickGeometry(){
   let b=els.joy.getBoundingClientRect(),sw=els.stick.offsetWidth,sh=els.stick.offsetHeight;
   let centerX=(b.width-sw)/2,centerY=(b.height-sh)/2;
@@ -2119,13 +2512,23 @@ function pointer(e){
   let g=joystickGeometry();
   let x=e.clientX-touch.anchorX,y=e.clientY-touch.anchorY,distance=hypot(x,y);
   let nx=distance?x/distance:0,ny=distance?y/distance:0;
-  let magnitude=0,usable=Math.max(1,g.controlRadius-JOY_START_DRAG);
-  if(distance>JOY_START_DRAG){
+
+  if(!touch.engaged&&distance>=JOY_START_DRAG)touch.engaged=true;
+  if(touch.engaged&&distance<=JOY_STOP_DRAG)touch.engaged=false;
+
+  let magnitude=0;
+  if(touch.engaged){
+    let usable=Math.max(1,g.controlRadius-JOY_START_DRAG);
     let scaled=clamp((distance-JOY_START_DRAG)/usable,0,1);
     magnitude=JOY_MIN_SPEED+(1-JOY_MIN_SPEED)*Math.pow(scaled,JOY_RESPONSE_CURVE);
   }
-  touch.x=nx*magnitude;touch.y=ny*magnitude;
-  let visualDistance=Math.min(Math.max(0,distance-JOY_START_DRAG),g.visualRadius);
+
+  touch.x=nx*magnitude;
+  touch.y=ny*magnitude;
+
+  let visualDistance=touch.engaged
+    ?Math.min(Math.max(0,distance-JOY_START_DRAG),g.visualRadius)
+    :0;
   els.stick.style.left=g.centerX+nx*visualDistance+'px';
   els.stick.style.top=g.centerY+ny*visualDistance+'px';
 }
@@ -2143,7 +2546,7 @@ window.addEventListener('keyup',e=>keys.delete(e.code));
 
 els.joy.addEventListener('pointerdown',e=>{
   e.preventDefault();
-  touch.on=true;touch.id=e.pointerId;touch.anchorX=e.clientX;touch.anchorY=e.clientY;touch.x=touch.y=0;
+  touch.on=true;touch.id=e.pointerId;touch.anchorX=e.clientX;touch.anchorY=e.clientY;touch.x=touch.y=0;touch.engaged=false;
   els.joy.classList.add('active');
   els.joy.setPointerCapture(e.pointerId);
   centerStick();
@@ -2151,7 +2554,7 @@ els.joy.addEventListener('pointerdown',e=>{
 els.joy.addEventListener('pointermove',e=>{if(touch.on&&e.pointerId===touch.id){e.preventDefault();pointer(e)}});
 function joyEnd(e){
   if(e&&touch.id!==null&&Number.isFinite(e.pointerId)&&e.pointerId!==touch.id)return;
-  touch.on=false;touch.id=null;touch.x=touch.y=0;touch.anchorX=touch.anchorY=0;
+  touch.on=false;touch.id=null;touch.x=touch.y=0;touch.anchorX=touch.anchorY=0;touch.engaged=false;
   els.joy.classList.remove('active');
   centerStick()
 }
@@ -2165,12 +2568,17 @@ els.dash.classList.add('down')});
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>els.dash.addEventListener(ev,()=>{touch.dash=false;
 els.dash.classList.remove('down')}));
 
+renderLevelButtons();
+els.levelOptions.addEventListener('click',e=>{let btn=e.target.closest('[data-level]');if(btn)selectLevel(btn.dataset.level)});
+els.levelBack.onclick=closeLevelSelect;
+els.levelPlay.onclick=playSelectedLevel;
 for(const btn of els.difficultyButtons)btn.onclick=()=>selectDifficulty(btn.dataset.difficulty);
 els.start.onclick=startGame;
 els.pause.onclick=openGameMenu;
-els.resume.onclick=resumeGame;
-els.restart.onclick=restartRun;
+els.resume.onclick=menuPrimaryAction;
+els.restart.onclick=menuSecondaryAction;
 els.setupBack.onclick=requestMainMenu;
+els.menuManagePlayers.onclick=toggleMenuPlayers;
 els.manageSession.onclick=manageSession;
 els.endSession.onclick=leaveSession;
 els.confirmCancel.onclick=closeConfirm;
@@ -2207,6 +2615,7 @@ function refreshLayout(){fitCanvas();if(!touch.on)centerStick()}
 window.addEventListener('resize',refreshLayout);
 window.addEventListener('orientationchange',()=>setTimeout(refreshLayout,250));
 
+try{localStorage.removeItem('coinDashUnlockedLevel')}catch(e){}
 updateFullscreenLabels();
 syncSetupUI();
 ui(true);
