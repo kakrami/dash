@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry</title>
-<!-- v1.0.74 -->
-<meta name="application-version" content="1.0.74">
+<!-- v1.0.75 -->
+<meta name="application-version" content="1.0.75">
 <style>
 :root{
   --bg:#010207;--surface:#060d1a;--surface-2:#0d1930;--surface-3:#02050c;
@@ -305,7 +305,7 @@ box-shadow:inset 0 1px #ffffff10,0 5px 14px #0004;font-size:10px;font-weight:100
 .touch-ability-slots{grid-row:1;width:104px;min-width:104px;justify-content:center}
 
 .game-stage{
-position:relative;flex:1 1 auto;min-height:0;display:grid;place-items:center;overflow:hidden;
+position:relative;flex:1 1 auto;min-width:0;min-height:0;display:grid;place-items:center;overflow:hidden;
 background:
 radial-gradient(circle at 50% 15%,#244d8130,transparent 42%),
 linear-gradient(180deg,#07101d,#02040a);
@@ -615,8 +615,10 @@ text-shadow:0 1px #ffffff55;font-size:0
   .setup-screen.pairing .setup-footer,.setup-screen.pairing .panel-title{display:none}
 }
 @media (orientation:portrait) and (max-width:900px){
-  .game-stage{flex:0 0 auto;width:100%;aspect-ratio:16/9;background:transparent;border:0;box-shadow:none;padding:0;overflow:visible}
-  .touch-deck{margin-top:auto}
+  .play-screen{display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr)}
+  .game-hud{grid-row:1}
+  .game-stage{grid-row:2;flex:none;width:100%;height:100%;min-width:0;min-height:0;aspect-ratio:auto;background:transparent;border:0;box-shadow:none;padding:0;overflow:hidden}
+  .touch-deck{grid-row:3;margin-top:0}
   canvas{border-radius:12px}
 }
 @media (max-width:520px){
@@ -1024,7 +1026,7 @@ text-shadow:0 1px #ffffff55;font-size:0
     </div>
   </section>
 </main>
-  <span class="build-version" aria-hidden="true">1.0.74</span>
+  <span class="build-version" aria-hidden="true">1.0.75</span>
 
   <aside id="gameChat" class="game-chat hide" aria-label="Multiplayer room chat">
     <span id="chatFloatingDock" class="chat-floating-dock">
@@ -5067,12 +5069,18 @@ els.cancelPair.onclick=closePairing;
 
 
 function fitCanvas(){
-  let b=els.stage.getBoundingClientRect();
-  let availW=Math.max(160,b.width-4),availH=Math.max(120,b.height-4);
-  let scale=Math.max(.1,Math.min(availW/W,availH/H));
+  let style=getComputedStyle(els.stage);
+  let padX=num(parseFloat(style.paddingLeft))+num(parseFloat(style.paddingRight));
+  let padY=num(parseFloat(style.paddingTop))+num(parseFloat(style.paddingBottom));
+  let availW=Math.max(1,els.stage.clientWidth-padX);
+  let availH=Math.max(1,els.stage.clientHeight-padY);
+  if(availW<=1||availH<=1)return;
+  let scale=Math.max(.05,Math.min(availW/W,availH/H));
+  let cssW=Math.max(1,Math.floor(W*scale));
+  let cssH=Math.max(1,Math.floor(H*scale));
   configureCanvasResolution(scale);
-  cv.style.width=Math.floor(W*scale)+'px';
-  cv.style.height=Math.floor(H*scale)+'px';
+  cv.style.width=cssW+'px';
+  cv.style.height=cssH+'px';
   cv.style.transform='none';
 }
 if('ResizeObserver'in window){
@@ -5081,6 +5089,7 @@ if('ResizeObserver'in window){
 }
 function refreshLayout(){fitCanvas();if(!touch.on)centerStick()}
 window.addEventListener('resize',refreshLayout);
+window.visualViewport?.addEventListener('resize',refreshLayout);
 window.addEventListener('orientationchange',()=>setTimeout(refreshLayout,250));
 
 try{localStorage.removeItem('coinDashUnlockedLevel')}catch(e){}
