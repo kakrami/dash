@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry</title>
-<!-- v1.0.73 -->
-<meta name="application-version" content="1.0.73">
+<!-- v1.0.74 -->
+<meta name="application-version" content="1.0.74">
 <style>
 :root{
   --bg:#010207;--surface:#060d1a;--surface-2:#0d1930;--surface-3:#02050c;
@@ -1024,7 +1024,7 @@ text-shadow:0 1px #ffffff55;font-size:0
     </div>
   </section>
 </main>
-  <span class="build-version" aria-hidden="true">1.0.73</span>
+  <span class="build-version" aria-hidden="true">1.0.74</span>
 
   <aside id="gameChat" class="game-chat hide" aria-label="Multiplayer room chat">
     <span id="chatFloatingDock" class="chat-floating-dock">
@@ -3209,12 +3209,13 @@ function drawPlayer(p){
   cx.globalAlpha=1;if(!p.alive)cx.globalAlpha=.28;if(p.inv>0&&Math.floor(now/90)%2)cx.globalAlpha=.45;
 
   /* Blue-white afterburner with an orange outer envelope. */
-  if(p.dt>0||p.boost>0){
+  let dashVisualActive=num(p.dt)>0.015,boostVisualActive=num(p.boost)>0&&hypot(num(p.vx),num(p.vy))>35;
+  if(dashVisualActive||boostVisualActive){
     cx.save();cx.translate(p.x,p.y+b);cx.rotate(ang);
-    let length=p.dt>0?66:34,width=p.dt>0?25:17,alpha=p.dt>0?.9:.55,phase=now*.009+p.id;
+    let length=dashVisualActive?66:34,width=dashVisualActive?25:17,alpha=dashVisualActive?.9:.55,phase=now*.009+p.id;
     drawFireGlow(cx,-17,0,width*1.15,'drive',alpha*.65);
     drawJetFlame(cx,-16,0,length,width,phase,'drive',alpha,Math.PI);
-    if(p.dt>0){
+    if(dashVisualActive){
       drawHeatWisp(cx,-28,-4,length*.72,width,phase*.5,.12);
       drawHeatWisp(cx,-25,5,length*.62,width,phase*.5+2,.09);
     }
@@ -4533,22 +4534,29 @@ function advanceClientView(dt){
   for(const t of target.players){
     let local=t.id===net.localId,p=current.get(t.id)||cloneGameState({players:[t],enemies:[],coins:[],exit:{}}).players[0];
     let mt=motion&&motion.players.get(t.id),tx=mt?mt.x:t.x,ty=mt?mt.y:t.y,localVisual=null;
+    let authoritativeDashTime=Math.max(0,num(mt?mt.dt:t.dt));
+    let authoritativeDashSeq=Math.max(0,Math.round(num(mt?mt.dashSeq:t.lastDashSeq)));
     if(local&&p.alive&&game.phase==='play'&&!game.paused&&!game.over){
       let c=control({control:'local'}),boosted=num(t.boost)>0,speed=boosted?224:178;
       if(c.x||c.y){p.faceX=c.x;p.faceY=c.y}
-      if(net.clientDashTime>0){speed=boosted?650:520;c={...c,x:net.clientDashDir.x,y:net.clientDashDir.y};net.clientDashTime=Math.max(0,net.clientDashTime-dt);p.dt=net.clientDashTime;p.dx=c.x;p.dy=c.y}
+      net.clientDashTime=Math.max(0,num(net.clientDashTime)-dt);
+      if(net.clientDashTime>0){speed=boosted?650:520;c={...c,x:net.clientDashDir.x,y:net.clientDashDir.y};p.dx=c.x;p.dy=c.y}
       p.vx=c.x*speed;p.vy=c.y*speed;p.x+=p.vx*dt;p.y+=p.vy*dt;collideWorld(p);
-      localVisual={vx:p.vx,vy:p.vy,faceX:p.faceX,faceY:p.faceY,dt:p.dt,dx:p.dx,dy:p.dy};
+      localVisual={vx:p.vx,vy:p.vy,faceX:p.faceX,faceY:p.faceY,dx:p.dx,dy:p.dy,predictedDashTime:net.clientDashTime};
       let correction=1-Math.exp(-dt*6);p.x+=(tx-p.x)*correction;p.y+=(ty-p.y)*correction;
     }else if(mt){p.x=tx;p.y=ty}
     else{let correction=1-Math.exp(-dt*18);p.x+=(tx-p.x)*correction;p.y+=(ty-p.y)*correction}
-    let wasDashing=p.dt>0;p.bob=num(p.bob,t.bob)+dt*7;copyPlayerFields(p,t,local);
-    if(mt){p.vx=mt.vx;p.vy=mt.vy;p.dt=mt.dt;p.dx=mt.dx;p.dy=mt.dy;p.faceX=mt.faceX;p.faceY=mt.faceY;p.bob=mt.bob;p.inv=mt.inv;p.dashHit=mt.dashHit}
-    if(localVisual){p.vx=localVisual.vx;p.vy=localVisual.vy;p.faceX=localVisual.faceX;p.faceY=localVisual.faceY;p.dx=localVisual.dx;p.dy=localVisual.dy;p.dt=Math.max(p.dt,localVisual.dt)}
-    if(local&&net.clientDashTime>0)p.dt=Math.max(p.dt,net.clientDashTime);
-    let now=performance.now();
-    if(!wasDashing&&p.dt>0)p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:now,life:420,ring:true,flame:p.boost>0});
-    if(p.dt>0&&now-num(p._lastTrailAt,0)>28){p._lastTrailAt=now;p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:now,life:280,flame:p.boost>0})}
+    let wasDashing=!!p._visualDashActive;p.bob=num(p.bob,t.bob)+dt*7;copyPlayerFields(p,t,local);
+    if(mt){p.vx=mt.vx;p.vy=mt.vy;p.dx=mt.dx;p.dy=mt.dy;p.faceX=mt.faceX;p.faceY=mt.faceY;p.bob=mt.bob;p.inv=mt.inv;p.dashHit=mt.dashHit}
+    if(localVisual){p.vx=localVisual.vx;p.vy=localVisual.vy;p.faceX=localVisual.faceX;p.faceY=localVisual.faceY;p.dx=localVisual.dx;p.dy=localVisual.dy}
+    p.dt=local?Math.max(authoritativeDashTime,num(localVisual&&localVisual.predictedDashTime)):authoritativeDashTime;
+    let dashActive=p.dt>0.015,now=performance.now();
+    if(p._visualDashSeq==null)p._visualDashSeq=authoritativeDashSeq;
+    else if(authoritativeDashSeq&&authoritativeDashSeq!==p._visualDashSeq){p._visualDashSeq=authoritativeDashSeq;p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:now,life:420,ring:true,flame:p.boost>0})}
+    else if(!wasDashing&&dashActive)p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:now,life:420,ring:true,flame:p.boost>0});
+    if(dashActive&&now-num(p._lastTrailAt,0)>28){p._lastTrailAt=now;p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:now,life:280,flame:p.boost>0})}
+    if(!dashActive)p._lastTrailAt=0;
+    p._visualDashActive=dashActive;
     p.trail=p.trail.filter(item=>now-item.at<(item.life||280)).slice(-16);next.push(p);
   }
   game.players=next.sort((a,b)=>a.id-b.id);
@@ -4711,7 +4719,7 @@ function recentFireRows(){
 function compactMotionState(){
   return{
     t:'motion',seq:++net.motionSeq,ts:Math.round(performance.now()),
-    p:game.players.map(p=>[p.id,quantize(p.x),quantize(p.y),quantize(p.vx),quantize(p.vy),quantize(p.dt,100),quantize(p.dx,100),quantize(p.dy,100),quantize(p.faceX,100),quantize(p.faceY,100),quantize(p.bob,100),quantize(p.inv,100),quantize(p.dashHit,100)]),
+    p:game.players.map(p=>[p.id,quantize(p.x),quantize(p.y),quantize(p.vx),quantize(p.vy),quantize(p.dt,100),quantize(p.dx,100),quantize(p.dy,100),quantize(p.faceX,100),quantize(p.faceY,100),quantize(p.bob,100),quantize(p.inv,100),quantize(p.dashHit,100),Math.max(0,Math.round(num(p.lastDashSeq,0)))]),
     e:game.enemies.map(e=>[quantize(e.x),quantize(e.y),quantize(e.vx),quantize(e.vy),quantize(e.phase,100),valueIndex(ENEMY_MODE_KEYS,e.mode),quantize(e.aimX,100),quantize(e.aimY,100),quantize(e.pulseRadius),quantize(e.burn,100),quantize(e.stun,100)]),
     a:recentFireRows()
   };
@@ -4727,7 +4735,7 @@ function decodeMotionFrame(packet){
   let received=performance.now(),hostTime=num(packet.ts,received),timeline=syncMotionClock(hostTime,received),players=new Map(),enemies=[];
   for(const row of packet.p||[]){
     let id=Math.max(0,Math.round(num(row[0])));
-    players.set(id,{id,x:num(row[1])/10,y:num(row[2])/10,vx:num(row[3])/10,vy:num(row[4])/10,dt:Math.max(0,num(row[5])/100),dx:num(row[6])/100,dy:num(row[7])/100,faceX:num(row[8])/100,faceY:num(row[9])/100,bob:num(row[10])/100,inv:Math.max(0,num(row[11])/100),dashHit:Math.max(0,num(row[12])/100)});
+    players.set(id,{id,x:num(row[1])/10,y:num(row[2])/10,vx:num(row[3])/10,vy:num(row[4])/10,dt:Math.max(0,num(row[5])/100),dx:num(row[6])/100,dy:num(row[7])/100,faceX:num(row[8])/100,faceY:num(row[9])/100,bob:num(row[10])/100,inv:Math.max(0,num(row[11])/100),dashHit:Math.max(0,num(row[12])/100),dashSeq:Math.max(0,Math.round(num(row[13])))});
   }
   for(const row of packet.e||[]){
     enemies.push({x:num(row[0])/10,y:num(row[1])/10,vx:num(row[2])/10,vy:num(row[3])/10,phase:num(row[4])/100,mode:ENEMY_MODE_KEYS[Math.round(num(row[5]))]||'chase',aimX:num(row[6])/100,aimY:num(row[7])/100,pulseRadius:Math.max(0,num(row[8])/10),burn:Math.max(0,num(row[9])/100),stun:Math.max(0,num(row[10])/100)});
@@ -4755,7 +4763,7 @@ function interpolateMotionEntity(a,b,t,isPlayer=false){
     let direction=mixDirection(num(a.faceX,a.dx),num(a.faceY,a.dy),num(b.faceX,b.dx),num(b.faceY,b.dy),t);
     result.dt=mixNumber(a.dt,b.dt,t);result.dx=mixNumber(a.dx,b.dx,t);result.dy=mixNumber(a.dy,b.dy,t);
     result.faceX=direction.x;result.faceY=direction.y;result.bob=mixNumber(a.bob,b.bob,t);
-    result.inv=mixNumber(a.inv,b.inv,t);result.dashHit=mixNumber(a.dashHit,b.dashHit,t);
+    result.inv=mixNumber(a.inv,b.inv,t);result.dashHit=mixNumber(a.dashHit,b.dashHit,t);result.dashSeq=Math.max(0,Math.round(num(b.dashSeq,a.dashSeq)));
   }else{
     result.phase=mixNumber(a.phase,b.phase,t);result.aimX=mixNumber(a.aimX,b.aimX,t);result.aimY=mixNumber(a.aimY,b.aimY,t);
     result.pulseRadius=mixNumber(a.pulseRadius,b.pulseRadius,t);result.burn=mixNumber(a.burn,b.burn,t);result.stun=mixNumber(a.stun,b.stun,t);
@@ -4873,7 +4881,7 @@ function sendInput(dt){
   let v=control({control:'local'}),l=hypot(v.x,v.y);if(l>.001)inputAim={x:v.x/l,y:v.y/l};
   if(v.dash&&!inputDashDown){
     inputSeq++;v.dashSeq=inputSeq;v.dashX=inputAim.x;v.dashY=inputAim.y;let p=game.players.find(x=>x.id===net.localId),dashTime=p&&p.boost>0?.25:.2;net.clientDashTime=dashTime;net.clientDashDir={...inputAim};
-    if(p){p.dt=dashTime;p.dx=inputAim.x;p.dy=inputAim.y;p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:performance.now(),life:420,ring:true})}beep('dash');
+    if(p){p.dt=dashTime;p.dx=inputAim.x;p.dy=inputAim.y;p._visualDashActive=true;p._visualDashSeq=inputSeq;p._lastTrailAt=performance.now();p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:p._lastTrailAt,life:420,ring:true})}beep('dash');
   }else v.dashSeq=inputSeq;
   if(v.super&&!inputSuperDown){inputSuperSeq++;v.superSeq=inputSuperSeq;beep('superTap')}else v.superSeq=inputSuperSeq;
   inputDashDown=v.dash;inputSuperDown=v.super;v.dash=false;v.super=false;
