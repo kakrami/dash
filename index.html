@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry</title>
-<!-- v1.0.89 -->
-<meta name="application-version" content="1.0.89">
+<!-- v1.0.90 -->
+<meta name="application-version" content="1.0.90">
 <style>
 :root{
   --bg:#010207;--surface:#060d1a;--surface-2:#0d1930;--surface-3:#02050c;
@@ -1045,7 +1045,7 @@ text-shadow:0 1px #ffffff55;font-size:0
     </div>
   </section>
 </main>
-  <span class="build-version" aria-hidden="true">1.0.89</span>
+  <span class="build-version" aria-hidden="true">1.0.90</span>
 
   <aside id="gameChat" class="game-chat hide" aria-label="Multiplayer room chat">
     <span id="chatFloatingDock" class="chat-floating-dock">
@@ -1472,8 +1472,8 @@ function configureCanvasResolution(displayScale=1){
   configureFieldCacheResolution();
 }
 let audioMaster=null,audioCompressor=null,audioSfx=null,audioUi=null,audioMusic=null,audioLevel=null,audioPower=null,audioMovement=null,audioAmbience=null,audioNoise=null,audioReverb=null,audioReverbIn=null,audioReverbOut=null;
-let audioUnlocked=false,audioPageActive=!document.hidden&&document.hasFocus(),introMusicPlaying=false,introMusicTimer=0,introMusicGeneration=0,introVoices=[],levelIntroVoices=[],levelIntroTimer=0,levelIntroGeneration=0,pendingLevelIntro=0,activePowerAudio=new Map();
-let worldAudio=null,movementAudio=null,flameHazardAudioStates=new Map(),gameplayMusicPlaying=false,gameplayMusicTimer=0,gameplayMusicGeneration=0,gameplayMusicVoices=[],gameplayMusicSignature='',audioCueTimes=new Map(),coinCueStep=0,coinCueAt=0;
+let audioUnlocked=false,audioPageActive=!document.hidden&&document.hasFocus(),introMusicPlaying=false,introMusicTimer=0,introMusicGeneration=0,introMusicNextStart=0,introVoices=[],levelIntroVoices=[],levelIntroTimer=0,levelIntroGeneration=0,pendingLevelIntro=0,activePowerAudio=new Map();
+let worldAudio=null,movementAudio=null,flameHazardAudioStates=new Map(),gameplayMusicPlaying=false,gameplayMusicTimer=0,gameplayMusicGeneration=0,gameplayMusicNextStart=0,gameplayMusicVoices=[],gameplayMusicSignature='',audioCueTimes=new Map(),coinCueStep=0,coinCueAt=0;
 let inputSeq=0,inputSuperSeq=0,inputPacketSeq=0,inputDashDown=false,inputSuperDown=false,inputAim={x:1,y:0};
 let menuOpen=false,menuPairOpen=false,endMenuDismissed=false,pairView='intro',pendingConfirm=null;
 let menuFocusReturn=null,confirmFocusReturn=null,chatFocusReturn=null,chatPausedHost=false;
@@ -4317,16 +4317,17 @@ function rememberGameplayVoice(voice){if(voice)gameplayMusicVoices.push(voice);r
 function gameplayTone(freq,when,duration,type='triangle',gain=.012,detune=0){return rememberGameplayVoice(synthTone(freq,duration,{when,type,gain,detune,bus:'music',attack:.012,release:duration*.55,reverb:.12}))}
 function gameplayNoise(duration,options={}){return rememberGameplayVoice(synthNoise(duration,{...options,bus:'music'}))}
 function stopGameplayMusic(fade=.16){
-  gameplayMusicPlaying=false;gameplayMusicSignature='';gameplayMusicGeneration++;clearTimeout(gameplayMusicTimer);gameplayMusicTimer=0;
+  gameplayMusicPlaying=false;gameplayMusicSignature='';gameplayMusicNextStart=0;gameplayMusicGeneration++;clearTimeout(gameplayMusicTimer);gameplayMusicTimer=0;
   if(!audio){gameplayMusicVoices=[];return}let t=audio.currentTime;
   for(const voice of gameplayMusicVoices){try{voice.gain.gain.cancelScheduledValues(t);voice.gain.gain.setTargetAtTime(.0001,t,Math.max(.02,fade/3));voice.source.stop(t+fade+.04)}catch(e){}}
   gameplayMusicVoices=[];
 }
-function scheduleGameplayMusicLoop(generation,level,stage){
+function scheduleGameplayMusicLoop(generation,level,stage,startAt=0){
   if(!audio||!soundEnabled||!audioUnlocked||!gameplayMusicPlaying||generation!==gameplayMusicGeneration)return;
-  gameplayMusicVoices=[];
   let ctx=audio,theme=GAMEPLAY_MUSIC_THEMES[level-1]||GAMEPLAY_MUSIC_THEMES[0],boss=!!levelConfig(level).boss,intensity=boss?clamp(stage,1,3):1;
-  let beat=60/(theme.bpm+(boss?(intensity-1)*8:0)),step=beat/2,steps=32,duration=steps*step,t=ctx.currentTime+.07;
+  gameplayMusicVoices=gameplayMusicVoices.filter(voice=>voice&&voice.end>ctx.currentTime+.02);
+  let beat=60/(theme.bpm+(boss?(intensity-1)*8:0)),step=beat/2,steps=32,duration=steps*step;
+  let t=Math.max(startAt||ctx.currentTime+.07,ctx.currentTime+.025);
   for(let bar=0;bar<4;bar++){
     let root=theme.root*Math.pow(2,theme.progression[bar%theme.progression.length]/12),barStart=t+bar*8*step;
     gameplayTone(root,barStart,step*3.6,'sine',boss?.022:.014);
@@ -4340,11 +4341,20 @@ function scheduleGameplayMusicLoop(generation,level,stage){
       if(s%2===1)gameplayNoise(.032,{when,frequency:3800,filterType:'highpass',gain:boss&&intensity===3?.009:.005});
     }
   }
-  clearTimeout(gameplayMusicTimer);gameplayMusicTimer=setTimeout(()=>scheduleGameplayMusicLoop(generation,level,stage),Math.max(100,Math.round((duration-.18)*1000)));
+  gameplayMusicNextStart=t+duration;
+  clearTimeout(gameplayMusicTimer);
+  let schedulingLead=.18,delay=Math.max(.04,gameplayMusicNextStart-ctx.currentTime-schedulingLead);
+  gameplayMusicTimer=setTimeout(()=>scheduleGameplayMusicLoop(generation,level,stage,gameplayMusicNextStart),Math.round(delay*1000));
 }
 function startGameplayMusic(level,stage=1){
   let ctx=ensureAudio();if(!ctx||!soundEnabled||!audioUnlocked||!audioPageActive)return;
-  stopIntroTune(.08);stopGameplayMusic(.04);gameplayMusicPlaying=true;gameplayMusicSignature=level+':'+stage;let generation=++gameplayMusicGeneration;scheduleGameplayMusicLoop(generation,level,stage);
+  stopIntroTune(.06);stopLevelIntroMusic(.06);stopGameplayMusic(.04);
+  if(audioMusic){
+    audioMusic.gain.cancelScheduledValues(ctx.currentTime);
+    audioMusic.gain.setValueAtTime(Math.max(.0001,audioMusic.gain.value),ctx.currentTime);
+    audioMusic.gain.setTargetAtTime(.25,ctx.currentTime,.05);
+  }
+  gameplayMusicPlaying=true;gameplayMusicSignature=level+':'+stage;let generation=++gameplayMusicGeneration;scheduleGameplayMusicLoop(generation,level,stage);
 }
 function syncFlameHazardAudio(){
   if(!soundEnabled||!audioUnlocked||!audioPageActive||!game||game.phase!=='play'||game.paused||game.over||game.timeStop>0){
@@ -4529,10 +4539,11 @@ function scheduleIntroChord(freqs,when,duration,type='triangle',gain=.018){
     introTone(freqs[index],when,duration,type,gain,(index-(freqs.length-1)/2)*5);
   }
 }
-function scheduleIntroMusicLoop(generation,firstPass=false){
+function scheduleIntroMusicLoop(generation,firstPass=false,startAt=0){
   if(!audio||!soundEnabled||!audioUnlocked||!introMusicPlaying||generation!==introMusicGeneration)return;
   let ctx=audio,beat=60/128,step=beat/2,loopSteps=64,loopDuration=loopSteps*step;
-  let t=ctx.currentTime+.08;
+  introVoices=introVoices.filter(voice=>voice&&voice.end>ctx.currentTime+.02);
+  let t=Math.max(startAt||ctx.currentTime+.08,ctx.currentTime+.025);
 
   /* Opening furnace-door impact, only on the first pass. */
   if(firstPass){
@@ -4598,10 +4609,12 @@ function scheduleIntroMusicLoop(generation,firstPass=false){
   });
   scheduleIntroChord([164.81,246.94,329.63],t+60*step,step*3.4,'sine',.011);
 
+  introMusicNextStart=t+loopDuration;
   clearTimeout(introMusicTimer);
+  let schedulingLead=.2,delay=Math.max(.04,introMusicNextStart-ctx.currentTime-schedulingLead);
   introMusicTimer=setTimeout(()=>{
-    scheduleIntroMusicLoop(generation,false);
-  },Math.max(100,Math.round((loopDuration-.22)*1000)));
+    scheduleIntroMusicLoop(generation,false,introMusicNextStart);
+  },Math.round(delay*1000));
 }
 function playIntroTune(){
   stopLevelIntroMusic(.06);stopGameplayMusic(.08);stopWorldAudio(.08);stopMovementAudio(.06);
@@ -4617,7 +4630,7 @@ function playIntroTune(){
   scheduleIntroMusicLoop(generation,true);
 }
 function stopIntroTune(fade=.18){
-  introMusicPlaying=false;introMusicGeneration++;
+  introMusicPlaying=false;introMusicNextStart=0;introMusicGeneration++;
   clearTimeout(introMusicTimer);introMusicTimer=0;
   if(!audio)return;
   let t=audio.currentTime;
