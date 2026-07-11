@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry</title>
-<!-- v1.0.75 -->
-<meta name="application-version" content="1.0.75">
+<!-- v1.0.76 -->
+<meta name="application-version" content="1.0.76">
 <style>
 :root{
   --bg:#010207;--surface:#060d1a;--surface-2:#0d1930;--surface-3:#02050c;
@@ -1026,7 +1026,7 @@ text-shadow:0 1px #ffffff55;font-size:0
     </div>
   </section>
 </main>
-  <span class="build-version" aria-hidden="true">1.0.75</span>
+  <span class="build-version" aria-hidden="true">1.0.76</span>
 
   <aside id="gameChat" class="game-chat hide" aria-label="Multiplayer room chat">
     <span id="chatFloatingDock" class="chat-floating-dock">
@@ -1402,7 +1402,7 @@ let selectedDifficulty=savedDifficulty();
 let unlockedLevel=LEVELS.length,selectedLevel=savedSelectedLevel();
 let game=makeGame(selectedDifficulty,selectedLevel),last=performance.now(),net=netState(),audio=null;
 let renderPixelRatio=1;
-const FIELD_CACHE={level:0,background:effectCanvas(W,H),foreground:effectCanvas(W,H)};
+const FIELD_CACHE={level:0,pixelRatio:1,background:effectCanvas(W,H),foreground:effectCanvas(W,H)};
 function visualNowMs(){
   let now=performance.now();
   if(net.role==='client'&&Number.isFinite(net.motionClockOffset))return Math.max(0,now-MOTION_BUFFER_DELAY-net.motionClockOffset);
@@ -1415,6 +1415,19 @@ function applyCanvasContextDefaults(){
   cx.lineCap='round';
 }
 function setWorldTransform(){cx.setTransform(renderPixelRatio,0,0,renderPixelRatio,0,0)}
+function configureFieldCacheResolution(){
+  let width=Math.round(W*renderPixelRatio),height=Math.round(H*renderPixelRatio);
+  if(FIELD_CACHE.pixelRatio===renderPixelRatio&&FIELD_CACHE.background.width===width&&FIELD_CACHE.background.height===height)return;
+  FIELD_CACHE.pixelRatio=renderPixelRatio;
+  for(const layer of [FIELD_CACHE.background,FIELD_CACHE.foreground]){
+    layer.width=width;
+    layer.height=height;
+    let layerCx=layer.getContext('2d');
+    layerCx.imageSmoothingEnabled=true;
+    layerCx.imageSmoothingQuality='high';
+  }
+  FIELD_CACHE.level=0;
+}
 function configureCanvasResolution(displayScale=1){
   let dpr=Math.max(1,num(window.devicePixelRatio,1));
   let next=clamp(displayScale*dpr,1,2);
@@ -1425,7 +1438,7 @@ function configureCanvasResolution(displayScale=1){
   cv.height=Math.round(H*renderPixelRatio);
   applyCanvasContextDefaults();
   setWorldTransform();
-  FIELD_CACHE.level=0;
+  configureFieldCacheResolution();
 }
 let audioMaster=null,audioCompressor=null,audioSfx=null,audioMusic=null,audioLevel=null,audioPower=null,audioNoise=null;
 let audioUnlocked=false,audioPageActive=!document.hidden&&document.hasFocus(),audioSuspendedByPage=false,introPlayed=false,introMusicPlaying=false,introMusicTimer=0,introMusicGeneration=0,introVoices=[],levelIntroVoices=[],levelIntroTimer=0,levelIntroGeneration=0,pendingLevelIntro=0,activePowerAudio=new Map();
@@ -2727,13 +2740,14 @@ function clearFrameCanvas(){
   setWorldTransform();
 }
 function captureFieldLayer(target,paint){
+  configureFieldCacheResolution();
   clearFrameCanvas();paint();
   let targetCx=target.getContext('2d');
   targetCx.setTransform(1,0,0,1,0,0);
   targetCx.globalAlpha=1;
   targetCx.globalCompositeOperation='source-over';
-  targetCx.clearRect(0,0,W,H);
-  targetCx.drawImage(cv,0,0);
+  targetCx.clearRect(0,0,target.width,target.height);
+  targetCx.drawImage(cv,0,0,cv.width,cv.height,0,0,target.width,target.height);
 }
 function drawStaticFieldBackground(level){
   let map=levelConfig(level),accent=map.accent||'#ff7a24';
@@ -2790,7 +2804,7 @@ function ensureFieldCache(){
 }
 function field(){
   let t=visualNowMs()/1000;
-  cx.drawImage(FIELD_CACHE.background,0,0);
+  cx.drawImage(FIELD_CACHE.background,0,0,FIELD_CACHE.background.width,FIELD_CACHE.background.height,0,0,W,H);
 
   /* Furnace glow breathing through the floor */
   let pulse=.65+.35*Math.sin(t*1.7);
@@ -2803,7 +2817,7 @@ function field(){
     cx.fillRect(x,y,2+(i%3),1);
   }
   cx.globalAlpha=1;
-  cx.drawImage(FIELD_CACHE.foreground,0,0);
+  cx.drawImage(FIELD_CACHE.foreground,0,0,FIELD_CACHE.foreground.width,FIELD_CACHE.foreground.height,0,0,W,H);
 }
 function drawFirePatches(){
   let now=visualNowMs()/1000;
