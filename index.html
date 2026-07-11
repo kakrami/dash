@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry</title>
-<!-- v1.0.90 -->
-<meta name="application-version" content="1.0.90">
+<!-- v1.0.99 -->
+<meta name="application-version" content="1.0.99">
 <style>
 :root{
   --bg:#010207;--surface:#060d1a;--surface-2:#0d1930;--surface-3:#02050c;
@@ -67,6 +67,9 @@ linear-gradient(150deg,#050201 0%,#120906 48%,#02060b 100%)
   .app::before,.app::after{animation:none!important}
   .btn{transition:none!important}
 }
+body.render-balanced .game-hud,body.render-performance .game-hud{backdrop-filter:none}
+body.render-performance .app::before,body.render-performance .app::after{animation:none!important}
+body.render-performance canvas{box-shadow:0 16px 46px #000c,0 0 24px #49c7ff20,inset 0 0 22px #0008}
 
 /* Shared controls */
 .btn{position:relative;isolation:isolate;overflow:hidden;min-height:44px;padding:0 16px;border-radius:12px;color:var(--text);font-size:14px;font-weight:900;cursor:pointer;border:1px solid #ffffff26;background:linear-gradient(180deg,#1d2c48,#09111f);box-shadow:inset 0 1px #ffffff34,0 7px 18px #0008;white-space:nowrap;transition:transform .08s ease,filter .12s ease,border-color .12s ease}
@@ -86,11 +89,27 @@ box-shadow:inset 0 1px #ffffff78,0 12px 32px #22bfff55,0 0 28px #8b5cff38
 .btn-menu .menu-icon{font-size:20px;line-height:1}
 
 .logo{
-width:48px;height:48px;display:grid;place-items:center;border-radius:50%;
-background:conic-gradient(from 15deg,#ff3d1f,#ffb11f,#ff541f,#7a1820,#ff3d1f);
-border:0;box-shadow:0 0 26px #5edfff58,0 10px 26px #0008;
-font-weight:1000;font-size:21px;color:#08101f;text-shadow:0 1px #fff;flex:0 0 auto
+position:relative;width:48px;height:48px;display:grid;place-items:center;overflow:hidden;border-radius:15px;
+background:radial-gradient(circle at 50% 28%,#fff7c0 0 9%,#ffd25b 10%,#ff8d2a 28%,#43111f 68%,#0b1021 100%);
+border:1px solid #91efff5f;box-shadow:0 0 30px #54dfff4a,0 14px 28px #0009,inset 0 1px #ffffff60,inset 0 -12px 26px #0008;
+flex:0 0 auto;transform:rotate(45deg)
 }
+.logo::before,.logo::after{content:'';position:absolute;inset:auto}
+.logo::before{
+width:88%;height:88%;border-radius:13px;border:1px solid #9eeeff4a;
+background:linear-gradient(145deg,#ffffff0e,#0000001a 62%,#5df0ff18);
+box-shadow:inset 0 0 18px #67e8ff20;transform:rotate(0deg)
+}
+.logo::after{
+width:54%;height:54%;border-radius:10px;border:1px solid #fff4c48c;
+background:radial-gradient(circle at 50% 50%,#fff9da 0 14%,#ffd55e 16%,#ff8e1f 42%,#8a1c2a 72%,#210714 100%);
+box-shadow:0 0 18px #ffca543f,inset 0 0 10px #ffffff45
+}
+.logo-mark{position:absolute;inset:0;display:block}
+.logo-mark::before,.logo-mark::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-45deg);border-radius:999px}
+.logo-mark::before{width:62%;height:8%;background:linear-gradient(90deg,#ffeb99,#ffffff,#ffae42);box-shadow:0 0 12px #ffe38c7a}
+.logo-mark::after{width:8%;height:62%;background:linear-gradient(180deg,#ffeb99,#ffffff,#ffae42);box-shadow:0 0 12px #ffe38c7a}
+.logo-core{position:absolute;left:50%;top:50%;width:18%;height:18%;transform:translate(-50%,-50%);border-radius:50%;background:#ffffff;box-shadow:0 0 12px #fff,0 0 24px #7defff}
 
 /* Main menu */
 .setup-screen{
@@ -523,7 +542,7 @@ body.chat-open #playScreen .game-stage{pointer-events:none}
 
 /* Touch controls */
 .touch-deck{
-flex:0 0 108px;display:none;align-items:end;justify-content:space-between;padding:8px 14px;gap:14px;
+flex:0 0 146px;display:none;align-items:end;justify-content:space-between;padding:8px 14px;gap:14px;
 background:
 linear-gradient(160deg,#111d32e8,#050914ef) padding-box,
 linear-gradient(110deg,#63e5ff42,#735dff24,#ff5cbd22) border-box;
@@ -533,7 +552,7 @@ box-shadow:0 14px 34px #0008,inset 0 1px #ffffff12
 .touch-group{display:grid;gap:4px;place-items:center}
 .control-label{display:none}
 .joy{
-position:relative;width:94px;height:94px;border-radius:50%;
+position:relative;width:132px;height:132px;border-radius:50%;
 background:
 radial-gradient(circle at 50% 50%,#213655 0 15%,#0c1729 17% 48%,#050913 50%),
 conic-gradient(from 45deg,#6ee8ff35,#755dff20,#ff5bc925,#6ee8ff35);
@@ -543,7 +562,7 @@ box-shadow:0 12px 28px #0008,inset 0 0 24px #000b,0 0 22px #57ddff12
 .joy::before{content:'';position:absolute;inset:35%;border-radius:50%;border:1px solid #ffffff18;background:#00000012;pointer-events:none}
 .joy.active{border-color:#8fe7ff70;box-shadow:0 10px 24px #0006,inset 0 1px #ffffff24,0 0 18px #55d7ff25}
 .stick{
-position:absolute;left:29px;top:29px;width:36px;height:36px;border-radius:50%;
+position:absolute;left:42px;top:42px;width:48px;height:48px;border-radius:50%;
 background:radial-gradient(circle at 35% 28%,#fff,#8beaff 25%,#5263cf 62%,#17213b);
 border:1px solid #dffcff6b;box-shadow:0 7px 18px #0008,0 0 16px #5ddfff35;
 will-change:left,top;transition:left .1s ease-out,top .1s ease-out
@@ -645,9 +664,9 @@ text-shadow:0 1px #ffffff55;font-size:0
   .power-chip{padding:2px 6px;min-height:24px}
   .power-chip-time{font-size:8px}
   .hud-button-row{min-width:auto}
-  .touch-deck{flex-basis:104px;padding-inline:10px;gap:10px}
-  .joy{width:84px;height:84px}
-  .stick{width:34px;height:34px}
+  .touch-deck{flex-basis:136px;padding-inline:8px;gap:10px}
+  .joy{width:122px;height:122px}
+  .stick{left:38px;top:38px;width:46px;height:46px}
   .dash{width:60px;height:60px;font-size:12px}
   .tool-power-stack{width:96px;min-width:96px;grid-template-rows:43px;min-height:43px}
   .touch-ability-slots{width:96px;min-width:96px}
@@ -747,7 +766,7 @@ text-shadow:0 1px #ffffff55;font-size:0
   .level-select-spacer{width:48px}
 
   .play-screen{
-    display:grid;grid-template-rows:auto minmax(0,1fr);grid-template-columns:92px minmax(0,1fr) 110px;
+    display:grid;grid-template-rows:auto minmax(0,1fr);grid-template-columns:128px minmax(0,1fr) 116px;
     grid-template-areas:"hud hud hud" "move stage action";gap:5px;padding:4px
   }
   .game-hud{grid-area:hud;min-height:0;padding:5px 6px;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;grid-template-areas:"score actions" "players players";align-items:center;border-radius:13px}
@@ -775,8 +794,8 @@ text-shadow:0 1px #ffffff55;font-size:0
   .touch-group{background:linear-gradient(180deg,#101a2ef0,#060914f0);border:1px solid var(--line);border-radius:13px;box-shadow:0 8px 22px #0007,inset 0 1px #ffffff12;min-height:0;align-content:center;justify-content:center;padding:6px;gap:4px}
   .touch-group:first-child{grid-area:move}
   .touch-group:last-child{grid-area:action}
-  .joy{width:78px;height:78px}
-  .stick{width:30px;height:30px}
+  .joy{width:114px;height:114px}
+  .stick{left:35px;top:35px;width:44px;height:44px}
   .action-buttons{flex-direction:column;gap:8px;justify-content:center}
   .tool-power-stack{width:88px;min-width:88px;grid-template-rows:40px;gap:0;min-height:40px}
   .touch-ability-slots{gap:4px;width:88px;min-width:88px}
@@ -831,7 +850,7 @@ text-shadow:0 1px #ffffff55;font-size:0
     <div class="setup-card">
       <section class="setup-hero" aria-labelledby="gameTitle">
         <div class="brand">
-          <span class="logo" aria-hidden="true">◈</span>
+          <span class="logo" aria-hidden="true"><span class="logo-mark"><span class="logo-core"></span></span></span>
           <div class="brand-copy"><h1 id="gameTitle">Coin Dash</h1></div>
         </div>
         <div id="setupActions" class="setup-actions">
@@ -937,7 +956,7 @@ text-shadow:0 1px #ffffff55;font-size:0
   <section id="playScreen" class="screen play-screen hide" aria-label="Gameplay">
     <header class="game-hud" aria-label="Game status">
       <section class="score-card">
-        <span class="logo" aria-hidden="true">◈</span>
+        <span class="logo" aria-hidden="true"><span class="logo-mark"><span class="logo-core"></span></span></span>
         <div>
                     <div class="stats-row">
             <span class="stat-pill stat-level"><span class="stat-icon" aria-hidden="true">◫</span><span id="levelStatus">1/5</span></span>
@@ -1045,7 +1064,7 @@ text-shadow:0 1px #ffffff55;font-size:0
     </div>
   </section>
 </main>
-  <span class="build-version" aria-hidden="true">1.0.90</span>
+  <span class="build-version" aria-hidden="true">1.0.99</span>
 
   <aside id="gameChat" class="game-chat hide" aria-label="Multiplayer room chat">
     <span id="chatFloatingDock" class="chat-floating-dock">
@@ -1077,7 +1096,7 @@ text-shadow:0 1px #ffffff55;font-size:0
 
 (()=>{'use strict';
 
-const $=id=>document.getElementById(id),cv=$('game'),cx=cv.getContext('2d');
+const $=id=>document.getElementById(id),cv=$('game'),cx=cv.getContext('2d',{alpha:false,desynchronized:true});
 cx.imageSmoothingEnabled=true;
 cx.lineJoin='round';
 cx.lineCap='round';
@@ -1432,8 +1451,39 @@ let soundEnabled=savedSoundSetting();
 let selectedDifficulty=savedDifficulty();
 let selectedLevel=savedSelectedLevel();
 let game=makeGame(selectedDifficulty,selectedLevel),last=performance.now(),net=netState(),audio=null;
+const RENDER_QUALITY_LEVELS=[
+  {name:'performance',dprCap:1,smoothing:'low'},
+  {name:'balanced',dprCap:1.35,smoothing:'medium'},
+  {name:'high',dprCap:1.85,smoothing:'high'}
+];
+let renderQualityIndex=matchMedia('(hover:none),(pointer:coarse)').matches?1:2;
 let renderPixelRatio=1;
-const FIELD_CACHE={level:0,pixelRatio:1,background:effectCanvas(W,H),foreground:effectCanvas(W,H)};
+const renderPerf={frameMs:16.7,drawMs:0,samples:0,lastChange:performance.now(),goodSince:0,badSince:0};
+const FIELD_CACHE={level:0,pixelRatio:1,background:effectCanvas(W,H)};
+function renderQuality(){return RENDER_QUALITY_LEVELS[renderQualityIndex]}
+function qualityCount(high,balanced,performance){return renderQualityIndex===2?high:renderQualityIndex===1?balanced:performance}
+function applyRenderQuality(force=false){
+  let name=renderQuality().name;
+  document.body.classList.toggle('render-balanced',name==='balanced');
+  document.body.classList.toggle('render-performance',name==='performance');
+  if(force||cv.isConnected)fitCanvas();
+}
+function sampleRenderPerformance(frameMs,drawMs,now){
+  let weight=renderPerf.samples<45?.12:.045;
+  renderPerf.frameMs+= (frameMs-renderPerf.frameMs)*weight;
+  renderPerf.drawMs+= (drawMs-renderPerf.drawMs)*weight;
+  renderPerf.samples++;
+  if(renderPerf.samples<75||now-renderPerf.lastChange<3500)return;
+  let overloaded=renderPerf.drawMs>(renderQualityIndex===2?10.5:14)||renderPerf.frameMs>(renderQualityIndex===2?20.5:25);
+  let comfortable=renderPerf.drawMs<6.2&&renderPerf.frameMs<18.5;
+  if(overloaded){
+    renderPerf.goodSince=0;if(!renderPerf.badSince)renderPerf.badSince=now;
+    if(now-renderPerf.badSince>900&&renderQualityIndex>0){renderQualityIndex--;renderPerf.lastChange=now;renderPerf.badSince=0;renderPerf.samples=0;applyRenderQuality(true)}
+  }else if(comfortable){
+    renderPerf.badSince=0;if(!renderPerf.goodSince)renderPerf.goodSince=now;
+    if(now-renderPerf.goodSince>5000&&renderQualityIndex<2){renderQualityIndex++;renderPerf.lastChange=now;renderPerf.goodSince=0;renderPerf.samples=0;applyRenderQuality(true)}
+  }else{renderPerf.goodSince=0;renderPerf.badSince=0}
+}
 function visualNowMs(){
   let now=performance.now();
   if(net.role==='client'&&Number.isFinite(net.motionClockOffset))return Math.max(0,now-MOTION_BUFFER_DELAY-net.motionClockOffset);
@@ -1441,7 +1491,7 @@ function visualNowMs(){
 }
 function applyCanvasContextDefaults(){
   cx.imageSmoothingEnabled=true;
-  cx.imageSmoothingQuality='high';
+  cx.imageSmoothingQuality=renderQuality().smoothing;
   cx.lineJoin='round';
   cx.lineCap='round';
 }
@@ -1450,18 +1500,18 @@ function configureFieldCacheResolution(){
   let width=Math.round(W*renderPixelRatio),height=Math.round(H*renderPixelRatio);
   if(FIELD_CACHE.pixelRatio===renderPixelRatio&&FIELD_CACHE.background.width===width&&FIELD_CACHE.background.height===height)return;
   FIELD_CACHE.pixelRatio=renderPixelRatio;
-  for(const layer of [FIELD_CACHE.background,FIELD_CACHE.foreground]){
+  for(const layer of [FIELD_CACHE.background]){
     layer.width=width;
     layer.height=height;
     let layerCx=layer.getContext('2d');
     layerCx.imageSmoothingEnabled=true;
-    layerCx.imageSmoothingQuality='high';
+    layerCx.imageSmoothingQuality=renderQuality().smoothing;
   }
   FIELD_CACHE.level=0;
 }
 function configureCanvasResolution(displayScale=1){
-  let dpr=Math.max(1,num(window.devicePixelRatio,1));
-  let next=clamp(displayScale*dpr,1,2);
+  let dpr=Math.max(1,num(window.devicePixelRatio,1)),quality=renderQuality();
+  let next=clamp(displayScale*dpr,1,quality.dprCap);
   next=Math.round(next*20)/20;
   if(Math.abs(next-renderPixelRatio)<.025&&cv.width===Math.round(W*next)&&cv.height===Math.round(H*next))return;
   renderPixelRatio=next;
@@ -1745,7 +1795,9 @@ function player(id,x,y,control='local',connected=true){return{id,x,y,vx:0,vy:0,r
 function bossMaxHp(difficulty=selectedDifficulty){return difficulty==='easy'?10:difficulty==='hard'?18:14}
 function enemy(x,y,startSpeed=70,type='hunter',difficulty=selectedDifficulty){let a=Math.random()*6.28,def=ENEMY_DEFS[type]||ENEMY_DEFS.hunter,mode=type==='scout'?'orbit':type==='sentinel'?'return':type==='warden'?'bossChase':'chase',maxHp=type==='warden'?bossMaxHp(normalizeDifficulty(difficulty)):1;
 return{x,y,homeX:x,homeY:y,vx:type==='warden'?0:Math.cos(a)*startSpeed,vy:type==='warden'?0:Math.sin(a)*startSpeed,r:def.radius,type:ENEMY_DEFS[type]?type:'hunter',stun:0,cryo:0,phase:Math.random()*6.28,cooldown:type==='warden'?1.8:1.2+Math.random()*1.8,aiTimer:0,mode,aimX:1,aimY:0,pulseRadius:0,attackHits:[],armor:type==='brute'?1:0,armorTimer:0,scoreCd:0,burn:0,fireCd:0,navPath:[],navIndex:0,navTimer:0,navTargetX:x,navTargetY:y,navProgressX:x,navProgressY:y,navStuck:0,maxHp,hp:maxHp,hitInvuln:0,bossStage:1,attackCycle:0,defeated:false,deathTimer:0,bossTrailCd:0}}
+const POWER_PICKUP_RADIUS=30,POWER_PICKUP_Y_OFFSET=12;
 function powerup(type,x,y,i=0){return{type,x,y,r:13,taken:false,pulse:i*.7}}
+function playerTouchesPower(p,item){let dx=p.x-item.x,dy=p.y-(item.y-POWER_PICKUP_Y_OFFSET),reach=p.r+POWER_PICKUP_RADIUS;return dx*dx+dy*dy<=reach*reach}
 function levelPowerSpecs(level){return(levelConfig(level).powers||[]).map(p=>[p[0],p[1],p[2]])}
 function makeLevelObjects(level,difficulty){
   let map=levelConfig(level),cfg=difficultyConfig(difficulty),count=Math.min(map.enemies.length,cfg.enemyCount+map.enemyBonus);
@@ -2825,7 +2877,7 @@ if(p.boost>0&&hypot(p.vx,p.vy)>45&&p.fireTrailCd<=0){
 }
 updateHazardsForPlayer(p,dt,levelConfig(game.level));
 for(const coin of game.coins)if(!coin.taken&&hypot(p.x-coin.x,p.y-coin.y)<p.r+coin.r+4)collectCoin(p,coin);
-for(const item of game.powerups)if(!item.taken&&hypot(p.x-item.x,p.y-item.y)<p.r+item.r)collectPower(p,item);
+for(const item of game.powerups)if(!item.taken&&playerTouchesPower(p,item))collectPower(p,item);
 for(const e of game.enemies){if(e.defeated)continue;let d=hypot(p.x-e.x,p.y-e.y);
 	if(d<p.r+e.r){if(p.dt>0)dashSmash(p,e);else enemyHitPlayer(p,e,e.type==='warden'?54:e.type==='brute'?40:28)}}}
 
@@ -2916,35 +2968,61 @@ function captureFieldLayer(target,paint){
   targetCx.drawImage(cv,0,0,cv.width,cv.height,0,0,target.width,target.height);
 }
 function drawStaticFieldBackground(level){
-  let map=levelConfig(level),accent=map.accent||'#ff7a24';
-  cx.fillStyle='#030201';cx.fillRect(0,0,W,H);
-  cx.fillStyle=lg(0,0,0,H,map.floorB,map.floorA);cx.fillRect(0,0,W,H);
-  cx.fillStyle=rg(W*.5,H*.42,610,accent+'34','#0000');cx.fillRect(0,0,W,H);
+  let map=levelConfig(level),accent=map.accent||'#ff7a24',boss=!!map.boss;
+  const playX=24,playY=24,playW=W-48,playH=H-48;
 
-  /* Riveted steel floor plates */
-  let tile=54;
-  for(let y=27;y<H-24;y+=tile){
-    for(let x=27;x<W-24;x+=tile){
-      let odd=((x/tile+y/tile)|0)&1;
-      rr(x+2,y+2,tile-5,tile-5,4,odd?map.floorB:map.floorA,odd?'#ffffff12':accent+'28');
-      cx.fillStyle='#9b775d66';
-      for(const [rx,ry] of [[x+8,y+8],[x+tile-9,y+8],[x+8,y+tile-9],[x+tile-9,y+tile-9]]){
-        cx.beginPath();cx.arc(rx,ry,1.3,0,7);cx.fill();
-      }
+  /* Calm, readable arena floor */
+  cx.fillStyle='#111a28';cx.fillRect(0,0,W,H);
+  cx.fillStyle=lg(0,playY,0,playY+playH,'#26384d','#162334');
+  rr(playX,playY,playW,playH,18,cx.fillStyle,'#4a6982');
+
+  /* Broad low-contrast steel sections */
+  const cols=4,rows=3,gap=8;
+  const panelW=(playW-gap*(cols+1))/cols;
+  const panelH=(playH-gap*(rows+1))/rows;
+  for(let row=0;row<rows;row++){
+    for(let col=0;col<cols;col++){
+      let x=playX+gap+col*(panelW+gap),y=playY+gap+row*(panelH+gap);
+      let alternate=(row+col)&1;
+      rr(x,y,panelW,panelH,10,alternate?'#1d2c3f':'#1a2839',alternate?'#385066':'#30475c');
     }
   }
 
-  /* Molten channels below the grating */
-  cx.save();cx.globalAlpha=.22;cx.strokeStyle='#ff5a1f';cx.shadowColor='#ff3d16';cx.shadowBlur=16;cx.lineWidth=3;
-  for(let y=54;y<H-30;y+=108){cx.beginPath();cx.moveTo(28,y);cx.lineTo(W-28,y);cx.stroke()}
+  /* Subtle level tint, kept behind gameplay */
+  cx.save();
+  cx.globalAlpha=boss?.18:.11;
+  cx.fillStyle=rg(W*.5,H*.5,boss?250:390,accent,'#0000');
+  cx.fillRect(playX,playY,playW,playH);
   cx.restore();
 
-  /* Pipe seams and coolant lines */
-  cx.save();cx.globalAlpha=.38;cx.lineWidth=1.5;
-  for(let x=54;x<W-30;x+=108){
-    cx.strokeStyle=(x/108|0)%2?accent:'#35d9ff';
-    cx.beginPath();cx.moveTo(x,28);cx.lineTo(x,H-28);cx.stroke();
+  /* Minimal floor seams */
+  cx.save();
+  cx.globalAlpha=.18;
+  cx.strokeStyle='#9bc4dc';
+  cx.lineWidth=1;
+  for(let x=playX+playW/4;x<playX+playW;x+=playW/4){cx.beginPath();cx.moveTo(x,playY+10);cx.lineTo(x,playY+playH-10);cx.stroke()}
+  for(let y=playY+playH/3;y<playY+playH;y+=playH/3){cx.beginPath();cx.moveTo(playX+10,y);cx.lineTo(playX+playW-10,y);cx.stroke()}
+  cx.restore();
+
+  /* Small recessed center plate instead of decorative machinery */
+  cx.save();
+  cx.globalAlpha=.42;
+  cx.strokeStyle=accent+'66';
+  cx.lineWidth=2;
+  if(boss){
+    cx.beginPath();cx.arc(W*.5,H*.5,94,0,Math.PI*2);cx.stroke();
+    cx.globalAlpha=.2;cx.beginPath();cx.arc(W*.5,H*.5,66,0,Math.PI*2);cx.stroke();
+  }else{
+    rr(W*.5-96,H*.5-34,192,68,18,'#172434',accent+'42');
   }
+  cx.restore();
+
+  /* Quiet edge light so the field stays visible without visual noise */
+  cx.save();
+  cx.globalAlpha=.18;
+  cx.strokeStyle=accent;
+  cx.lineWidth=3;
+  rr(playX+5,playY+5,playW-10,playH-10,15,null,accent);
   cx.restore();
 }
 function drawStaticFieldForeground(level){
@@ -2963,8 +3041,10 @@ function drawStaticFieldForeground(level){
 function ensureFieldCache(){
   let level=normalizeLevel(game.level);
   if(FIELD_CACHE.level===level)return;
-  captureFieldLayer(FIELD_CACHE.background,()=>drawStaticFieldBackground(level));
-  captureFieldLayer(FIELD_CACHE.foreground,()=>drawStaticFieldForeground(level));
+  captureFieldLayer(FIELD_CACHE.background,()=>{
+    drawStaticFieldBackground(level);
+    drawStaticFieldForeground(level);
+  });
   FIELD_CACHE.level=level;
   resetFrameCanvas();
 }
@@ -2977,13 +3057,13 @@ function field(){
   cx.globalAlpha=.08+.05*pulse;cx.fillStyle=rg(W*.5,H*.92,500,'#ff5a1f','#0000');cx.fillRect(0,0,W,H);cx.globalAlpha=1;
 
   /* Heat haze motes */
-  for(let i=0;i<34;i++){
+  let moteCount=qualityCount(34,22,12);
+  for(let i=0;i<moteCount;i++){
     let x=(i*149+t*(10+i%5))%W,y=H-28-((i*73+t*(18+i%4))%(H-50));
     cx.globalAlpha=.08+(i%4)*.035;cx.fillStyle=i%3?'#ff9d42':'#ffffff';
     cx.fillRect(x,y,2+(i%3),1);
   }
   cx.globalAlpha=1;
-  cx.drawImage(FIELD_CACHE.foreground,0,0,FIELD_CACHE.foreground.width,FIELD_CACHE.foreground.height,0,0,W,H);
 }
 function drawFirePatches(){
   let now=visualNowMs()/1000;
@@ -2994,14 +3074,14 @@ function drawFirePatches(){
     shadow(f.x,f.y+5,f.r*.78,5,.3*ratio);
     drawFlameSprite(cx,f.x-6,f.y+3,f.r/22*(.78+.2*flicker),now*5+f.phase,ratio,.05,styleName,1.08);
     drawFlameSprite(cx,f.x+7,f.y+5,f.r/28*(.75+.2*Math.sin(now*7+f.phase)),now*6+f.phase+1,ratio,-.1,styleName,.92);
-    drawFlameSprite(cx,f.x+1,f.y-2,f.r/34*(.7+.12*flicker),now*8+f.phase+2,ratio*.72,.02,styleName,1.25);
-    for(let i=0;i<3;i++){
+    if(renderQualityIndex===2)drawFlameSprite(cx,f.x+1,f.y-2,f.r/34*(.7+.12*flicker),now*8+f.phase+2,ratio*.72,.02,styleName,1.25);
+    for(let i=0;i<qualityCount(3,2,1);i++){
       let p=(now*(.45+i*.08)+f.phase*.17+i*.31)%1;
       cx.globalAlpha=ratio*(1-p)*.75;cx.fillStyle=style.spark;
       cx.beginPath();cx.arc(f.x+Math.sin(f.phase+i*2.1)*f.r*.42*(1-p),f.y-f.r*(.2+p*1.15),1.2+(1-p)*1.2,0,7);cx.fill();
     }
-    if(style.soot>.2&&ratio<.82)drawSmokePuff(cx,f.x,f.y-f.r*.72,f.r*.31,ratio*.55,styleName);
-    drawHeatWisp(cx,f.x,f.y-f.r*.15,f.r*1.5,f.r,now*2+f.phase,ratio*.11);
+    if(renderQualityIndex>0&&style.soot>.2&&ratio<.82)drawSmokePuff(cx,f.x,f.y-f.r*.72,f.r*.31,ratio*.55,styleName);
+    if(renderQualityIndex===2)drawHeatWisp(cx,f.x,f.y-f.r*.15,f.r*1.5,f.r,now*2+f.phase,ratio*.11);
     cx.restore();
   }
 }
@@ -3383,7 +3463,8 @@ function drawPlayer(p){
   if(!p.alive){hover=2;bank=.34;bodySquash=.76;bodyStretch=.94}
   let bodyY=p.y+hover;
 
-  for(const t of p.trail)drawDashFx(p,t,col,now);
+  let trailStart=Math.max(0,p.trail.length-qualityCount(16,10,7));
+  for(let i=trailStart;i<p.trail.length;i++)drawDashFx(p,p.trail[i],col,now);
 
   if(p.shield>0){
     cx.save();cx.strokeStyle=POWER_DEFS.shield.color;cx.lineWidth=4;cx.shadowColor=POWER_DEFS.shield.color;cx.shadowBlur=22;
@@ -3394,8 +3475,9 @@ function drawPlayer(p){
   if(p.freezeAura>0){
     let ratio=clamp(p.freezeAura/POWER_TIMERS.freeze,0,1),spin=now*.008;
     cx.save();cx.translate(p.x,bodyY);cx.strokeStyle='#dfffff';cx.fillStyle=POWER_DEFS.freeze.color;cx.shadowColor=POWER_DEFS.freeze.color;cx.shadowBlur=15;
-    for(let i=0;i<10;i++){
-      let a=i*Math.PI/5+spin,r=24+(1-ratio)*CRYO_RADIUS*.68,x=Math.cos(a)*r,y=Math.sin(a)*r;
+    let shardCount=qualityCount(10,8,6);
+    for(let i=0;i<shardCount;i++){
+      let a=i*Math.PI*2/shardCount+spin,r=24+(1-ratio)*CRYO_RADIUS*.68,x=Math.cos(a)*r,y=Math.sin(a)*r;
       cx.save();cx.translate(x,y);cx.rotate(a);cx.globalAlpha=ratio;
       cx.beginPath();cx.moveTo(9,0);cx.lineTo(-5,-4);cx.lineTo(-2,0);cx.lineTo(-5,4);cx.closePath();cx.fill();cx.stroke();cx.restore();
     }
@@ -3760,7 +3842,7 @@ function drawSuperFx(){
     cx.beginPath();cx.arc(fx.x,fx.y,r,0,7);cx.stroke();
     cx.globalAlpha=a*.11;cx.fillStyle=d.color;cx.beginPath();cx.arc(fx.x,fx.y,r,0,7);cx.fill();
     cx.globalAlpha=(1-progress)*.45;cx.setLineDash([6,8]);cx.lineWidth=2;cx.beginPath();cx.arc(fx.x,fx.y,radius,0,7);cx.stroke();cx.setLineDash([]);
-    let flameCount=16;
+    let flameCount=qualityCount(16,12,8);
     for(let i=0;i<flameCount;i++){
       let angle=i*Math.PI*2/flameCount+progress*.38,x=fx.x+Math.cos(angle)*r,y=fx.y+Math.sin(angle)*r;
       drawFlameSprite(cx,x,y,.38+.35*a,visualNowMs()*.01+i,a*.72,angle+Math.PI/2,'inferno',1.25);
@@ -5496,14 +5578,18 @@ function sendInput(dt){
   let ch=net.stateDc&&net.stateDc.readyState==='open'?net.stateDc:net.dc;sendRealtime(ch,{t:'input',seq:++inputPacketSeq,v},MAX_INPUT_BUFFER);
 }
 function shouldRenderGameplay(){return !document.hidden&&!els.play.classList.contains('hide')&&!game.paused}
+const FRAME_WORK_MIN_MS=10;
 function loop(now){
-let dt=Math.min(.033,(now-last)/1000||0);
+let frameMs=now-last;
+if(frameMs<FRAME_WORK_MIN_MS){requestAnimationFrame(loop);return}
+let dt=Math.min(.033,frameMs/1000||0);
 last=now;
 update(dt);
 syncMenuBackgroundMusic();
 syncActivePowerAudio();
 syncGameplayAudio();
-if(shouldRenderGameplay())draw();
+let drawMs=0;
+if(shouldRenderGameplay()){let drawStart=performance.now();draw();drawMs=performance.now()-drawStart;sampleRenderPerformance(frameMs,drawMs,now)}
 requestAnimationFrame(loop)}
 const JOY_START_DRAG=6,JOY_STOP_DRAG=3,JOY_MIN_SPEED=.5,JOY_RESPONSE_CURVE=1.08;
 function joystickGeometry(){
@@ -5707,7 +5793,7 @@ updateSoundButtons();
 updateFullscreenLabels();
 syncSetupUI();
 ui(true);
-fitCanvas();
+applyRenderQuality(true);
 centerStick();
 requestAnimationFrame(loop);
 
