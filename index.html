@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry</title>
-<!-- v1.0.71 -->
-<meta name="application-version" content="1.0.71">
+<!-- v1.0.73 -->
+<meta name="application-version" content="1.0.73">
 <style>
 :root{
   --bg:#010207;--surface:#060d1a;--surface-2:#0d1930;--surface-3:#02050c;
@@ -21,6 +21,12 @@ margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(-
 font-family:"Trebuchet MS",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
 touch-action:none;overscroll-behavior:none;-webkit-text-size-adjust:100%
 }
+.build-version{
+position:fixed;left:max(4px,env(safe-area-inset-left,0px));bottom:max(3px,env(safe-area-inset-bottom,0px));
+z-index:45;pointer-events:none;user-select:none;color:#dce7f6;opacity:.16;
+font:700 6px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em
+}
+
 button,textarea{font:inherit}
 button{appearance:none;border:0}
 button:focus-visible,textarea:focus-visible,summary:focus-visible,.joy:focus-visible{outline:3px solid #7edcffaa;outline-offset:2px}
@@ -1018,6 +1024,7 @@ text-shadow:0 1px #ffffff55;font-size:0
     </div>
   </section>
 </main>
+  <span class="build-version" aria-hidden="true">1.0.73</span>
 
   <aside id="gameChat" class="game-chat hide" aria-label="Multiplayer room chat">
     <span id="chatFloatingDock" class="chat-floating-dock">
@@ -1238,9 +1245,9 @@ const MAX_CHANNEL_BUFFER=96*1024; // Never let replaceable realtime traffic buil
 const MAX_INPUT_BUFFER=16*1024;
 const REMOTE_INPUT_TIMEOUT=240;
 const CLIENT_UI_INTERVAL=1/20;
-const SNAPSHOT_INTERVAL=1/12;
-const MOTION_INTERVAL=1/30;
-const MOTION_BUFFER_DELAY=72;
+const SNAPSHOT_INTERVAL=1/20;
+const MOTION_INTERVAL=1/60;
+const MOTION_BUFFER_DELAY=50;
 const MAX_MOTION_BUFFER=28*1024;
 
 const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),levelStatus:$('levelStatus'),clock:$('clock'),powerStatus:$('powerStatus'),players:$('players'),net:$('net'),difficultySetting:$('difficultySetting'),difficultyHint:$('difficultyHint'),difficultyButtons:[...document.querySelectorAll('[data-difficulty]')],levelSelect:$('levelSelectScreen'),levelHint:$('levelHint'),levelOptions:$('levelOptions'),levelPreviewCanvas:$('levelPreviewCanvas'),levelPreviewKicker:$('levelPreviewKicker'),levelPreviewName:$('levelPreviewName'),levelPreviewDescription:$('levelPreviewDescription'),levelBack:$('levelBackBtn'),levelPlay:$('levelPlayBtn'),setupActions:$('setupActions'),start:$('startBtn'),pause:$('pauseBtn'),sound:$('soundBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),menuActions:$('menuActions'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),menuManagePlayers:$('menuManagePlayersBtn'),menuChatDock:$('menuChatDock'),menuFooter:$('menuFooter'),soundGame:$('soundGameBtn'),fullGame:$('fullGameBtn'),confirmOverlay:$('confirmOverlay'),confirmTitle:$('confirmTitle'),confirmText:$('confirmText'),confirmCancel:$('confirmCancelBtn'),confirmAction:$('confirmActionBtn'),sessionPanel:$('sessionPanel'),sessionTitle:$('sessionTitle'),sessionState:$('sessionState'),sessionPlayers:$('sessionPlayers'),sessionActions:$('sessionActions'),manageSession:$('manageSessionBtn'),endSession:$('endSessionBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairPlayers:$('pairPlayers'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),codeLabel:$('codeLabel'),copyInvite:$('copyInviteBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),use:$('useBtn'),code:$('code'),menuPair:$('menuPair'),menuPairTitle:$('menuPairTitle'),menuPairHint:$('menuPairHint'),menuRoomPlayers:$('menuRoomPlayers'),menuRoomCode:$('menuRoomCode'),menuPairActions:$('menuPairActions'),menuCopyInvite:$('menuCopyInviteBtn'),menuPairStatus:$('menuPairStatus'),status:$('status'),chat:$('gameChat'),chatHudDock:$('chatHudDock'),chatFloatingDock:$('chatFloatingDock'),chatLauncher:$('chatLauncher'),chatUnread:$('chatUnread'),chatPanel:$('chatPanel'),chatRoom:$('chatRoom'),chatState:$('chatState'),chatClose:$('chatClose'),chatMessages:$('chatMessages'),chatForm:$('chatForm'),chatInput:$('chatInput'),chatSend:$('chatSend'),hudPowerRack:$('hudPowerRack'),joy:$('joy'),stick:$('stick'),superButtons:[...document.querySelectorAll('[data-super-slot]')],dash:$('dash')};
@@ -1327,7 +1334,7 @@ function drawFireGlow(ctx,x,y,r,styleName='forge',alpha=1){
   ctx.save();ctx.globalAlpha*=alpha;ctx.drawImage(sprite,x-size/2,y-size/2,size,size);ctx.restore();
 }
 function drawSmokePuff(ctx,x,y,scale,alpha,styleName='forge'){
-  let style=fireStyle(styleName),pulse=.92+.08*Math.sin((x+y+performance.now()*.03)*.08);
+  let style=fireStyle(styleName),pulse=.92+.08*Math.sin((x+y+visualNowMs()*.03)*.08);
   ctx.save();ctx.globalAlpha=alpha*style.soot;ctx.fillStyle=style.smoke;
   ctx.shadowColor='#0008';ctx.shadowBlur=6;
   ctx.beginPath();ctx.arc(x,y,scale*pulse,0,7);ctx.arc(x+scale*.68,y-scale*.38,scale*.72,0,7);ctx.arc(x-scale*.52,y-scale*.3,scale*.64,0,7);ctx.fill();
@@ -1392,7 +1399,32 @@ let soundEnabled=savedSoundSetting();
 let selectedDifficulty=savedDifficulty();
 let unlockedLevel=LEVELS.length,selectedLevel=savedSelectedLevel();
 let game=makeGame(selectedDifficulty,selectedLevel),last=performance.now(),net=netState(),audio=null;
+let renderPixelRatio=1;
 const FIELD_CACHE={level:0,background:effectCanvas(W,H),foreground:effectCanvas(W,H)};
+function visualNowMs(){
+  let now=performance.now();
+  if(net.role==='client'&&Number.isFinite(net.motionClockOffset))return Math.max(0,now-MOTION_BUFFER_DELAY-net.motionClockOffset);
+  return now;
+}
+function applyCanvasContextDefaults(){
+  cx.imageSmoothingEnabled=true;
+  cx.imageSmoothingQuality='high';
+  cx.lineJoin='round';
+  cx.lineCap='round';
+}
+function setWorldTransform(){cx.setTransform(renderPixelRatio,0,0,renderPixelRatio,0,0)}
+function configureCanvasResolution(displayScale=1){
+  let dpr=Math.max(1,num(window.devicePixelRatio,1));
+  let next=clamp(displayScale*dpr,1,2);
+  next=Math.round(next*20)/20;
+  if(Math.abs(next-renderPixelRatio)<.025&&cv.width===Math.round(W*next)&&cv.height===Math.round(H*next))return;
+  renderPixelRatio=next;
+  cv.width=Math.round(W*renderPixelRatio);
+  cv.height=Math.round(H*renderPixelRatio);
+  applyCanvasContextDefaults();
+  setWorldTransform();
+  FIELD_CACHE.level=0;
+}
 let audioMaster=null,audioCompressor=null,audioSfx=null,audioMusic=null,audioLevel=null,audioPower=null,audioNoise=null;
 let audioUnlocked=false,audioPageActive=!document.hidden&&document.hasFocus(),audioSuspendedByPage=false,introPlayed=false,introMusicPlaying=false,introMusicTimer=0,introMusicGeneration=0,introVoices=[],levelIntroVoices=[],levelIntroTimer=0,levelIntroGeneration=0,pendingLevelIntro=0,activePowerAudio=new Map();
 let inputSeq=0,inputSuperSeq=0,inputPacketSeq=0,inputDashDown=false,inputSuperDown=false,inputAim={x:1,y:0};
@@ -1704,7 +1736,7 @@ function completeLevel(){
   for(const p of game.players)if(p.connected!==false)gainSuperEnergy(p,24,'survival');
   if(game.level<LEVELS.length)loadLevel(game.level+1);else end(true)
 }
-function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,stateDc:null,channels:new Map(),stateChannels:new Map(),roster:new Map(),pendingSlots:new Map(),joinPeers:new Map(),clientSlots:new Map(),signal:null,signalPeers:new Map(),signalMembers:new Set(),signalRetries:new Map(),signalHost:'',signalRole:'',signalReady:false,signalReconnectTimer:0,signalReconnectAttempt:0,roomCode:'',iceServers:[],pendingFireEvents:[],clientFireIds:new Set(),fireSeq:0,chatSeq:0,chatRate:new Map(),clientToken:'',certificate:null,certificatePromise:null,localId:0,nextId:1,timer:0,snapshotTimer:0,motionTimer:0,uiTimer:0,roomSlots:ROOM_JOINERS,stateSeq:0,motionSeq:0,lastStateSeq:0,lastMotionSeq:0,eventSeq:0,lastEventSeq:0,motionFrames:[],clientTarget:null,clientDashTime:0,clientDashDir:{x:1,y:0}}}
+function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,stateDc:null,channels:new Map(),stateChannels:new Map(),roster:new Map(),pendingSlots:new Map(),joinPeers:new Map(),clientSlots:new Map(),signal:null,signalPeers:new Map(),signalMembers:new Set(),signalRetries:new Map(),signalHost:'',signalRole:'',signalReady:false,signalReconnectTimer:0,signalReconnectAttempt:0,roomCode:'',iceServers:[],pendingFireEvents:[],clientFireIds:new Set(),fireSeq:0,chatSeq:0,chatRate:new Map(),clientToken:'',certificate:null,certificatePromise:null,localId:0,nextId:1,timer:0,snapshotTimer:0,motionTimer:0,uiTimer:0,roomSlots:ROOM_JOINERS,stateSeq:0,motionSeq:0,lastStateSeq:0,lastMotionSeq:0,eventSeq:0,lastEventSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashDir:{x:1,y:0}}}
 function remoteInputRecord(id){return remoteInputs.get(id)||null}
 function remoteDashSeq(id){let r=remoteInputRecord(id);return r&&r.value?Math.max(0,Math.round(num(r.value.dashSeq,0))):0}
 function remoteSuperSeq(id){let r=remoteInputRecord(id);return r&&r.value?Math.max(0,Math.round(num(r.value.superSeq,0))):0}
@@ -2578,7 +2610,7 @@ p.inv=Math.max(0,p.inv-dt);p.magnet=Math.max(0,p.magnet-dt);p.boost=Math.max(0,p
 p.superSlots=sanitizeSuperSlots(p.superSlots);for(const slot of p.superSlots)slot.cooldown=Math.max(0,slot.cooldown-dt);
 p.cd=Math.max(0,p.cd-dt);
 p.dt=Math.max(0,p.dt-dt);
-p.trail=p.trail.filter(t=>performance.now()-t.at<(t.life||280));
+p.trail=p.trail.filter(t=>performance.now()-t.at<(t.life||280)).slice(-16);
 	p.dashHit=Math.max(0,p.dashHit-dt);
 if(!p.alive)continue;
 let c=control(p),sp=playerMoveSpeed(p);
@@ -2599,7 +2631,7 @@ if(p.control==='remote'){
 }
 	if(p.dt>0){let dashSpeed=playerDashSpeed(p);p.vx=p.dx*dashSpeed;
 	p.vy=p.dy*dashSpeed;
-	p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:performance.now(),life:280,flame:p.boost>0})}
+	let trailNow=performance.now();if(trailNow-num(p._lastTrailAt,0)>=28){p._lastTrailAt=trailNow;p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:trailNow,life:280,flame:p.boost>0})}}
 	else{p.vx=c.x*sp;
 	p.vy=c.y*sp}
 	p.x+=p.vx*dt;
@@ -2656,7 +2688,8 @@ function resetFrameCanvas(){
   cx.shadowColor='transparent';
   if('filter' in cx)cx.filter='none';
   cx.setLineDash([]);
-  cx.clearRect(0,0,W,H);
+  cx.clearRect(0,0,cv.width,cv.height);
+  setWorldTransform();
   cx.fillStyle='#030201';
   cx.fillRect(0,0,W,H);
 }
@@ -2688,7 +2721,8 @@ function clearFrameCanvas(){
   cx.shadowColor='transparent';
   if('filter' in cx)cx.filter='none';
   cx.setLineDash([]);
-  cx.clearRect(0,0,W,H);
+  cx.clearRect(0,0,cv.width,cv.height);
+  setWorldTransform();
 }
 function captureFieldLayer(target,paint){
   clearFrameCanvas();paint();
@@ -2753,7 +2787,7 @@ function ensureFieldCache(){
   resetFrameCanvas();
 }
 function field(){
-  let t=performance.now()/1000;
+  let t=visualNowMs()/1000;
   cx.drawImage(FIELD_CACHE.background,0,0);
 
   /* Furnace glow breathing through the floor */
@@ -2770,7 +2804,7 @@ function field(){
   cx.drawImage(FIELD_CACHE.foreground,0,0);
 }
 function drawFirePatches(){
-  let now=performance.now()/1000;
+  let now=visualNowMs()/1000;
   for(const f of game.firePatches||[]){
     let ratio=clamp(f.life/f.maxLife,0,1),flicker=.8+.2*Math.sin(now*8+f.phase),styleName=f.dangerous?'slag':'drive',style=fireStyle(styleName);
     cx.save();cx.globalAlpha=ratio;
@@ -2790,7 +2824,7 @@ function drawFirePatches(){
   }
 }
 function drawHazards(){
-  let map=levelConfig(game.level),t=game.hazardTime,now=performance.now(),quenched=game.timeStop>0;
+  let map=levelConfig(game.level),t=game.hazardTime,now=visualNowMs(),quenched=game.timeStop>0;
   for(const h of map.hazards||[]){
     let color=h.color||map.accent||'#7edcff';
     cx.save();
@@ -2897,7 +2931,7 @@ function wall(w){
 }
 function drawCoin(c){
   if(c.taken)return;
-  let t=performance.now()/250+c.pulse,lift=5+Math.sin(t*.82)*2.4,spin=.25+.75*Math.abs(Math.cos(t*.7)),rw=Math.max(3.5,c.r*spin);
+  let t=visualNowMs()/250+c.pulse,lift=5+Math.sin(t*.82)*2.4,spin=.25+.75*Math.abs(Math.cos(t*.7)),rw=Math.max(3.5,c.r*spin);
   shadow(c.x,c.y+15,13,4,.34);
   cx.save();cx.translate(c.x,c.y-lift);
 
@@ -2970,7 +3004,7 @@ function drawPowerGroundMark(type,t){
 }
 function drawPowerup(item){
   if(item.taken)return;
-  let d=POWER_DEFS[item.type],t=performance.now()/420+item.pulse,lift=12+Math.sin(t*.95)*4;
+  let d=POWER_DEFS[item.type],t=visualNowMs()/420+item.pulse,lift=12+Math.sin(t*.95)*4;
   shadow(item.x,item.y+18,18,5,.32);
   cx.save();cx.translate(item.x,item.y);
   drawPowerGroundMark(item.type,t);
@@ -3140,7 +3174,7 @@ function drawToolModule(ctx,type,ready=true,phase=0){
   ctx.restore();
 }
 function drawPlayer(p){
-  let col=colors[p.id%colors.length],b=Math.sin(p.bob)*1.2,now=performance.now(),ang=Math.atan2(p.faceY,p.faceX);
+  let col=colors[p.id%colors.length],b=Math.sin(p.bob)*1.2,now=visualNowMs(),ang=Math.atan2(p.faceY,p.faceX);
   for(const t of p.trail)drawDashFx(p,t,col,now);
 
   /* Shield is charge-based rather than time-based. */
@@ -3226,7 +3260,7 @@ function drawDashFx(p,t,col,now){let age=now-t.at,life=t.life||280,a=Math.max(0,
 	else{shadow(0,15,18,5,.35*a);cx.shadowColor=col;cx.shadowBlur=14;cx.fillStyle=col;cx.beginPath();cx.ellipse(-8,0,24*a,9*a,0,0,7);cx.fill();cx.fillStyle='#ffffffaa';cx.beginPath();cx.ellipse(4,-2,10*a,3*a,0,0,7);cx.fill()}
 	cx.restore();cx.globalAlpha=1}
 function drawEnemyTelegraph(e){
-  let now=performance.now(),d=ENEMY_DEFS[e.type]||ENEMY_DEFS.hunter;
+  let now=visualNowMs(),d=ENEMY_DEFS[e.type]||ENEMY_DEFS.hunter;
   cx.save();
   if(e.type==='charger'&&e.mode==='windup'){
     let a=.35+.35*Math.sin(now/65);cx.globalAlpha=a;cx.strokeStyle=d.color;cx.lineWidth=4;cx.setLineDash([12,9]);
@@ -3285,7 +3319,7 @@ function drawEnemyGlyph(ctx,type,scale=1){
   ctx.restore();
 }
 function drawEnemy(e){
-  let d=ENEMY_DEFS[e.type]||ENEMY_DEFS.hunter,now=performance.now()/1000,freeze=e.cryo>0;
+  let d=ENEMY_DEFS[e.type]||ENEMY_DEFS.hunter,now=visualNowMs()/1000,freeze=e.cryo>0;
   let moveAngle=hypot(e.vx,e.vy)>.5?Math.atan2(e.vy,e.vx):Math.atan2(e.aimY,e.aimX);
   shadow(e.x,e.y+e.r+7,e.r+8,8,.54);
   cx.save();cx.translate(e.x,e.y);cx.rotate(moveAngle);
@@ -3366,7 +3400,7 @@ function drawSuperFx(){
     let flameCount=16;
     for(let i=0;i<flameCount;i++){
       let angle=i*Math.PI*2/flameCount+progress*.38,x=fx.x+Math.cos(angle)*r,y=fx.y+Math.sin(angle)*r;
-      drawFlameSprite(cx,x,y,.38+.35*a,performance.now()*.01+i,a*.72,angle+Math.PI/2,'inferno',1.25);
+      drawFlameSprite(cx,x,y,.38+.35*a,visualNowMs()*.01+i,a*.72,angle+Math.PI/2,'inferno',1.25);
     }
   }else if(fx.type==='phase'){
     let progress=clamp(1-fx.time/.7,0,1),a=1-progress;
@@ -4629,7 +4663,7 @@ function closeNet(){try{
   if(net.joinPeers)for(const p of net.joinPeers.values())try{p.close()}catch(e){}
 }catch(e){}
   remoteInputs.clear();if(net.channels)net.channels.clear();if(net.stateChannels)net.stateChannels.clear();if(net.roster)net.roster.clear();if(net.pendingSlots)net.pendingSlots.clear();if(net.joinPeers)net.joinPeers.clear();if(net.clientSlots)net.clientSlots.clear();if(net.signalPeers)net.signalPeers.clear();if(net.signalMembers)net.signalMembers.clear();if(net.signalRetries)net.signalRetries.clear();if(net.clientFireIds)net.clientFireIds.clear();if(net.pendingFireEvents)net.pendingFireEvents.length=0;
-  net.signal=null;net.signalReady=false;net.signalRole='';net.signalReconnectTimer=0;net.signalReconnectAttempt=0;net.dc=null;net.stateDc=null;net.pc=null;net.localId=0;net.timer=0;net.snapshotTimer=0;net.motionTimer=0;net.motionFrames=[];net.clientTarget=null;
+  net.signal=null;net.signalReady=false;net.signalRole='';net.signalReconnectTimer=0;net.signalReconnectAttempt=0;net.dc=null;net.stateDc=null;net.pc=null;net.localId=0;net.timer=0;net.snapshotTimer=0;net.motionTimer=0;net.motionFrames=[];net.motionClockOffset=NaN;net.clientTarget=null;
   resetChatSession();
 }
 function send(o){sendWhenOpen(net.dc,o)}
@@ -4682,8 +4716,15 @@ function compactMotionState(){
     a:recentFireRows()
   };
 }
+function syncMotionClock(hostTime,received){
+  let sample=received-hostTime;
+  if(!Number.isFinite(net.motionClockOffset))net.motionClockOffset=sample;
+  else if(sample<net.motionClockOffset)net.motionClockOffset=sample;
+  else net.motionClockOffset+=(sample-net.motionClockOffset)*.002;
+  return hostTime+net.motionClockOffset;
+}
 function decodeMotionFrame(packet){
-  let received=performance.now(),players=new Map(),enemies=[];
+  let received=performance.now(),hostTime=num(packet.ts,received),timeline=syncMotionClock(hostTime,received),players=new Map(),enemies=[];
   for(const row of packet.p||[]){
     let id=Math.max(0,Math.round(num(row[0])));
     players.set(id,{id,x:num(row[1])/10,y:num(row[2])/10,vx:num(row[3])/10,vy:num(row[4])/10,dt:Math.max(0,num(row[5])/100),dx:num(row[6])/100,dy:num(row[7])/100,faceX:num(row[8])/100,faceY:num(row[9])/100,bob:num(row[10])/100,inv:Math.max(0,num(row[11])/100),dashHit:Math.max(0,num(row[12])/100)});
@@ -4691,7 +4732,7 @@ function decodeMotionFrame(packet){
   for(const row of packet.e||[]){
     enemies.push({x:num(row[0])/10,y:num(row[1])/10,vx:num(row[2])/10,vy:num(row[3])/10,phase:num(row[4])/100,mode:ENEMY_MODE_KEYS[Math.round(num(row[5]))]||'chase',aimX:num(row[6])/100,aimY:num(row[7])/100,pulseRadius:Math.max(0,num(row[8])/10),burn:Math.max(0,num(row[9])/100),stun:Math.max(0,num(row[10])/100)});
   }
-  return{seq:Math.max(0,Math.round(num(packet.seq))),received,players,enemies};
+  return{seq:Math.max(0,Math.round(num(packet.seq))),received,timeline,players,enemies};
 }
 function receiveMotionState(packet){
   if(!packet||net.role!=='client')return;
@@ -4724,8 +4765,8 @@ function interpolateMotionEntity(a,b,t,isPlayer=false){
 function sampleMotionFrame(now=performance.now()){
   let frames=net.motionFrames;if(!frames.length)return null;
   let renderTime=now-MOTION_BUFFER_DELAY;
-  while(frames.length>2&&frames[1].received<=renderTime)frames.shift();
-  let a=frames[0],b=frames[1]||a,span=Math.max(1,b.received-a.received),t=clamp((renderTime-a.received)/span,0,1);
+  while(frames.length>2&&frames[1].timeline<=renderTime)frames.shift();
+  let a=frames[0],b=frames[1]||a,span=Math.max(1,b.timeline-a.timeline),t=clamp((renderTime-a.timeline)/span,0,1);
   let players=new Map(),ids=new Set([...a.players.keys(),...b.players.keys()]);
   for(const id of ids)players.set(id,interpolateMotionEntity(a.players.get(id),b.players.get(id),t,true));
   let count=Math.max(a.enemies.length,b.enemies.length),enemies=[];
@@ -5019,8 +5060,9 @@ els.cancelPair.onclick=closePairing;
 
 function fitCanvas(){
   let b=els.stage.getBoundingClientRect();
-  let availW=Math.max(160,b.width-4), availH=Math.max(120,b.height-4);
+  let availW=Math.max(160,b.width-4),availH=Math.max(120,b.height-4);
   let scale=Math.max(.1,Math.min(availW/W,availH/H));
+  configureCanvasResolution(scale);
   cv.style.width=Math.floor(W*scale)+'px';
   cv.style.height=Math.floor(H*scale)+'px';
   cv.style.transform='none';
