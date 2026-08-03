@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry</title>
-<!-- v1.1.09 -->
-<meta name="application-version" content="1.1.09">
+<!-- v1.1.11 -->
+<meta name="application-version" content="1.1.11">
 <style>
 :root{
   --bg:#010207;--surface:#060d1a;--surface-2:#0d1930;--surface-3:#02050c;
@@ -1064,7 +1064,7 @@ text-shadow:0 1px #ffffff55;font-size:0
     </div>
   </section>
 </main>
-  <span class="build-version" aria-hidden="true">1.1.08</span>
+  <span class="build-version" aria-hidden="true">1.1.11</span>
 
   <aside id="gameChat" class="game-chat hide" aria-label="Multiplayer room chat">
     <span id="chatFloatingDock" class="chat-floating-dock">
@@ -1319,9 +1319,12 @@ const MAX_CHANNEL_BUFFER=96*1024; // Never let replaceable realtime traffic buil
 const MAX_INPUT_BUFFER=16*1024;
 const REMOTE_INPUT_TIMEOUT=240;
 const CLIENT_UI_INTERVAL=1/20;
+const INPUT_INTERVAL=1/60;
 const SNAPSHOT_INTERVAL=1/20;
 const MOTION_INTERVAL=1/60;
 const MOTION_BUFFER_DELAY=50;
+const MOTION_EXTRAPOLATION_LIMIT=.08;
+const LOCAL_DASH_SOFT_ERROR=42;
 const MAX_MOTION_BUFFER=28*1024;
 
 const els={setup:$('setupScreen'),play:$('playScreen'),stage:$('stage'),coins:$('coins'),coinMax:$('coinMax'),levelStatus:$('levelStatus'),clock:$('clock'),powerStatus:$('powerStatus'),bossHud:$('bossHud'),bossHudLabel:$('bossHudLabel'),bossHudValue:$('bossHudValue'),bossMeterFill:$('bossMeterFill'),players:$('players'),net:$('net'),difficultySetting:$('difficultySetting'),difficultyHint:$('difficultyHint'),difficultyButtons:[...document.querySelectorAll('[data-difficulty]')],levelSelect:$('levelSelectScreen'),levelHint:$('levelHint'),levelOptions:$('levelOptions'),levelPreviewCanvas:$('levelPreviewCanvas'),levelPreviewKicker:$('levelPreviewKicker'),levelPreviewName:$('levelPreviewName'),levelPreviewDescription:$('levelPreviewDescription'),levelBack:$('levelBackBtn'),levelPlay:$('levelPlayBtn'),setupActions:$('setupActions'),start:$('startBtn'),pause:$('pauseBtn'),sound:$('soundBtn'),full:$('fullBtn'),pauseOverlay:$('pauseOverlay'),menuKicker:$('menuKicker'),menuTitle:$('menuTitle'),menuSubtitle:$('menuSubtitle'),menuActions:$('menuActions'),resume:$('resumeBtn'),restart:$('restartBtn'),setupBack:$('setupBtn'),menuManagePlayers:$('menuManagePlayersBtn'),menuChatDock:$('menuChatDock'),menuFooter:$('menuFooter'),soundGame:$('soundGameBtn'),fullGame:$('fullGameBtn'),confirmOverlay:$('confirmOverlay'),confirmTitle:$('confirmTitle'),confirmText:$('confirmText'),confirmCancel:$('confirmCancelBtn'),confirmAction:$('confirmActionBtn'),sessionPanel:$('sessionPanel'),sessionTitle:$('sessionTitle'),sessionState:$('sessionState'),sessionPlayers:$('sessionPlayers'),sessionActions:$('sessionActions'),manageSession:$('manageSessionBtn'),endSession:$('endSessionBtn'),pairIntro:$('pairIntro'),pairFlow:$('pairFlow'),pairPlayers:$('pairPlayers'),pairTitle:$('pairTitle'),pairHint:$('pairHint'),inviteField:$('inviteField'),codeLabel:$('codeLabel'),copyInvite:$('copyInviteBtn'),cancelPair:$('cancelPairBtn'),invite:$('inviteBtn'),join:$('joinBtn'),use:$('useBtn'),code:$('code'),menuPair:$('menuPair'),menuPairTitle:$('menuPairTitle'),menuPairHint:$('menuPairHint'),menuRoomPlayers:$('menuRoomPlayers'),menuRoomCode:$('menuRoomCode'),menuPairActions:$('menuPairActions'),menuCopyInvite:$('menuCopyInviteBtn'),menuPairStatus:$('menuPairStatus'),status:$('status'),chat:$('gameChat'),chatHudDock:$('chatHudDock'),chatFloatingDock:$('chatFloatingDock'),chatLauncher:$('chatLauncher'),chatUnread:$('chatUnread'),chatPanel:$('chatPanel'),chatRoom:$('chatRoom'),chatState:$('chatState'),chatClose:$('chatClose'),chatMessages:$('chatMessages'),chatForm:$('chatForm'),chatInput:$('chatInput'),chatSend:$('chatSend'),hudPowerRack:$('hudPowerRack'),joy:$('joy'),stick:$('stick'),superButtons:[...document.querySelectorAll('[data-super-slot]')],dash:$('dash')};
@@ -1475,8 +1478,8 @@ let selectedLevel=savedSelectedLevel();
 let game=makeGame(selectedDifficulty,selectedLevel),last=performance.now(),net=netState(),audio=null;
 const RENDER_QUALITY_LEVELS=[
   {name:'performance',dprCap:1,smoothing:'low'},
-  {name:'balanced',dprCap:1.35,smoothing:'medium'},
-  {name:'high',dprCap:1.85,smoothing:'high'}
+  {name:'balanced',dprCap:1.1,smoothing:'medium'},
+  {name:'high',dprCap:1.25,smoothing:'high'}
 ];
 let renderQualityIndex=matchMedia('(hover:none),(pointer:coarse)').matches?1:2;
 let renderPixelRatio=1;
@@ -1546,7 +1549,7 @@ function configureCanvasResolution(displayScale=1){
 let audioMaster=null,audioCompressor=null,audioSfx=null,audioUi=null,audioMusic=null,audioLevel=null,audioPower=null,audioMovement=null,audioAmbience=null,audioNoise=null,audioReverb=null,audioReverbIn=null,audioReverbOut=null;
 let audioUnlocked=false,audioPageActive=!document.hidden&&document.hasFocus(),introMusicPlaying=false,introMusicTimer=0,introMusicGeneration=0,introMusicNextStart=0,introVoices=[],levelIntroVoices=[],levelIntroTimer=0,levelIntroGeneration=0,pendingLevelIntro=0,activePowerAudio=new Map();
 let worldAudio=null,movementAudio=null,flameHazardAudioStates=new Map(),gameplayMusicPlaying=false,gameplayMusicTimer=0,gameplayMusicGeneration=0,gameplayMusicNextStart=0,gameplayMusicVoices=[],gameplayMusicSignature='',audioCueTimes=new Map(),coinCueStep=0,coinCueAt=0;
-let inputSeq=0,inputSuperSeq=0,inputPacketSeq=0,inputDashDown=false,inputSuperDown=false,inputAim={x:1,y:0};
+let inputSeq=0,inputSuperSeq=0,inputPacketSeq=0,inputDashDown=false,inputSuperDown=false,inputAim={x:1,y:0},inputDashDir={x:1,y:0},pendingDashPress=false,pendingDashDir={x:1,y:0};
 let menuOpen=false,menuPairOpen=false,endMenuDismissed=false,pairView='intro',pendingConfirm=null;
 let menuFocusReturn=null,confirmFocusReturn=null,chatFocusReturn=null,chatPausedHost=false;
 let chatOpen=false,chatUnread=0,chatLocalSeq=0,chatHistory=[],chatSeen=new Set();
@@ -1561,6 +1564,12 @@ function inputSafe(v){let x=num(v&&v.x),y=num(v&&v.y),l=hypot(x,y);if(l>1){x/=l;
   if(dl>.001){dashX/=dl;dashY/=dl}else{dashX=x;dashY=y}
   let superSlot=Math.round(num(v&&v.superSlot,-1));if(superSlot!==0&&superSlot!==1)superSlot=-1;
   return{x,y,dash:!!(v&&v.dash),super:!!(v&&v.super)&&superSlot>=0,superSlot,dashSeq:Math.max(0,Math.round(num(v&&v.dashSeq,0))),superSeq:Math.max(0,Math.round(num(v&&v.superSeq,0))),dashX,dashY}}
+function queueDashPress(){
+  if(net.role!=='client'||gameplayInputBlocked())return;
+  let v=control({control:'local'}),l=hypot(v.x,v.y);
+  if(l>.001)inputAim={x:v.x/l,y:v.y/l};
+  pendingDashPress=true;pendingDashDir={...inputAim};
+}
 
 function sanitizeChatText(value){
   return String(value||'').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,'').replace(/\s+/g,' ').trim().slice(0,160);
@@ -1628,7 +1637,7 @@ function sendNeutralClientInput(){
   sendRealtime(ch,{t:'input',seq:++inputPacketSeq,v},MAX_INPUT_BUFFER);
 }
 function resetGameplayInput(){
-  keys.clear();touch.dash=false;touch.super=false;touch.superSlot=-1;inputDashDown=false;inputSuperDown=false;
+  keys.clear();touch.dash=false;touch.super=false;touch.superSlot=-1;inputDashDown=false;inputSuperDown=false;pendingDashPress=false;pendingDashDir={...inputAim};
   if(typeof joyEnd==='function')joyEnd();
   els.dash.classList.remove('down');
   for(const button of els.superButtons)button.classList.remove('down');
@@ -1864,7 +1873,7 @@ function completeLevel(){
   for(const p of game.players)if(p.connected!==false)gainSuperEnergy(p,24,'survival');
   if(game.level<LEVELS.length)loadLevel(game.level+1);else end(true)
 }
-function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,stateDc:null,channels:new Map(),stateChannels:new Map(),roster:new Map(),pendingSlots:new Map(),joinPeers:new Map(),clientSlots:new Map(),signal:null,signalPeers:new Map(),signalMembers:new Set(),signalRetries:new Map(),signalHost:'',signalRole:'',signalReady:false,signalReconnectTimer:0,signalReconnectAttempt:0,roomCode:'',iceServers:[],pendingFireEvents:[],clientFireIds:new Set(),fireSeq:0,chatSeq:0,chatRate:new Map(),clientToken:'',certificate:null,certificatePromise:null,localId:0,nextId:1,timer:0,snapshotTimer:0,motionTimer:0,uiTimer:0,roomSlots:ROOM_JOINERS,stateSeq:0,motionSeq:0,lastStateSeq:0,lastMotionSeq:0,eventSeq:0,lastEventSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashDir:{x:1,y:0}}}
+function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,stateDc:null,channels:new Map(),stateChannels:new Map(),roster:new Map(),pendingSlots:new Map(),joinPeers:new Map(),clientSlots:new Map(),signal:null,signalPeers:new Map(),signalMembers:new Set(),signalRetries:new Map(),signalHost:'',signalRole:'',signalReady:false,signalReconnectTimer:0,signalReconnectAttempt:0,roomCode:'',iceServers:[],pendingFireEvents:[],clientFireIds:new Set(),fireSeq:0,chatSeq:0,chatRate:new Map(),clientToken:'',certificate:null,certificatePromise:null,localId:0,nextId:1,timer:0,snapshotTimer:0,motionTimer:0,uiTimer:0,roomSlots:ROOM_JOINERS,stateSeq:0,motionSeq:0,lastStateSeq:0,lastMotionSeq:0,eventSeq:0,lastEventSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashCooldown:0,clientDashPendingSeq:0,clientDashDir:{x:1,y:0}}}
 function remoteInputRecord(id){return remoteInputs.get(id)||null}
 function remoteDashSeq(id){let r=remoteInputRecord(id);return r&&r.value?Math.max(0,Math.round(num(r.value.dashSeq,0))):0}
 function remoteSuperSeq(id){let r=remoteInputRecord(id);return r&&r.value?Math.max(0,Math.round(num(r.value.superSeq,0))):0}
@@ -2264,6 +2273,17 @@ function startDash(p,c){c=inputSafe(c);let l=hypot(c.x,c.y);if(l<.001)return;c.x
 	game.shake=Math.max(game.shake,.045);
 	p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:performance.now(),life:420,ring:true,flame:p.boost>0});
 	gameSound('dash',p,{skipId:p.id})}
+function acceptRemoteDash(id,seq,x,y){
+  if(net.role!=='host')return false;
+  seq=Math.max(0,Math.round(num(seq,0)));
+  let p=game&&Array.isArray(game.players)?game.players.find(player=>player.id===id):null;
+  if(!p||!seq||seq<=Math.max(0,Math.round(num(p.lastDashSeq,0))))return false;
+  p.lastDashSeq=seq;
+  let direction=inputSafe({x,y,dashX:x,dashY:y}),dx=direction.dashX,dy=direction.dashY;
+  if(!(dx||dy)){dx=p.faceX;dy=p.faceY}
+  if(game.phase!=='play'||game.paused||game.over||!p.alive||p.cd>0||!(dx||dy))return false;
+  startDash(p,{x:dx,y:dy});return true;
+}
 function chooseForgedSuper(p){
   let build=sanitizeSuperBuild(p.superBuild),assigned=new Set(sanitizeSuperSlots(p.superSlots).map(s=>s.type).filter(Boolean));
   let ranked=[
@@ -2984,11 +3004,7 @@ if(c.x||c.y||p.dt>0){p.superPassive+=dt;if(p.superPassive>=2){let ticks=Math.flo
 if(c.x||c.y){p.faceX=c.x;
 p.faceY=c.y}
 if(p.control==='remote'){
-  if(c.dashSeq&&c.dashSeq!==p.lastDashSeq){
-    p.lastDashSeq=c.dashSeq;
-    let dc={x:c.dashX||c.x,y:c.dashY||c.y};
-    if(p.cd<=0&&(dc.x||dc.y))startDash(p,dc);
-  }
+  if(c.dashSeq>p.lastDashSeq)acceptRemoteDash(p.id,c.dashSeq,c.dashX,c.dashY);
   if(c.superSeq&&c.superSeq!==p.lastSuperSeq){p.lastSuperSeq=c.superSeq;activateSuper(p,c.superSlot)}
 }else{
   if(c.dash&&p.cd<=0){let dc=(c.x||c.y)?c:{x:p.faceX,y:p.faceY};if(dc.x||dc.y)startDash(p,dc)}
@@ -5499,7 +5515,7 @@ function sendRealtime(ch,o,limit=MAX_CHANNEL_BUFFER){
   catch(e){console.warn('Coin Dash realtime send failed',e);return false}
 }
 function sendState(ch,o){return sendRealtime(ch,o,MAX_CHANNEL_BUFFER)}
-function resetNetwork(role='solo'){closeNet();net=netState();net.role=role;if(role==='host'||role==='client')net.clientToken=getClientToken();inputSeq=0;inputSuperSeq=0;inputPacketSeq=0;inputDashDown=false;inputSuperDown=false;touch.super=false;touch.superSlot=-1;inputAim={x:1,y:0}}
+function resetNetwork(role='solo'){closeNet();net=netState();net.role=role;if(role==='host'||role==='client')net.clientToken=getClientToken();inputSeq=0;inputSuperSeq=0;inputPacketSeq=0;inputDashDown=false;inputSuperDown=false;touch.super=false;touch.superSlot=-1;inputAim={x:1,y:0};inputDashDir={x:1,y:0};pendingDashPress=false;pendingDashDir={x:1,y:0}}
 function sameSession(session){return net&&net.session===session}
 function getClientToken(){
   try{let t=sessionStorage.getItem('coinDashClientToken');if(!t){t=newClientToken();sessionStorage.setItem('coinDashClientToken',t)}return t}
@@ -5587,6 +5603,8 @@ function copyPlayerFields(p,t,local){
 }
 function advanceClientView(dt){
   let target=net.clientTarget;if(!target)return;
+  net.clientDashTime=Math.max(0,num(net.clientDashTime)-dt);
+  net.clientDashCooldown=Math.max(0,num(net.clientDashCooldown)-dt);
   advanceClientTargetVisuals(dt);
   let motion=sampleMotionFrame();
   game.phase=target.phase;game.over=target.over;game.won=target.won;game.paused=target.paused;game.level=target.level;game.startLevel=target.startLevel;game.nextLevel=target.nextLevel;game.maxLevel=target.maxLevel;game.levelName=target.levelName;game.levelHint=target.levelHint;game.difficulty=target.difficulty;game.nextDifficulty=target.nextDifficulty;game.total=target.total;game.exit={...target.exit};
@@ -5598,18 +5616,23 @@ function advanceClientView(dt){
   let current=new Map((game.players||[]).map(p=>[p.id,p])),next=[];
   for(const t of target.players){
     let local=t.id===net.localId,p=current.get(t.id)||cloneGameState({players:[t],enemies:[],coins:[],exit:{}}).players[0];
-    let mt=motion&&motion.players.get(t.id),tx=mt?mt.x:t.x,ty=mt?mt.y:t.y,localVisual=null;
+    let mt=motion&&motion.players.get(t.id);
+    if(local&&net.motionFrames.length){let latest=net.motionFrames[net.motionFrames.length-1].players.get(t.id);if(latest)mt=latest}
+    let tx=mt?mt.x:t.x,ty=mt?mt.y:t.y,localVisual=null;
     let authoritativeDashTime=Math.max(0,num(mt?mt.dt:t.dt));
     let authoritativeDashSeq=Math.max(0,Math.round(num(mt?mt.dashSeq:t.lastDashSeq)));
     let authoritativeHitTime=Math.max(0,num(mt?mt.hitTime:t.hitTime));
+    if(local&&net.clientDashPendingSeq&&authoritativeDashSeq>=net.clientDashPendingSeq){
+      if(authoritativeDashTime<=.015)net.clientDashTime=0;
+      net.clientDashPendingSeq=0;
+    }
     if(local&&p.alive&&game.phase==='play'&&!game.paused&&!game.over&&!authoritativeHitTime){
       let c=control({control:'local'}),boosted=num(t.boost)>0,speed=boosted?224:178;
       if(c.x||c.y){p.faceX=c.x;p.faceY=c.y}
-      net.clientDashTime=Math.max(0,num(net.clientDashTime)-dt);
       if(net.clientDashTime>0){speed=boosted?650:520;c={...c,x:net.clientDashDir.x,y:net.clientDashDir.y};p.dx=c.x;p.dy=c.y}
       p.vx=c.x*speed;p.vy=c.y*speed;p.x+=p.vx*dt;p.y+=p.vy*dt;let wallContact=collideWorld(p);if(wallContact&&!p._wallContact)playerWallBumpSound(p,hypot(p.vx,p.vy));p._wallContact=wallContact;
       localVisual={vx:p.vx,vy:p.vy,faceX:p.faceX,faceY:p.faceY,dx:p.dx,dy:p.dy,predictedDashTime:net.clientDashTime};
-      let correction=1-Math.exp(-dt*6);p.x+=(tx-p.x)*correction;p.y+=(ty-p.y)*correction;
+      let error=hypot(tx-p.x,ty-p.y),correction=net.clientDashTime>0&&error<LOCAL_DASH_SOFT_ERROR?0:1-Math.exp(-dt*(net.clientDashTime>0?10:6));p.x+=(tx-p.x)*correction;p.y+=(ty-p.y)*correction;
     }else if(mt){p.x=tx;p.y=ty}
     else{let correction=1-Math.exp(-dt*18);p.x+=(tx-p.x)*correction;p.y+=(ty-p.y)*correction}
     let wasDashing=!!p._visualDashActive;p.bob=num(p.bob,t.bob)+dt*7;copyPlayerFields(p,t,local);
@@ -5754,10 +5777,17 @@ function msgNet(o,ch,id,kind='control'){if(!o||typeof o!=='object')return;
     let target=Number.isInteger(o.target)?o.target:null,skip=Number.isInteger(o.skip)?o.skip:null;if(target!==null&&target!==net.localId||skip!==null&&skip===net.localId)return;
     beep(String(o.k||''),{x:o.x===null?null:num(o.x)/10,y:o.y===null?null:num(o.y)/10});return;
   }
+  if(o.t==='action'&&net.role==='host'){
+    let active=net.channels.get(id);if(active!==ch)return;
+    if(o.kind==='dash')acceptRemoteDash(id,o.seq,o.x,o.y);
+    return;
+  }
   if(o.t==='input'&&net.role==='host'){
     let active=net.stateChannels.get(id)||net.channels.get(id);if(active!==ch)return;
     let seq=Math.max(0,Math.round(num(o.seq,0))),old=remoteInputs.get(id);if(old&&seq&&seq<=old.seq)return;
-    remoteInputs.set(id,{value:inputSafe(o.v),seq,at:performance.now()});setRosterConnected(id,true);
+    let value=inputSafe(o.v);remoteInputs.set(id,{value,seq,at:performance.now()});setRosterConnected(id,true);
+    if(value.dashSeq)acceptRemoteDash(id,value.dashSeq,value.dashX,value.dashY);
+    return;
   }
   if(o.t==='motion'&&net.role==='client')receiveMotionState(o);
   if(o.t==='snap'&&net.role==='client')applyCompactSnapshot(o.s,o.seq);
@@ -5840,15 +5870,22 @@ function interpolateMotionEntity(a,b,t,isPlayer=false){
   }
   return result;
 }
+function extrapolateMotionEntity(entity,dt,isPlayer=false){
+  if(!entity)return entity;
+  let result={...entity,x:entity.x+num(entity.vx)*dt,y:entity.y+num(entity.vy)*dt};
+  if(isPlayer){result.dt=Math.max(0,num(entity.dt)-dt);result.inv=Math.max(0,num(entity.inv)-dt);result.dashHit=Math.max(0,num(entity.dashHit)-dt);result.hitTime=Math.max(0,num(entity.hitTime)-dt)}
+  return result;
+}
 function sampleMotionFrame(now=performance.now()){
   let frames=net.motionFrames;if(!frames.length)return null;
   let renderTime=now-MOTION_BUFFER_DELAY;
   while(frames.length>2&&frames[1].timeline<=renderTime)frames.shift();
-  let a=frames[0],b=frames[1]||a,span=Math.max(1,b.timeline-a.timeline),t=clamp((renderTime-a.timeline)/span,0,1);
+  let a=frames[0],b=frames[1]||a,span=Math.max(1,b.timeline-a.timeline),raw=(renderTime-a.timeline)/span,t=clamp(raw,0,1);
+  let extrapolation=Math.min(MOTION_EXTRAPOLATION_LIMIT,Math.max(0,(renderTime-b.timeline)/1000));
   let players=new Map(),ids=new Set([...a.players.keys(),...b.players.keys()]);
-  for(const id of ids)players.set(id,interpolateMotionEntity(a.players.get(id),b.players.get(id),t,true));
+  for(const id of ids){let value=extrapolation>0?extrapolateMotionEntity(b.players.get(id)||a.players.get(id),extrapolation,true):interpolateMotionEntity(a.players.get(id),b.players.get(id),t,true);players.set(id,value)}
   let count=Math.max(a.enemies.length,b.enemies.length),enemies=[];
-  for(let i=0;i<count;i++)enemies[i]=interpolateMotionEntity(a.enemies[i],b.enemies[i],t,false);
+  for(let i=0;i<count;i++)enemies[i]=extrapolation>0?extrapolateMotionEntity(b.enemies[i]||a.enemies[i],extrapolation,false):interpolateMotionEntity(a.enemies[i],b.enemies[i],t,false);
   return{players,enemies};
 }
 function applyFireRows(rows){
@@ -5944,12 +5981,20 @@ function broadcast(dt=1){
   if(!dt||net.snapshotTimer>=SNAPSHOT_INTERVAL)broadcastNow();
 }
 function sendInput(dt){
-  net.timer+=dt;if(net.timer<.033)return;net.timer=0;
+  net.timer+=dt;if(net.timer<INPUT_INTERVAL)return;net.timer=0;
   let v=control({control:'local'}),l=hypot(v.x,v.y);if(l>.001)inputAim={x:v.x/l,y:v.y/l};
-  if(v.dash&&!inputDashDown){
-    inputSeq++;v.dashSeq=inputSeq;v.dashX=inputAim.x;v.dashY=inputAim.y;let p=game.players.find(x=>x.id===net.localId),dashTime=p&&p.boost>0?.25:.2;net.clientDashTime=dashTime;net.clientDashDir={...inputAim};
-    if(p){p.dt=dashTime;p.dx=inputAim.x;p.dy=inputAim.y;p._visualDashActive=true;p._visualDashSeq=inputSeq;p._lastTrailAt=performance.now();p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:p._lastTrailAt,life:420,ring:true})}beep('dash');
-  }else v.dashSeq=inputSeq;
+  let dashPressed=pendingDashPress||(v.dash&&!inputDashDown);
+  if(dashPressed){
+    let direction=pendingDashPress?pendingDashDir:inputAim,dl=hypot(direction.x,direction.y);pendingDashPress=false;
+    if(dl>.001)inputDashDir={x:direction.x/dl,y:direction.y/dl};
+    inputSeq++;v.dashSeq=inputSeq;v.dashX=inputDashDir.x;v.dashY=inputDashDir.y;
+    let p=game.players.find(x=>x.id===net.localId),canPredict=!!(p&&p.alive&&game.phase==='play'&&!game.paused&&!game.over&&p.dt<=.015&&Math.max(num(p.cd),num(net.clientDashCooldown))<=.015);
+    if(canPredict){
+      let dashTime=p.boost>0?.25:.2;net.clientDashTime=dashTime;net.clientDashCooldown=playerDashCooldown(p);net.clientDashPendingSeq=inputSeq;net.clientDashDir={...inputDashDir};
+      p.cd=net.clientDashCooldown;p.dt=dashTime;p.dx=inputDashDir.x;p.dy=inputDashDir.y;p._visualDashActive=true;p._visualDashSeq=inputSeq;p._lastTrailAt=performance.now();p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:p._lastTrailAt,life:420,ring:true});beep('dash');
+    }
+    sendTo(net.dc,{t:'action',kind:'dash',seq:inputSeq,x:inputDashDir.x,y:inputDashDir.y});
+  }else{v.dashSeq=inputSeq;v.dashX=inputDashDir.x;v.dashY=inputDashDir.y}
   if(v.super&&!inputSuperDown){inputSuperSeq++;v.superSeq=inputSuperSeq;beep('superTap')}else v.superSeq=inputSuperSeq;
   inputDashDown=v.dash;inputSuperDown=v.super;v.dash=false;v.super=false;
   let ch=net.stateDc&&net.stateDc.readyState==='open'?net.stateDc:net.dc;sendRealtime(ch,{t:'input',seq:++inputPacketSeq,v},MAX_INPUT_BUFFER);
@@ -6020,6 +6065,7 @@ if(e.code==='Escape'){
   openGameMenu();e.preventDefault();return;
 }
 if(gameplayInputBlocked()||isTextEntryTarget(e.target))return;
+if(e.code==='Space'&&!e.repeat&&!keys.has('Space'))queueDashPress();
 keys.add(e.code);
 if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault()});
 window.addEventListener('keyup',e=>keys.delete(e.code));
@@ -6043,7 +6089,7 @@ els.joy.addEventListener('pointercancel',joyEnd);
 els.joy.addEventListener('lostpointercapture',joyEnd);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)resetGameplayInput()});
 
-els.dash.addEventListener('pointerdown',()=>{touch.dash=true;
+els.dash.addEventListener('pointerdown',e=>{e.preventDefault();touch.dash=true;queueDashPress();
 els.dash.classList.add('down')});
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>els.dash.addEventListener(ev,()=>{touch.dash=false;
 els.dash.classList.remove('down')}));
