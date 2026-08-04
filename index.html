@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry Canvas Edition</title>
-<meta name="application-version" content="1.3.4">
+<meta name="application-version" content="1.3.5">
 <style>
 html,body{margin:0;width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#010207;touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
 body{display:grid;place-items:center;box-sizing:border-box;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
@@ -18,29 +18,14 @@ body{display:grid;place-items:center;box-sizing:border-box;padding:env(safe-area
 (()=>{'use strict';
 
 const cv=document.getElementById('game');
-class UiClassSet{
-  constructor(...items){this.items=new Set(items.flat().filter(Boolean))}
-  add(...items){for(const item of items)this.items.add(item)}
-  remove(...items){for(const item of items)this.items.delete(item)}
-  contains(item){return this.items.has(item)}
-  toggle(item,force){let enabled=force===undefined?!this.items.has(item):!!force;enabled?this.items.add(item):this.items.delete(item);return enabled}
-}
-function uiNode({hidden=false,text='',value='',readOnly=false}={}){
-  return{classList:new UiClassSet(hidden?'hide':''),textContent:String(text),value:String(value),placeholder:'',readOnly};
-}
 function uiCanvas(width=320,height=180){let canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;return canvas}
-const els={
-  setup:uiNode(),
-  play:uiNode({hidden:true}),
-  levelSelect:uiNode({hidden:true}),
+const uiState={
+  screen:'home',
   levelPreviewCanvas:uiCanvas(),
-  confirmTitle:uiNode({text:'Confirm'}),
-  confirmText:uiNode({text:'Are you sure?'}),
-  confirmAction:uiNode({text:'Confirm'}),
-  code:uiNode(),
-  menuRoomCode:uiNode({readOnly:true}),
-  status:uiNode({hidden:true}),
-  chatInput:uiNode()
+  confirm:{title:'Confirm',text:'Are you sure?',action:'Confirm'},
+  roomCode:'',
+  status:'',
+  chatDraft:''
 };
 
 
@@ -561,7 +546,7 @@ let levelSelectOriginalLevel=selectedLevel,levelSelectOriginalDifficulty=selecte
 let lastCampaignLevel=isBonusLevel(selectedLevel)?1:selectedLevel,lastBonusLevel=isBonusLevel(selectedLevel)?selectedLevel:CAMPAIGN_LEVEL_COUNT+1,pendingStartRequest=null,helpOpen=false;
 let chatPausedHost=false;
 let chatOpen=false,chatUnread=0,chatLocalSeq=0,chatHistory=[],chatSeen=new Set();
-const uiCache={coins:'',coinMax:'',level:'',clock:'',power:'',boss:'',players:'',menu:'',setup:''};
+const uiCache={setup:''};
 
 function r(x,y,w,h){return{x,y,w,h}}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
@@ -617,7 +602,7 @@ function resetGameplayInput(){
   keys.clear();Object.assign(touch,{x:0,y:0,dash:false,super:false,superSlot:-1,on:false,id:null,anchorX:0,anchorY:0,engaged:false});
   inputDashDown=false;inputSuperDown=false;pendingDashPress=false;pendingDashDir={...inputAim};canvasPointers.clear();sendNeutralClientInput();
 }
-function gameplayScreenVisible(){return !els.play.classList.contains('hide')}
+function gameplayScreenVisible(){return uiState.screen==='game'}
 function openChat(){
   if(!chatAvailable())return;
   helpOpen=false;closeConfirm(false);if(canvasInputMode)canvasCloseInput();
@@ -632,7 +617,7 @@ function closeChat(){
 }
 function openHelp(){closeConfirm(false);if(chatOpen)closeChat();if(canvasInputMode)canvasCloseInput();helpOpen=true;resetGameplayInput();ui(true)}
 function closeHelp(){if(!helpOpen)return;helpOpen=false;ui(true)}
-function resetChatSession(){closeChat();chatUnread=0;chatHistory=[];chatSeen.clear();els.chatInput.value=''}
+function resetChatSession(){closeChat();chatUnread=0;chatHistory=[];chatSeen.clear();uiState.chatDraft=''}
 function chatAvailable(){
   if(net.role==='host')return !!net.roomCode;
   if(net.role==='client')return !!net.localId&&connectedClient();
@@ -655,14 +640,14 @@ function publishHostChat(playerId,textValue){
   return true;
 }
 function sendChatMessage(){
-  let clean=sanitizeChatText(els.chatInput.value);if(!clean)return;
+  let clean=sanitizeChatText(uiState.chatDraft);if(!clean)return;
   let sent=false;
   if(net.role==='host')sent=publishHostChat(0,clean);
   else if(net.role==='client'){
     let channel=net.dc&&net.dc.readyState==='open'?net.dc:net.stateDc;
     sent=sendTo(channel,{t:'chatSend',text:clean});
   }
-  if(sent)els.chatInput.value=''
+  if(sent)uiState.chatDraft=''
   else appendChatNotice('Chat is reconnecting.');
 }
 
@@ -869,8 +854,9 @@ function circleRect(o,b){
 function collideWorld(o){let hit=false;for(const w of levelWalls())if(circleRect(o,w))hit=true;
 let ox=o.x,oy=o.y;o.x=clamp(o.x,o.r+24,W-o.r-24);o.y=clamp(o.y,o.r+24,H-o.r-24);return hit||o.x!==ox||o.y!==oy}
 function closeConfirm(){pendingConfirm=null}
+function acceptConfirm(){let action=pendingConfirm;closeConfirm();if(action)action()}
 function askConfirm(title,text,label,action){
-  helpOpen=false;if(chatOpen)closeChat();if(canvasInputMode)canvasCloseInput();pendingConfirm=action;resetGameplayInput();els.confirmTitle.textContent=title;els.confirmText.textContent=text;els.confirmAction.textContent=label;ui(true)
+  helpOpen=false;if(chatOpen)closeChat();if(canvasInputMode)canvasCloseInput();pendingConfirm=action;resetGameplayInput();uiState.confirm.title=title;uiState.confirm.text=text;uiState.confirm.action=label;ui(true)
 }
 function previewScaleX(x,canvasWidth=320){return x/W*canvasWidth}
 function previewScaleY(y,canvasHeight=180){return y/H*canvasHeight}
@@ -881,7 +867,7 @@ function previewRoundedRect(ctx,x,y,w,h,r,fill,stroke){
   if(stroke){ctx.strokeStyle=stroke;ctx.stroke()}
 }
 function drawLevelMapPreview(level){
-  let canvas=els.levelPreviewCanvas;
+  let canvas=uiState.levelPreviewCanvas;
   if(!canvas)return;
   let ctx=canvas.getContext('2d'),cw=canvas.width,ch=canvas.height,map=levelConfig(level),accent=map.accent||'#7edcff';
   ctx.clearRect(0,0,cw,ch);
@@ -1043,7 +1029,7 @@ function drawLevelMapPreview(level){
   previewRoundedRect(ctx,1,1,cw-2,ch-2,11,null,'rgba(115,233,255,0.62)');
 }
 function syncLevelUI(){let active=net.role==='client'?normalizeLevel(game.nextLevel||game.startLevel||game.level):selectedLevel;drawLevelMapPreview(active)}
-function levelSelectVisible(){return !els.levelSelect.classList.contains('hide')}
+function levelSelectVisible(){return uiState.screen==='levels'}
 function rememberSelectedLevel(level){if(isBonusLevel(level))lastBonusLevel=level;else lastCampaignLevel=level}
 function levelListForCategory(category=levelSelectCategory){
   if(category==='bonus')return Array.from({length:BONUS_LEVEL_COUNT},(_,i)=>CAMPAIGN_LEVEL_COUNT+1+i);
@@ -1106,22 +1092,21 @@ function levelSelectActionLabel(){
 }
 function showLobby(){
   menuOpen=false;menuPairOpen=false;endMenuDismissed=false;closeConfirm(false);
-  els.play.classList.add('hide');els.levelSelect.classList.add('hide');els.setup.classList.remove('hide');
+  uiState.screen='home';
   syncSetupUI();ui(true);playIntroTune();
 }
 function openLevelSelect(origin='home'){
   if(net.role==='client')return;
   beginLevelSelection(origin);menuPairOpen=false;closeConfirm(false);
-  els.setup.classList.add('hide');els.play.classList.add('hide');els.levelSelect.classList.remove('hide');
+  uiState.screen='levels';
   syncLevelUI();playIntroTune();ui(true);
 }
 function closeLevelSelect(commit=false){
   if(commit)commitLevelSelection();else cancelLevelSelection();
-  els.levelSelect.classList.add('hide');
   if(levelSelectOrigin==='menu'){
-    els.setup.classList.add('hide');els.play.classList.remove('hide');menuOpen=true;game.paused=true;syncGameMenu();
+    uiState.screen='game';menuOpen=true;game.paused=true;
   }else{
-    els.play.classList.add('hide');els.setup.classList.remove('hide');syncSetupUI();
+    uiState.screen='home';syncSetupUI();
   }
   ui(true);
 }
@@ -1138,7 +1123,7 @@ function requestMainMenu(){
   if(game.over){finishMainMenu();return}
   askConfirm('Quit to Main Menu','The current run will end.','Quit to Main Menu',finishMainMenu);
 }
-function showPlay(){let changed=els.play.classList.contains('hide');els.setup.classList.add('hide');els.levelSelect.classList.add('hide');els.play.classList.remove('hide');if(changed)setTimeout(fitCanvas,0)}
+function showPlay(){let changed=uiState.screen!=='game';uiState.screen='game';if(changed)setTimeout(fitCanvas,0)}
 function beginRunNow(difficulty=selectedDifficulty,startLevel=selectedLevel){
   if(net.role==='host'&&game.phase==='menu'&&!allLobbyPlayersReady()){notifyLobby(lobbySummary(),'pending',3200,false);ui(true);return false}
   if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();
@@ -1165,7 +1150,7 @@ function openGameMenu(){
   if(game.phase==='menu'||menuOpen)return;
   resetGameplayInput();menuOpen=true;menuPairOpen=false;
   if(net.role!=='client'&&!game.over){game.paused=true;broadcastGameEvent('pause');broadcastNow()}
-  syncGameMenu();ui(true);
+  ui(true);
 }
 function resumeGame(){
   if(net.role==='client'){
@@ -1188,7 +1173,7 @@ function menuSecondaryAction(){
 function toggleMenuPlayers(){
   if(net.role!=='host'&&net.role!=='client')return;
   menuPairOpen=!menuPairOpen;
-  syncGameMenu();
+  
 }
 function restoreRemotes(){ensureHostPlayers(true)}
 function ensureHostPlayers(reset=false){if(net.role!=='host'||!game||!Array.isArray(game.players))return;
@@ -1994,7 +1979,7 @@ menuOpen=true;
 menuPairOpen=false;
 endMenuDismissed=false;
 beep(won?'win':'lose');
-syncGameMenu();
+
 broadcastGameEvent('end');
 broadcastPulse();
 ui(true)}
@@ -2422,6 +2407,16 @@ function drawUiGlyph(ctx,type,scale=1,color='#ffffff'){
     ctx.fillStyle='transparent';ctx.save();ctx.rotate(-.55);ctx.beginPath();ctx.roundRect(-15,-6,18,12,6);ctx.stroke();ctx.beginPath();ctx.roundRect(-3,-6,18,12,6);ctx.stroke();ctx.restore();
   }else if(type==='wifi'){
     ctx.fillStyle='transparent';for(let r=6;r<=16;r+=5){ctx.beginPath();ctx.arc(0,7,r,Math.PI*1.18,Math.PI*1.82);ctx.stroke()}ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,7,2.5,0,Math.PI*2);ctx.fill();
+  }else if(type==='sound'){
+    ctx.fillStyle='transparent';ctx.beginPath();ctx.moveTo(-13,-5);ctx.lineTo(-7,-5);ctx.lineTo(1,-12);ctx.lineTo(1,12);ctx.lineTo(-7,5);ctx.lineTo(-13,5);ctx.closePath();ctx.stroke();ctx.beginPath();ctx.arc(1,0,8,-.72,.72);ctx.stroke();ctx.beginPath();ctx.arc(1,0,13,-.72,.72);ctx.stroke();
+  }else if(type==='fullscreen'){
+    ctx.fillStyle='transparent';for(let i=0;i<4;i++){ctx.save();ctx.rotate(i*Math.PI/2);ctx.beginPath();ctx.moveTo(-12,-4);ctx.lineTo(-12,-12);ctx.lineTo(-4,-12);ctx.stroke();ctx.restore()}
+  }else if(type==='back'){
+    ctx.fillStyle='transparent';ctx.beginPath();ctx.moveTo(8,-11);ctx.lineTo(-5,0);ctx.lineTo(8,11);ctx.moveTo(-4,0);ctx.lineTo(13,0);ctx.stroke();
+  }else if(type==='play'){
+    ctx.beginPath();ctx.moveTo(-7,-12);ctx.lineTo(13,0);ctx.lineTo(-7,12);ctx.closePath();ctx.fill();
+  }else if(type==='bonus'){
+    ctx.beginPath();for(let i=0;i<10;i++){let a=-Math.PI/2+i*Math.PI/5,r=i%2?5:13;i?ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r):ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();
   }else if(type==='spinner'){
     ctx.fillStyle='transparent';ctx.globalAlpha=.3;ctx.beginPath();ctx.arc(0,0,12,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;ctx.rotate((visualNowMs()/240)% (Math.PI*2));ctx.beginPath();ctx.arc(0,0,12,-Math.PI*.55,0);ctx.stroke();
   }else if(type==='check'){
@@ -3071,16 +3066,13 @@ function ui(force=false){
   let lobbyKey=lobbyUiKey();
   let setupKey=[net.role,net.localId,net.signalReady,game.phase,game.level,game.nextLevel,selectedLevel,game.over,game.paused,pairView,rosterKey,lobbyKey].join('|');
   if(force||uiCache.setup!==setupKey){uiCache.setup=setupKey;syncSetupUI()}
-  let menuKey=[net.role,game.level,game.over,game.won,game.paused,game.phase,menuOpen,menuPairOpen,endMenuDismissed,hasOpenRoomSlot(),rosterKey].join('|');
-  if(force||uiCache.menu!==menuKey){uiCache.menu=menuKey;syncGameMenu()}
 }
 function connectedClient(){return !!((net.dc&&net.dc.readyState==='open')||(net.stateDc&&net.stateDc.readyState==='open'))}
-function clearPairFields(){els.code.value='';els.menuRoomCode.value='';els.code.readOnly=false;setSetupStatus('')}
+function clearPairFields(){uiState.roomCode='';setSetupStatus('')}
 function syncSetupUI(){
   syncLevelUI();
-  if(net.role==='host'&&net.roomCode){els.code.value=net.roomCode;els.menuRoomCode.value=net.roomCode}
+  if(net.role==='host'&&net.roomCode)uiState.roomCode=net.roomCode
 }
-function syncGameMenu(){syncMenuPair()}
 function ensureAudio(){
   if(!soundEnabled||!audioPageActive)return null;
   if(!audio){
@@ -4047,7 +4039,7 @@ async function createRoomCode(){
   return code;
 }
 
-function setSetupStatus(s){els.status.textContent=String(s||'')}
+function setSetupStatus(s){uiState.status=String(s||'')}
 function setMenuStatus(s){s=String(s||'');if(s)setDisplayNotice(s,2800)}
 function setSessionStatus(s){s=String(s||'');if(s)setDisplayNotice(s,3200)}
 function setLobbyStage(stage,message='',tone='info',duration=0){
@@ -4140,6 +4132,7 @@ function lobbySummary(){
   }
   return'';
 }
+function lobbyReadinessLine(){let ids=lobbyConnectedIds(),ready=ids.filter(id=>lobbyReadyFor(id)).length;return ids.length+' CONNECTED  ·  '+ready+' READY'}
 function lobbyRows(){
   if(net.role==='host'){
     let rows=[{id:0,label:'P1',detail:'YOU',state:'HOST · READY',tone:'host'}];
@@ -4163,25 +4156,17 @@ function lobbyRows(){
   }
   return[];
 }
-function slotIsOpen(slot){return !!slot&&!slot.retired&&!slot.rebuilding&&!slot.done&&!slot.accepted&&!slot.connected}
-function hasOpenRoomSlot(){if(net.role!=='host'||!net.pendingSlots)return false;for(const slot of net.pendingSlots.values())if(slotIsOpen(slot))return true;return false}
-function syncMenuPair(){els.menuRoomCode.value=net.role==='host'?(net.roomCode||''):''}
-
 function closePairing(){
   if(net.role==='host'||net.role==='client'&&net.localId)pairView='none';
   else{resetNetwork('solo');pairView='intro';clearPairFields();setSetupStatus('Ready.')}
   syncSetupUI();ui(true)
 }
 function pairMode(mode,preserve=false){
-  pairView=mode;
-  if(!preserve)els.code.value='';
-  if(mode==='host'){els.code.value=net.roomCode||els.code.value;els.code.placeholder='CREATING';els.code.readOnly=true}
-  else{els.code.placeholder='ROOM CODE';els.code.readOnly=false}
-  syncSetupUI();ui(true)
+  pairView=mode;if(!preserve)uiState.roomCode='';if(mode==='host'&&net.roomCode)uiState.roomCode=net.roomCode;syncSetupUI();ui(true)
 }
 function finishLeaveSession(){
   pendingStartRequest=null;helpOpen=false;resetNetwork('solo');selectedLevel=savedSelectedLevel();game=makeGame(selectedDifficulty,selectedLevel);menuOpen=false;endMenuDismissed=false;pairView='intro';clearPairFields();
-  els.setup.classList.remove('pairing');els.play.classList.add('hide');els.setup.classList.remove('hide');
+  uiState.screen='home';
   setSetupStatus('Ready.');syncSetupUI();ui(true);
 }
 function leaveSession(){
@@ -4190,8 +4175,8 @@ function leaveSession(){
   if(hosting&&(net.roster.size||game.phase!=='menu')){askConfirm('Stop Hosting','Connected players will be disconnected and the current run will end.','Stop Hosting',finishLeaveSession);return}
   finishLeaveSession();
 }
-async function copyTextFrom(el,label,target='setup'){
-  let text=el.value.trim();
+async function copyText(textValue,label,target='setup'){
+  let text=String(textValue||'').trim();
   let report=target==='menu'?setMenuStatus:setSetupStatus;
   if(!text){report('No code to copy yet.');return}
   try{
@@ -4281,9 +4266,9 @@ function applyClientSnapshot(g,hard=false,seq=0,epoch=net.stateEpoch){
   if(hard||first||phaseChanged)net.motionFrames=[];
   if(hard||first||phaseChanged&&(['count','level','over','menu'].includes(target.phase))){game=cloneGameState(target);repairGameState()}
   if(target.phase==='menu'){
-    if(els.setup.classList.contains('hide')||!els.play.classList.contains('hide'))showLobby();
+    if(uiState.screen!=='home')showLobby();
   }else showPlay();
-  if(hard||first||phaseChanged){syncGameMenu();ui(true)}
+  if(hard||first||phaseChanged){ui(true)}
   return true;
 }
 function markClientJoined(id,g,epoch=net.stateEpoch){
@@ -4407,18 +4392,18 @@ async function safePair(fn,target='setup'){
     (target==='menu'?setMenuStatus:setSetupStatus)(msg);console.error(e)
   }
 }
-function refreshHostInvite(){if(net.role!=='host')return;els.code.value=net.roomCode||'';els.menuRoomCode.value=net.roomCode||'';syncMenuPair();ui(true)}
+function refreshHostInvite(){if(net.role!=='host')return;uiState.roomCode=net.roomCode||'';ui(true)}
 async function invite(){return safePair(async()=>{
   resetNetwork('host');pairMode('host');setLobbyStage('creating');setSetupStatus('Creating online room…');
   await Promise.all([ensureRtcCertificate(),loadIceServers()]);
-  net.roomCode=await createRoomCode();els.code.value=net.roomCode;refreshHostInvite();
+  net.roomCode=await createRoomCode();uiState.roomCode=net.roomCode;refreshHostInvite();
   await openRoomSocket('host',net.roomCode);
   setLobbyStage('waiting','ROOM READY · SHARE THE CODE','success',4200);setSetupStatus('Waiting for players.');syncSetupUI();ui(true);
 })}
 async function join(){resetNetwork('client');pairMode('join');setLobbyStage('code');setSetupStatus('Enter the room code.')}
 async function useInvite(){return safePair(async()=>{
-  let code=normalizeRoomCode(els.code.value);if(code.length!==6)throw Error('Missing code');
-  els.code.value=code;setLobbyStage('locating');setSetupStatus('Finding room…');
+  let code=normalizeRoomCode(uiState.roomCode);if(code.length!==6)throw Error('Missing code');
+  uiState.roomCode=code;setLobbyStage('locating');setSetupStatus('Finding room…');
   await Promise.all([ensureRtcCertificate(),loadIceServers()]);
   net.roomCode=code;await openRoomSocket('player',code);
   setLobbyStage('waiting');setSetupStatus('Host notified. Waiting for response…');syncSetupUI();ui(true);
@@ -4752,7 +4737,7 @@ window.addEventListener('keydown',e=>{
     if(chatOpen){closeChat();e.preventDefault();return}
     if(confirmOpen()){closeConfirm();e.preventDefault();return}
     if(pendingStartRequest){cancelPendingStart();e.preventDefault();return}
-    if(!els.levelSelect.classList.contains('hide')){closeLevelSelect(false);e.preventDefault();return}
+    if(levelSelectVisible()){closeLevelSelect(false);e.preventDefault();return}
     if(!gameplayScreenVisible()&&pairView==='join'&&net.role==='client'&&!net.localId){closePairing();e.preventDefault();return}
     if(!gameplayScreenVisible()&&(net.role==='host'||net.role==='client'&&net.localId)){leaveSession();e.preventDefault();return}
     if(game.over&&!endMenuDismissed){net.role==='client'?resumeGame():requestMainMenu();e.preventDefault();return}
@@ -4838,7 +4823,7 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.3.4';
+const CANVAS_APP_VERSION='1.3.5';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
@@ -4884,11 +4869,10 @@ function portraitTransformStart(){cx.save();cx.translate(W/2,H/2);cx.rotate(-Mat
 function portraitTransformEnd(){cx.restore()}
 function portraitHit(id,x,y,w,h,action,enabled=true){canvasHits.push({id,x:y,y:H-(x+w),w:h,h:w,action,enabled});return{x,y,w,h}}
 function portraitButton(id,label,x,y,w,h,action,{primary=false,danger=false,selected=false,disabled=false,small=false}={}){
-  let pressed=canvasPressedHit&&canvasPressedHit.id===id,focused=canvasIsFocused(id),fill=disabled?'#111925':danger?'#3a1520':primary?'#7c281d':selected?'#103b53':UI.surface2,stroke=disabled?'#1c2a3a':danger?'#a53b55':primary?'#e46835':selected?UI.cyan:UI.line,accent=disabled?UI.dim:danger?UI.red:primary?UI.orange:selected?UI.cyan:'#39546c';
-  canvasBox(x,y,w,h,{fill:pressed?'#20344a':fill,stroke:focused&&!disabled?UI.cyanSoft:stroke,r:small?10:13,line:focused?2.4:selected||primary?1.7:1.2});cx.fillStyle=accent;cx.fillRect(x+1,y+6,5,h-12);canvasText(label,x+w/2+2,y+h/2,small?11:14,'center',disabled?UI.dim:UI.text,950,w-20);portraitHit(id,x,y,w,h,action,!disabled)
+  let focused=canvasIsFocused(id),visual=uiButtonPalette({primary,danger,selected,disabled,pressed:canvasPressedHit&&canvasPressedHit.id===id,hovered:false});canvasBox(x,y,w,h,{fill:visual.fill,stroke:focused&&!disabled?UI.cyanSoft:visual.stroke,r:small?10:13,line:focused?2.4:selected||primary?1.7:1.2});cx.fillStyle=visual.accent;cx.fillRect(x+1,y+6,5,h-12);canvasText(label,x+w/2+2,y+h/2,small?11:14,'center',disabled?UI.dim:UI.text,950,w-20);portraitHit(id,x,y,w,h,action,!disabled)
 }
 function portraitBackdrop(){let g=cx.createLinearGradient(0,0,PORTRAIT_W,PORTRAIT_H);g.addColorStop(0,'#071522');g.addColorStop(.58,'#100806');g.addColorStop(1,'#02050b');cx.fillStyle=g;cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);cx.fillStyle='#ff8a2417';cx.fillRect(0,0,PORTRAIT_W,6)}
-function portraitHeader(title,subtitle=''){canvasText('COIN DASH',PORTRAIT_W/2,54,32,'center',UI.text,1000);canvasText(title,PORTRAIT_W/2,94,15,'center',UI.orange,1000,PORTRAIT_W-48);if(subtitle)canvasText(subtitle,PORTRAIT_W/2,119,9,'center',UI.muted,850,PORTRAIT_W-52);canvasRule(30,137,PORTRAIT_W-30,137,UI.line,1)}
+function portraitHeader(title,subtitle=''){canvasBrandMark(43,39,28);canvasText('COIN DASH',66,34,24,'left',UI.text,1000,300);canvasText('INFERNO FOUNDRY  ·  '+CANVAS_APP_VERSION,66,55,7.5,'left',UI.cyanSoft,900,300);canvasRule(28,74,PORTRAIT_W-28,74,UI.line,1);canvasText(title,28,99,16,'left',UI.orange,1000,PORTRAIT_W-56);if(subtitle)canvasText(subtitle,28,124,9,'left',UI.muted,850,PORTRAIT_W-56);canvasRule(28,141,PORTRAIT_W-28,141,UI.lineSoft,1)}
 function portraitFooter(){
   if(performance.now()<displayNoticeUntil)canvasText(displayNotice,PORTRAIT_W/2,858,8.5,'center',UI.yellow,850,PORTRAIT_W-42);
   portraitButton('portrait-controls','CONTROLS',28,884,140,48,()=>openHelp(),{small:true});
@@ -4910,32 +4894,46 @@ function canvasEventPoint(e){let b=cv.getBoundingClientRect(),dx=e.clientX-b.lef
 const UI={
   bg:'#03060c',surface:'#08111e',surface2:'#0d1929',surface3:'#111f32',line:'#22384d',lineSoft:'#17283a',cyan:'#6fe7ff',cyanSoft:'#9cf1ff',orange:'#ff8a24',orangeDark:'#9d2b25',red:'#ff496d',green:'#63f5ad',yellow:'#ffd166',text:'#f7fbff',muted:'#9eafc4',dim:'#66778d'
 };
+function uiButtonPalette({primary=false,danger=false,selected=false,disabled=false,pressed=false,hovered=false}={}){let fill=disabled?'#111925':danger?'#3a1520':primary?'#7c281d':selected?'#103b53':UI.surface2,stroke=disabled?'#1c2a3a':danger?'#a53b55':primary?'#e46835':selected?UI.cyan:UI.line,accent=disabled?UI.dim:danger?UI.red:primary?UI.orange:selected?UI.cyan:'#39546c';if(pressed)fill='#20344a';else if(hovered&&!disabled)fill=primary?'#913426':danger?'#4b1c29':'#14263a';return{fill,stroke,accent}}
+
 function canvasFont(size,weight=800){cx.font=`${weight} ${size}px system-ui,-apple-system,"Segoe UI",sans-serif`}
-function canvasText(text,x,y,size=16,align='left',color=UI.text,weight=800,maxWidth=0){cx.save();canvasFont(size,weight);cx.textAlign=align;cx.textBaseline='middle';cx.fillStyle=color;if(maxWidth)cx.fillText(String(text),x,y,maxWidth);else cx.fillText(String(text),x,y);cx.restore()}
+function canvasEllipsis(text,maxWidth){let value=String(text);if(cx.measureText(value).width<=maxWidth)return value;let lo=0,hi=value.length;while(lo<hi){let mid=Math.ceil((lo+hi)/2),candidate=value.slice(0,mid).trimEnd()+'…';if(cx.measureText(candidate).width<=maxWidth)lo=mid;else hi=mid-1}return value.slice(0,lo).trimEnd()+'…'}
+function canvasText(text,x,y,size=16,align='left',color=UI.text,weight=800,maxWidth=0){cx.save();let drawSize=size,value=String(text);canvasFont(drawSize,weight);if(maxWidth){let minSize=Math.max(7,size*.82);while(drawSize>minSize&&cx.measureText(value).width>maxWidth){drawSize-=.5;canvasFont(drawSize,weight)}if(cx.measureText(value).width>maxWidth)value=canvasEllipsis(value,maxWidth)}cx.textAlign=align;cx.textBaseline='middle';cx.fillStyle=color;cx.fillText(value,x,y);cx.restore()}
+function canvasWrapLines(text,maxWidth,size=9,weight=800,maxLines=Infinity){cx.save();canvasFont(size,weight);let words=String(text||'').trim().split(/\s+/).filter(Boolean),lines=[],line='',index=0;for(;index<words.length;index++){let next=line?line+' '+words[index]:words[index];if(line&&cx.measureText(next).width>maxWidth){lines.push(line);line=words[index];if(lines.length>=maxLines){line='';break}}else line=next}if(line&&lines.length<maxLines)lines.push(line);if(index<words.length&&lines.length){let last=lines.length-1;lines[last]=canvasEllipsis(lines[last]+' '+words.slice(index).join(' '),maxWidth)}cx.restore();return lines}
+function canvasParagraph(text,x,y,maxWidth,{size=9,lineHeight=15,color=UI.muted,weight=800,maxLines=3,align='left'}={}){let lines=canvasWrapLines(text,maxWidth,size,weight,maxLines);lines.forEach((row,i)=>canvasText(row,x,y+i*lineHeight,size,align,color,weight,maxWidth));return lines.length}
+
 function canvasBox(x,y,w,h,{fill=UI.surface,stroke=UI.line,r=12,line=1}={}){cx.save();cx.fillStyle=fill;cx.strokeStyle=stroke;cx.lineWidth=line;cx.beginPath();cx.roundRect(x,y,w,h,r);cx.fill();if(stroke)cx.stroke();cx.restore()}
 function canvasRule(x1,y1,x2,y2,color=UI.line,line=1){cx.save();cx.strokeStyle=color;cx.lineWidth=line;cx.beginPath();cx.moveTo(x1,y1);cx.lineTo(x2,y2);cx.stroke();cx.restore()}
 function canvasPanel(x,y,w,h,alpha=.96){let fill=`rgba(7,16,29,${alpha})`;canvasBox(x,y,w,h,{fill,stroke:UI.line,r:18,line:1.5});canvasRule(x+18,y+1,x+w-18,y+1,UI.cyan,2);canvasBox(x+8,y+8,w-16,h-16,{fill:'rgba(255,255,255,.012)',stroke:UI.lineSoft,r:12,line:1})}
 function canvasSectionTitle(text,x,y,w){canvasText(text,x,y,10,'left',UI.muted,950,w);canvasRule(x,y+13,x+w,y+13,UI.lineSoft,1)}
 function canvasPill(text,x,y,w,{accent=UI.cyan,fill=UI.surface2,color=UI.text}={}){canvasBox(x,y,w,24,{fill,stroke:UI.line,r:12,line:1});cx.fillStyle=accent;cx.fillRect(x+7,y+7,3,10);canvasText(text,x+16,y+12,9,'left',color,900,w-21)}
 function canvasButton(id,label,x,y,w,h,action,{primary=false,danger=false,selected=false,disabled=false,small=false}={}){
-  let pressed=canvasPressedHit&&canvasPressedHit.id===id,focused=canvasIsFocused(id),hovered=canvasIsHovered(id),fill=disabled?'#111925':danger?'#3a1520':primary?'#7c281d':selected?'#103b53':UI.surface2;
-  let stroke=disabled?'#1c2a3a':danger?'#a53b55':primary?'#e46835':selected?UI.cyan:UI.line,accent=disabled?UI.dim:danger?UI.red:primary?UI.orange:selected?UI.cyan:'#39546c';if(hovered&&!disabled)fill=primary?'#913426':danger?'#4b1c29':'#14263a';
-  canvasBox(x,y,w,h,{fill:pressed?'#20344a':fill,stroke:focused&&!disabled?UI.cyanSoft:stroke,r:small?9:11,line:focused?2.4:selected||primary?1.6:1.2});cx.fillStyle=accent;cx.fillRect(x+1,y+4,4,h-8);canvasRule(x+8,y+1,x+w-8,y+1,disabled?'#ffffff08':'#ffffff1c',1);canvasText(label,x+w/2+(small?1:2),y+h/2,small?10:13,'center',disabled?UI.dim:UI.text,950,w-18);if(focused&&!disabled){cx.save();cx.strokeStyle='#ffffff55';cx.lineWidth=1;cx.setLineDash([3,3]);cx.beginPath();cx.roundRect(x+4,y+4,w-8,h-8,small?6:8);cx.stroke();cx.restore()}canvasHit(id,x,y,w,h,action,!disabled)
-}
-function canvasDrawUtilityBar(){
-  canvasButton('utility-controls','CONTROLS',666,12,88,30,()=>openHelp(),{small:true});
-  canvasButton('utility-sound',soundEnabled?'SOUND ON':'SOUND OFF',762,12,88,30,()=>toggleSound(),{small:true});
-  canvasButton('utility-full',document.fullscreenElement?'EXIT FULL':'FULLSCREEN',858,12,88,30,()=>toggleFull(),{small:true});
+  let focused=canvasIsFocused(id),visual=uiButtonPalette({primary,danger,selected,disabled,pressed:canvasPressedHit&&canvasPressedHit.id===id,hovered:canvasIsHovered(id)});canvasBox(x,y,w,h,{fill:visual.fill,stroke:focused&&!disabled?UI.cyanSoft:visual.stroke,r:small?9:11,line:focused?2.4:selected||primary?1.6:1.2});cx.fillStyle=visual.accent;cx.fillRect(x+1,y+4,4,h-8);canvasRule(x+8,y+1,x+w-8,y+1,disabled?'#ffffff08':'#ffffff1c',1);canvasText(label,x+w/2+(small?1:2),y+h/2,small?10:13,'center',disabled?UI.dim:UI.text,950,w-18);if(focused&&!disabled){cx.save();cx.strokeStyle='#ffffff55';cx.lineWidth=1;cx.setLineDash([3,3]);cx.beginPath();cx.roundRect(x+4,y+4,w-8,h-8,small?6:8);cx.stroke();cx.restore()}canvasHit(id,x,y,w,h,action,!disabled)
 }
 function canvasMetricIcon(x,y,w,type,value,{accent=UI.cyan,valueColor=UI.text}={}){canvasBox(x,y,w,46,{fill:UI.surface,stroke:UI.lineSoft,r:10,line:1});cx.fillStyle=accent;cx.fillRect(x,y,3,46);cx.save();cx.translate(x+20,y+23);drawUiGlyph(cx,type,.7,accent);cx.restore();canvasText(value,x+w-9,y+24,14,'right',valueColor,950,w-39)}
 function canvasIconButton(id,type,x,y,w,h,action,{accent=UI.cyan,disabled=false,badge=0}={}){let pressed=canvasPressedHit&&canvasPressedHit.id===id,focused=canvasIsFocused(id),hovered=canvasIsHovered(id);canvasBox(x,y,w,h,{fill:pressed?'#20344a':hovered&&!disabled?'#14263a':disabled?'#111925':UI.surface2,stroke:focused&&!disabled?UI.cyanSoft:disabled?'#1c2a3a':UI.line,r:9,line:focused?2.3:1.2});cx.save();cx.translate(x+w/2,y+h/2);drawUiGlyph(cx,type,Math.min(w,h)/42,disabled?UI.dim:accent);cx.restore();if(badge>0){cx.fillStyle=UI.red;cx.beginPath();cx.arc(x+w-5,y+5,8,0,Math.PI*2);cx.fill();canvasText(Math.min(9,badge),x+w-5,y+5,8,'center','#fff',1000)}canvasHit(id,x,y,w,h,action,!disabled)}
 function canvasBackdrop(){resetFrameCanvas();let g=cx.createLinearGradient(0,0,W,H);g.addColorStop(0,'#07111e');g.addColorStop(.52,'#100806');g.addColorStop(1,'#02050b');cx.fillStyle=g;cx.fillRect(0,0,W,H);cx.save();cx.globalAlpha=.12;cx.strokeStyle=UI.cyan;cx.lineWidth=1;for(let x=-H;x<W+H;x+=58){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x-H,H);cx.stroke()}cx.restore();cx.fillStyle='#ff8a2417';cx.fillRect(0,0,W,5);cx.fillStyle='#6fe7ff0d';cx.fillRect(0,H-4,W,4)}
-function canvasBrand(y=78){cx.save();cx.translate(W/2-166,y-18);cx.rotate(Math.PI/4);canvasBox(-17,-17,34,34,{fill:'#32130f',stroke:UI.orange,r:8,line:2});canvasBox(-8,-8,16,16,{fill:UI.orange,stroke:'#ffd49a',r:4,line:1});cx.restore();canvasText('COIN',W/2-10,y,40,'right',UI.text,1000);canvasText('DASH',W/2+2,y,40,'left',UI.orange,1000);canvasRule(W/2-124,y+25,W/2+124,y+25,UI.line,1);canvasText('INFERNO FOUNDRY',W/2,y+42,13,'center',UI.cyanSoft,950);canvasText('CANVAS EDITION  '+CANVAS_APP_VERSION,W/2,y+60,8,'center',UI.muted,850)}
+const DESKTOP_FRAME={x:44,y:84,w:872,h:442};
+function canvasBrandMark(x,y,size=22){
+  cx.save();cx.translate(x,y);cx.rotate(Math.PI/4);canvasBox(-size/2,-size/2,size,size,{fill:'#32130f',stroke:UI.orange,r:5,line:2});canvasBox(-size*.23,-size*.23,size*.46,size*.46,{fill:UI.orange,stroke:'#ffd49a',r:3,line:1});cx.restore();
+}
+function canvasUtilityButton(id,type,label,x,w,action,{active=false}={}){
+  let y=18,h=36,pressed=canvasPressedHit&&canvasPressedHit.id===id,focused=canvasIsFocused(id),hovered=canvasIsHovered(id),fill=pressed?'#1e3248':hovered?'#13243a':active?'#15364a':'#0b1726',stroke=focused?UI.cyanSoft:active?UI.cyan:UI.line;
+  canvasBox(x,y,w,h,{fill,stroke,r:10,line:focused?2.2:1.1});cx.save();cx.translate(x+18,y+h/2);drawUiGlyph(cx,type,.42,active?UI.cyanSoft:UI.muted);cx.restore();canvasText(label,x+34,y+h/2,9,'left',active?UI.cyanSoft:UI.text,900,w-40);canvasHit(id,x,y,w,h,action,true);
+}
+function canvasAppHeader(){
+  cx.fillStyle='#030811f2';cx.fillRect(0,0,W,72);canvasRule(0,71,W,71,UI.line,1);cx.fillStyle=UI.orange;cx.fillRect(0,0,W,4);
+  canvasBrandMark(29,30,28);canvasText('COIN DASH',54,27,24,'left',UI.text,1000,250);canvasText('INFERNO FOUNDRY  ·  '+CANVAS_APP_VERSION,54,49,8,'left',UI.cyanSoft,900,270);
+  canvasUtilityButton('utility-controls','move','CONTROLS',646,94,()=>openHelp());canvasUtilityButton('utility-sound','sound',soundEnabled?'SOUND ON':'SOUND OFF',748,94,()=>toggleSound(),{active:soundEnabled});canvasUtilityButton('utility-full','fullscreen',document.fullscreenElement?'EXIT FULL':'FULLSCREEN',850,98,()=>toggleFull(),{active:!!document.fullscreenElement});
+}
+function canvasScreenShell(){canvasBackdrop();canvasAppHeader();let f=DESKTOP_FRAME;canvasPanel(f.x,f.y,f.w,f.h,.985);return f}
+function canvasScreenTitle(f,eyebrow,title,subtitle='',options={}){
+  let left=f.x+28;if(options.backAction){canvasIconButton('back','back',left,f.y+18,46,38,options.backAction,{accent:UI.cyan});left+=62}
+  canvasText(eyebrow,left,f.y+27,9,'left',options.accent||UI.muted,950,f.w-250);canvasText(title,left,f.y+54,23,'left',UI.text,1000,f.w-250);if(subtitle)canvasText(subtitle,left,f.y+77,9,'left',UI.muted,820,f.w-250);canvasRule(f.x+24,f.y+92,f.x+f.w-24,f.y+92,UI.lineSoft,1);
+}
 function lobbyToneColor(tone){return tone==='success'?UI.green:tone==='pending'?UI.yellow:tone==='error'||tone==='offline'?UI.red:tone==='host'?UI.orange:UI.dim}
 function canvasActionButton(id,title,subtitle,icon,x,y,w,h,action,{primary=false,disabled=false,danger=false}={}){
-  let pressed=canvasPressedHit&&canvasPressedHit.id===id,focused=canvasIsFocused(id),hovered=canvasIsHovered(id),fill=disabled?'#111925':danger?'#32131d':primary?'#6f281f':UI.surface2,stroke=disabled?'#1c2a3a':danger?'#a53b55':primary?UI.orange:UI.line,accent=disabled?UI.dim:danger?UI.red:primary?UI.orange:UI.cyan;if(hovered&&!disabled)fill=primary?'#873326':'#14263a';
-  canvasBox(x,y,w,h,{fill:pressed?'#20344a':fill,stroke:focused&&!disabled?UI.cyanSoft:stroke,r:12,line:focused?2.4:primary?1.8:1.2});cx.fillStyle=accent;cx.fillRect(x+1,y+7,5,h-14);
-  cx.save();cx.translate(x+31,y+h/2);drawUiGlyph(cx,icon,.65,accent);cx.restore();canvasText(title,x+57,y+h/2-9,13,'left',disabled?UI.dim:UI.text,950,w-72);canvasText(subtitle,x+57,y+h/2+11,8,'left',disabled?UI.dim:UI.muted,800,w-72);canvasHit(id,x,y,w,h,action,!disabled);
+  let focused=canvasIsFocused(id),visual=uiButtonPalette({primary,danger,disabled,pressed:canvasPressedHit&&canvasPressedHit.id===id,hovered:canvasIsHovered(id)});canvasBox(x,y,w,h,{fill:visual.fill,stroke:focused&&!disabled?UI.cyanSoft:visual.stroke,r:12,line:focused?2.4:primary?1.8:1.2});cx.fillStyle=visual.accent;cx.fillRect(x+1,y+7,5,h-14);cx.save();cx.translate(x+31,y+h/2);drawUiGlyph(cx,icon,.65,visual.accent);cx.restore();canvasText(title,x+57,y+h/2-9,13,'left',disabled?UI.dim:UI.text,950,w-72);canvasText(subtitle,x+57,y+h/2+11,8,'left',disabled?UI.dim:UI.muted,800,w-72);canvasHit(id,x,y,w,h,action,!disabled)
 }
 function canvasDrawLobbyRoster(x,y,w){
   let rows=lobbyRows(),rowH=39,gap=5;
@@ -4953,61 +4951,51 @@ function canvasDrawLobbyNotice(x,y,w,fallback=''){
 function canvasDrawRoomCode(code,x,y,w,{editable=false,copy=false}={}){
   let copyW=copy?70:0,fieldW=w-copyW-(copy?8:0);canvasBox(x,y,fieldW,42,{fill:'#020711',stroke:canvasIsFocused('code-field')?UI.cyanSoft:UI.cyan,r:10,line:canvasIsFocused('code-field')?2.4:1.4});cx.save();cx.translate(x+21,y+21);drawUiGlyph(cx,'link',.42,UI.cyan);cx.restore();
   let shown=code||'------';if(editable&&canvasInputMode==='code')shown=canvasInputBuffer+(Math.floor(visualNowMs()/450)%2?'|':'');canvasText(shown,x+fieldW/2,y+21,21,'center',UI.cyanSoft,1000,fieldW-60);
-  if(editable)canvasHit('code-field',x,y,fieldW,42,()=>canvasOpenInput('code',els.code.value||''));if(copy)canvasButton('copy-code','COPY',x+fieldW+8,y,copyW,42,()=>copyTextFrom(els.code,'Room code'),{small:true});
+  if(editable)canvasHit('code-field',x,y,fieldW,42,()=>canvasOpenInput('code',uiState.roomCode||''));if(copy)canvasButton('copy-code','COPY',x+fieldW+8,y,copyW,42,()=>copyText(uiState.roomCode,'Room code'),{small:true});
 }
 function canvasDrawJoinTimeline(x,y,w){
   let steps=[['ROOM','link'],['HOST','host'],['CONNECT','wifi'],['READY','check']],stage=net.lobbyStage,index=stage==='code'?0:stage==='locating'||stage==='waiting'?1:stage==='connecting'||stage==='handshake'?2:stage==='connected'?3:0,gap=w/(steps.length-1);canvasRule(x,y,x+w,y,UI.line,3);
   steps.forEach(([label,icon],i)=>{let px=x+i*gap,done=i<index,current=i===index,color=done?UI.green:current?stage==='error'?UI.red:UI.yellow:UI.dim;cx.fillStyle='#07101a';cx.beginPath();cx.arc(px,y,17,0,Math.PI*2);cx.fill();cx.strokeStyle=color;cx.lineWidth=current?3:1.5;cx.stroke();cx.save();cx.translate(px,y);drawUiGlyph(cx,done?'check':current&&i<3?'spinner':icon,.38,color);cx.restore();canvasText(label,px,y+29,7,'center',color,950,70)});
 }
 function canvasDrawSetup(){
-  canvasBackdrop();canvasBrand(54);
   let hosting=net.role==='host',joined=net.role==='client'&&!!net.localId;
   if(hosting||joined)return canvasDrawLobby();
   if(pairView==='join')return canvasDrawPairing();
-  canvasSetFocusScope('home','solo');let x=246,y=150,w=468,h=370;canvasPanel(x,y,w,h,.98);canvasText('MAIN MENU',x+28,y+31,11,'left',UI.muted,950);canvasText('Choose how to play',x+28,y+55,20,'left',UI.text,950,w-56);
-  canvasActionButton('solo','PLAY SOLO','Select a campaign or bonus run','person',x+42,y+80,w-84,62,()=>openLevelSelect('home'),{primary:true});
-  canvasActionButton('host','HOST ONLINE','Create a room and invite players','host',x+42,y+154,w-84,56,()=>invite());
-  canvasActionButton('join','JOIN ONLINE','Enter a six-character room code','link',x+42,y+220,w-84,56,()=>join());
-  canvasRule(x+42,y+291,x+w-42,y+291,UI.lineSoft);let bw=120,gap=12,start=x+42;
-  canvasButton('controls','CONTROLS',start,y+307,bw,38,()=>openHelp(),{small:true});
-  canvasButton('sound',soundEnabled?'SOUND ON':'SOUND OFF',start+bw+gap,y+307,bw,38,()=>toggleSound(),{small:true});
-  canvasButton('full',document.fullscreenElement?'EXIT FULL':'FULLSCREEN',start+(bw+gap)*2,y+307,bw,38,()=>toggleFull(),{small:true});
+  canvasSetFocusScope('home','solo');let f=canvasScreenShell();
+  canvasScreenTitle(f,'MAIN MENU','Choose how to play','One consistent setup flow for solo and online play.');
+  let left=f.x+28,top=f.y+116,leftW=300,right=f.x+354,rightW=490;
+  canvasBox(left,top,leftW,278,{fill:'#081522',stroke:UI.lineSoft,r:14,line:1});canvasText('ENTER THE FOUNDRY',left+24,top+34,19,'left',UI.text,1000,leftW-48);canvasParagraph('Collect every coin, master the hazards, and clear the campaign or chase high scores in bonus stages.',left+24,top+66,leftW-48,{size:9,lineHeight:14,color:UI.muted,weight:820,maxLines:3});
+  let features=[['level','12 LEVEL CAMPAIGN','Bosses, hazards, and distinct arenas'],['bonus','3 BONUS RUNS','Enemy-free timed score attacks'],['host','UP TO 5 PLAYERS','Host a room or join with a code']];features.forEach(([icon,title,sub],i)=>{let y=top+118+i*50;cx.save();cx.translate(left+28,y+17);drawUiGlyph(cx,icon,.42,i===0?UI.orange:i===1?UI.yellow:UI.cyan);cx.restore();canvasText(title,left+52,y+10,9,'left',UI.text,950,leftW-72);canvasText(sub,left+52,y+28,7.5,'left',UI.muted,800,leftW-72)});
+  canvasText('SELECT A MODE',right,top+8,10,'left',UI.muted,950,rightW);canvasActionButton('solo','PLAY SOLO','Choose campaign or bonus score attack','play',right,top+27,rightW,72,()=>openLevelSelect('home'),{primary:true});canvasActionButton('host','HOST ONLINE','Create a room, choose the level, then start','host',right,top+111,rightW,68,()=>invite());canvasActionButton('join','JOIN ONLINE','Enter the host’s six-character room code','link',right,top+191,rightW,68,()=>join());
+  canvasText('ESC returns to the previous screen. Tab and arrow keys move focus.',f.x+28,f.y+420,8,'left',UI.dim,800,f.w-56);
 }
 function canvasDrawLobby(){
-  canvasSetFocusScope('lobby-'+net.role,net.role==='host'?(allLobbyPlayersReady()?'start-game':'change-level'):'ready-toggle');canvasBackdrop();canvasBrand(37);canvasDrawUtilityBar();let x=52,y=105,w=856,h=421,hosting=net.role==='host',client=net.role==='client',room=net.roomCode||'CREATING',selectedMap=levelConfig(selectedLevel),bonus=!!selectedMap.bonus;canvasPanel(x,y,w,h,.98);
-  canvasText('ONLINE LOBBY',x+27,y+27,21,'left',UI.text,950,250);canvasPill(hosting?'HOST':'PLAYER '+(net.localId+1),x+218,y+15,96,{accent:hosting?UI.yellow:UI.cyan});canvasText('ROOM',x+492,y+27,8,'left',UI.muted,950);canvasDrawRoomCode(room,x+538,y+10,286,{copy:hosting&&!!net.roomCode});
-  let lx=x+27,lw=350,rx=x+405,rw=424,top=y+73;canvasSectionTitle('PLAYERS',lx,top,lw);canvasDrawLobbyRoster(lx,top+22,lw);canvasDrawLobbyNotice(lx,top+248,lw);
-  if(chatAvailable())canvasButton('lobby-chat','CHAT',lx,top+294,108,37,()=>openChat(),{small:true});canvasButton('leave',hosting?'CLOSE LOBBY':'LEAVE LOBBY',lx+(chatAvailable()?118:0),top+294,lw-(chatAvailable()?118:0),37,()=>leaveSession(),{danger:true,small:true});
-  canvasSectionTitle('GAME SETUP',rx,top,rw);let preview=els.levelPreviewCanvas,px=rx,py=top+22,pw=250,ph=141;canvasBox(px-3,py-3,pw+6,ph+6,{fill:'#02050b',stroke:UI.line,r:10,line:1});if(preview&&preview.width)cx.drawImage(preview,px,py,pw,ph);
-  canvasBox(rx+264,py,160,ph,{fill:UI.surface2,stroke:bonus?selectedMap.accent:UI.lineSoft,r:10,line:1});canvasText(levelDisplayLabel(selectedLevel),rx+278,py+22,9,'left',bonus?selectedMap.accent:UI.orange,950,132);canvasText(selectedMap.name,rx+278,py+49,15,'left',UI.text,950,132);canvasText(selectedMap.gimmick||'',rx+278,py+76,8,'left',UI.muted,800,132);canvasText(bonus?'SCORE ATTACK':'DIFFICULTY',rx+278,py+104,7,'left',UI.muted,900);canvasPill(bonus?selectedMap.bonusTime+' SEC':selectedDifficulty.toUpperCase(),rx+278,py+115,125,{accent:bonus?selectedMap.accent:selectedDifficulty==='hard'?UI.red:selectedDifficulty==='easy'?UI.green:UI.cyan});
+  canvasSetFocusScope('lobby-'+net.role,net.role==='host'?(allLobbyPlayersReady()?'start-game':'change-level'):'ready-toggle');let f=canvasScreenShell(),hosting=net.role==='host',room=net.roomCode||'CREATING',selectedMap=levelConfig(selectedLevel),bonus=!!selectedMap.bonus;
+  canvasScreenTitle(f,'ONLINE PLAY','Multiplayer Lobby',hosting?'You control the room and game setup.':'Review the setup, then mark yourself ready.');canvasPill(hosting?'HOST':'PLAYER '+(net.localId+1),f.x+270,f.y+22,98,{accent:hosting?UI.yellow:UI.cyan});canvasText('ROOM CODE',f.x+530,f.y+29,8,'left',UI.muted,950);canvasDrawRoomCode(room,f.x+610,f.y+14,234,{copy:hosting&&!!net.roomCode});
+  let lx=f.x+28,lw=350,rx=f.x+402,rw=442,top=f.y+112;canvasSectionTitle('PLAYERS',lx,top,lw);canvasDrawLobbyRoster(lx,top+22,lw);canvasDrawLobbyNotice(lx,top+248,lw);
+  if(chatAvailable())canvasButton('lobby-chat','OPEN CHAT',lx,top+294,118,38,()=>openChat(),{small:true});canvasButton('leave',hosting?'CLOSE LOBBY':'LEAVE LOBBY',lx+(chatAvailable()?130:0),top+294,lw-(chatAvailable()?130:0),38,()=>leaveSession(),{danger:true,small:true});
+  canvasSectionTitle('GAME SETUP',rx,top,rw);let preview=uiState.levelPreviewCanvas,px=rx,py=top+22,pw=248,ph=140;canvasBox(px-3,py-3,pw+6,ph+6,{fill:'#02050b',stroke:bonus?selectedMap.accent:UI.line,r:10,line:1});if(preview&&preview.width)cx.drawImage(preview,px,py,pw,ph);
+  canvasBox(rx+262,py,180,ph,{fill:UI.surface2,stroke:bonus?selectedMap.accent:UI.lineSoft,r:10,line:1});canvasText(levelDisplayLabel(selectedLevel),rx+278,py+20,8,'left',bonus?selectedMap.accent:UI.orange,950,148);canvasText(selectedMap.name,rx+278,py+46,14,'left',UI.text,950,148);canvasText(selectedMap.gimmick||'',rx+278,py+74,8,'left',UI.muted,800,148);canvasText(bonus?'SCORE ATTACK':'DIFFICULTY',rx+278,py+103,7,'left',UI.muted,900);canvasPill(bonus?selectedMap.bonusTime+' SEC':selectedDifficulty.toUpperCase(),rx+278,py+113,140,{accent:bonus?selectedMap.accent:selectedDifficulty==='hard'?UI.red:selectedDifficulty==='easy'?UI.green:UI.cyan});
   if(hosting){
-    if(bonus){canvasBox(rx,top+179,rw,34,{fill:'#151124',stroke:selectedMap.accent,r:8,line:1});canvasText('NO ENEMIES  ·  MOVING COINS  ·  HIGH SCORE',rx+rw/2,top+196,8,'center',selectedMap.accent,950,rw-24)}
-    else{let labels=[['easy','EASY'],['normal','NORMAL'],['hard','HARD']],dw=130,gap=8;labels.forEach(([key,label],i)=>canvasButton('lobby-diff-'+key,label,rx+i*(dw+gap),top+179,dw,34,()=>selectDifficulty(key),{selected:selectedDifficulty===key,small:true}))}
-    canvasButton('change-level','CHANGE LEVEL',rx,top+225,168,42,()=>openLevelSelect('lobby'));let canStart=!!net.roomCode&&allLobbyPlayersReady(),pending=lobbyPendingCount();canvasButton('start-game',pending?'PLAYER CONNECTING':canStart?(bonus?'START BONUS':'START GAME'):'WAITING FOR READY',rx+180,top+225,244,42,()=>beginRun(selectedDifficulty,selectedLevel),{primary:canStart,disabled:!canStart});
-    canvasText(lobbySummary(),rx,top+288,8.5,'left',canStart?UI.green:pending?UI.yellow:UI.muted,900,rw);
+    if(bonus){canvasBox(rx,top+177,rw,34,{fill:'#151124',stroke:selectedMap.accent,r:8,line:1});canvasText('NO ENEMIES  ·  MOVING COINS  ·  HIGH SCORE',rx+rw/2,top+194,8,'center',selectedMap.accent,950,rw-24)}
+    else{let labels=[['easy','EASY'],['normal','NORMAL'],['hard','HARD']],gap=8,dw=(rw-gap*2)/3;labels.forEach(([key,label],i)=>canvasButton('lobby-diff-'+key,label,rx+i*(dw+gap),top+177,dw,34,()=>selectDifficulty(key),{selected:selectedDifficulty===key,small:true}))}
+    canvasButton('change-level','CHANGE LEVEL',rx,top+223,170,44,()=>openLevelSelect('lobby'));let canStart=!!net.roomCode&&allLobbyPlayersReady(),pending=lobbyPendingCount();canvasButton('start-game',pending?'PLAYER CONNECTING':canStart?(bonus?'START BONUS':'START GAME'):'WAITING FOR READY',rx+182,top+223,rw-182,44,()=>beginRun(selectedDifficulty,selectedLevel),{primary:canStart,disabled:!canStart});canvasText(lobbyReadinessLine(),rx,top+289,8.5,'left',canStart?UI.green:pending?UI.yellow:UI.muted,900,rw);
   }else{
-    canvasBox(rx,top+179,rw,42,{fill:UI.surface2,stroke:UI.lineSoft,r:10,line:1});canvasText(bonus?'Host selected an enemy-free timed bonus run':'Host controls the level and difficulty',rx+16,top+200,9,'left',UI.muted,850,rw-32);
-    let ready=!!net.localReady;canvasButton('ready-toggle',ready?'CANCEL READY':'READY UP',rx,top+235,rw,48,()=>setLocalReady(!ready),{primary:!ready,selected:ready});canvasText(ready?'You are ready. The host can start when everyone is ready.':'Review the setup, then select Ready Up.',rx,top+306,8.5,'left',ready?UI.green:UI.muted,850,rw);
+    canvasBox(rx,top+177,rw,42,{fill:UI.surface2,stroke:UI.lineSoft,r:10,line:1});canvasText(bonus?'Host selected an enemy-free timed bonus run':'The host controls the level and difficulty.',rx+16,top+198,9,'left',UI.muted,850,rw-32);let ready=!!net.localReady;canvasButton('ready-toggle',ready?'CANCEL READY':'READY UP',rx,top+233,rw,48,()=>setLocalReady(!ready),{primary:!ready,selected:ready});canvasText(ready?'Ready. Waiting for the host to start.':'Review the setup, then select Ready Up.',rx,top+306,8.5,'left',ready?UI.green:UI.muted,850,rw);
   }
 }
 function canvasDrawPairing(){
-  canvasSetFocusScope('join-room','code-field');canvasBackdrop();canvasBrand(54);canvasDrawUtilityBar();let x=250,y=150,w=460,h=350,code=els.code.value||canvasInputBuffer||'',busy=['locating','waiting','connecting','handshake'].includes(net.lobbyStage);canvasPanel(x,y,w,h,.98);
-  canvasButton('pair-back',busy?'CANCEL':'BACK',x+20,y+18,78,34,()=>closePairing(),{small:true});canvasText('JOIN ONLINE',x+118,y+35,22,'left',UI.text,950,w-144);canvasText('Enter the room code from the host',x+36,y+82,10,'left',UI.muted,850,w-72);canvasDrawRoomCode(code,x+36,y+99,w-72,{editable:!busy});
-  canvasDrawJoinTimeline(x+72,y+188,w-144);canvasDrawLobbyNotice(x+36,y+232,w-72,els.status.textContent||'ENTER A ROOM CODE');let valid=(els.code.value||canvasInputBuffer||'').length===6,joinLabel=net.lobbyStage==='error'?'TRY AGAIN':busy?'CONNECTING…':'JOIN ROOM';canvasButton('join-room',joinLabel,x+58,y+279,w-116,46,()=>useInvite(),{primary:!busy,disabled:busy||!valid});canvasText(canvasTouchDevice?'Tap the code field to type':'Type the code, then press Enter or Join Room',W/2,y+340,8,'center',UI.muted,850,w-50);
+  canvasSetFocusScope('join-room','code-field');let f=canvasScreenShell(),code=uiState.roomCode||canvasInputBuffer||'',busy=['locating','waiting','connecting','handshake'].includes(net.lobbyStage);canvasScreenTitle(f,'ONLINE PLAY','Join a Room','Enter the six-character code shown by the host.',{backAction:()=>closePairing()});
+  let left=f.x+32,top=f.y+122,leftW=370,right=f.x+426,rightW=414;canvasBox(left,top,leftW,264,{fill:'#081522',stroke:UI.lineSoft,r:14,line:1});canvasText('CONNECTION STATUS',left+24,top+28,10,'left',UI.muted,950,leftW-48);canvasDrawJoinTimeline(left+42,top+84,leftW-84);canvasDrawLobbyNotice(left+24,top+156,leftW-48,uiState.status||'ENTER A ROOM CODE');canvasParagraph('The host is notified as soon as the room is found. Keep this screen open until Ready appears.',left+24,top+206,leftW-48,{size:8.5,lineHeight:13,color:UI.muted,weight:800,maxLines:3});
+  canvasBox(right,top,rightW,264,{fill:UI.surface2,stroke:UI.lineSoft,r:14,line:1});canvasText('ROOM CODE',right+28,top+34,10,'left',UI.muted,950,rightW-56);canvasDrawRoomCode(code,right+28,top+55,rightW-56,{editable:!busy});let valid=(uiState.roomCode||canvasInputBuffer||'').length===6,joinLabel=net.lobbyStage==='error'?'TRY AGAIN':busy?'CONNECTING…':'JOIN ROOM';canvasButton('join-room',joinLabel,right+28,top+122,rightW-56,50,()=>useInvite(),{primary:!busy,disabled:busy||!valid});canvasText(canvasTouchDevice?'Tap the code field to type.':'Type the code and press Enter, or choose Join Room.',right+28,top+196,8,'left',UI.muted,820,rightW-56);canvasText(busy?'Use the back arrow to cancel the connection.':'Use the back arrow to return to the main menu.',right+28,top+235,8,'left',UI.dim,800,rightW-56);
 }
 function canvasDrawLevelSelect(){
-  canvasSetFocusScope('level-'+levelSelectOrigin,'play-level');canvasBackdrop();canvasBrand(30);canvasDrawUtilityBar();let x=44,y=92,w=W-88,h=434,context=levelSelectOrigin==='lobby'?'ONLINE LOBBY':levelSelectOrigin==='menu'?'CHANGE LEVEL':'SOLO GAME',selectedMap=levelConfig(selectedLevel),bonus=!!selectedMap.bonus;canvasPanel(x,y,w,h,.98);canvasButton('back',levelSelectOrigin==='home'?'BACK':'CANCEL',x+18,y+16,78,34,()=>closeLevelSelect(false),{small:true});canvasText(context,x+116,y+33,10,'left',UI.muted,950);canvasText('SELECT LEVEL',x+116,y+57,23,'left',UI.text,950);canvasPill(levelDisplayLabel(selectedLevel),x+w-132,y+24,106,{accent:bonus?selectedMap.accent:UI.orange});
-  let preview=els.levelPreviewCanvas,previewX=x+24,previewY=y+86,previewW=506,previewH=284;canvasBox(previewX-5,previewY-5,previewW+10,previewH+10,{fill:'#02050b',stroke:bonus?selectedMap.accent:UI.line,r:12,line:1});if(preview&&preview.width)cx.drawImage(preview,previewX,previewY,previewW,previewH);canvasText(selectedMap.name,previewX,previewY+previewH+24,18,'left',UI.text,950,previewW);canvasText(selectedMap.gimmick||'',previewX,previewY+previewH+44,10,'left',UI.muted,800,previewW);
-  let bx=x+558,areaW=284,tabY=y+88;canvasSectionTitle('MODE',bx,tabY-18,areaW);canvasButton('mode-campaign','CAMPAIGN',bx,tabY,137,34,()=>setLevelCategory('campaign'),{selected:levelSelectCategory==='campaign',small:true});canvasButton('mode-bonus','BONUS',bx+147,tabY,137,34,()=>setLevelCategory('bonus'),{selected:levelSelectCategory==='bonus',small:true});
-  let list=levelListForCategory(),gridTop=tabY+58;canvasSectionTitle(levelSelectCategory==='bonus'?'SCORE ATTACKS':'CAMPAIGN LEVELS',bx,gridTop-18,areaW);if(levelSelectCategory==='campaign'){
-    let cols=4,gap=8,bw=(areaW-gap*3)/4,bh=34;list.forEach((level,index)=>{let col=index%cols,row=Math.floor(index/cols);canvasButton('level-'+level,levelDisplayCode(level),bx+col*(bw+gap),gridTop+row*42,bw,bh,()=>selectLevel(level),{selected:selectedLevel===level,small:true})});
-  }else{
-    let gap=10,bw=(areaW-gap*2)/3;list.forEach((level,index)=>canvasButton('level-'+level,levelDisplayCode(level),bx+index*(bw+gap),gridTop,bw,44,()=>selectLevel(level),{selected:selectedLevel===level,small:true}));
-    canvasText('Enemy-free timed coin challenges',bx,gridTop+65,8,'left',selectedMap.accent,900,areaW);
-  }
-  let optionY=y+296;if(bonus){canvasSectionTitle('BONUS RULES',bx,optionY-18,areaW);canvasBox(bx,optionY,areaW,38,{fill:'#151124',stroke:selectedMap.accent,r:9,line:1});canvasText(selectedMap.bonusTime+' SEC · COINS RESPAWN · HIGH SCORE',bx+areaW/2,optionY+19,8,'center',selectedMap.accent,950,areaW-18)}
-  else{canvasSectionTitle('DIFFICULTY',bx,optionY-18,areaW);let labels=[['easy','EASY'],['normal','NORMAL'],['hard','HARD']],dw=86,dgap=7,dstart=bx+(areaW-(dw*3+dgap*2))/2;labels.forEach(([k,l],i)=>canvasButton('ld-'+k,l,dstart+i*(dw+dgap),optionY,dw,36,()=>selectDifficulty(k),{selected:selectedDifficulty===k,small:true}))}
-  canvasButton('play-level',levelSelectActionLabel(),bx,y+h-62,areaW,46,()=>playSelectedLevel(),{primary:true});
+  canvasSetFocusScope('level-'+levelSelectOrigin,'play-level');let f=canvasScreenShell(),context=levelSelectOrigin==='lobby'?'ONLINE LOBBY':levelSelectOrigin==='menu'?'CURRENT RUN':'SOLO PLAY',selectedMap=levelConfig(selectedLevel),bonus=!!selectedMap.bonus;canvasScreenTitle(f,context,'Choose a Level',bonus?'Timed enemy-free score attack.':'Select a campaign stage and difficulty.',{backAction:()=>closeLevelSelect(false),accent:bonus?selectedMap.accent:UI.muted});canvasPill(levelDisplayLabel(selectedLevel),f.x+740,f.y+24,104,{accent:bonus?selectedMap.accent:UI.orange});
+  let preview=uiState.levelPreviewCanvas,previewX=f.x+28,previewY=f.y+112,previewW=500,previewH=281;canvasBox(previewX-5,previewY-5,previewW+10,previewH+10,{fill:'#02050b',stroke:bonus?selectedMap.accent:UI.line,r:12,line:1});if(preview&&preview.width)cx.drawImage(preview,previewX,previewY,previewW,previewH);canvasText(selectedMap.name,previewX,previewY+previewH+21,17,'left',UI.text,950,previewW);canvasText(selectedMap.gimmick||'',previewX,previewY+previewH+42,9,'left',UI.muted,800,previewW);
+  let bx=f.x+558,areaW=286,tabY=f.y+113;canvasSectionTitle('MODE',bx,tabY-17,areaW);canvasButton('mode-campaign','CAMPAIGN',bx,tabY,138,36,()=>setLevelCategory('campaign'),{selected:levelSelectCategory==='campaign',small:true});canvasButton('mode-bonus','BONUS',bx+148,tabY,138,36,()=>setLevelCategory('bonus'),{selected:levelSelectCategory==='bonus',small:true});let list=levelListForCategory(),gridTop=tabY+61;canvasSectionTitle(levelSelectCategory==='bonus'?'BONUS RUNS':'CAMPAIGN LEVELS',bx,gridTop-17,areaW);
+  if(levelSelectCategory==='campaign'){let cols=4,gap=8,bw=(areaW-gap*3)/4,bh=34;list.forEach((level,index)=>{let col=index%cols,row=Math.floor(index/cols);canvasButton('level-'+level,levelDisplayCode(level),bx+col*(bw+gap),gridTop+row*42,bw,bh,()=>selectLevel(level),{selected:selectedLevel===level,small:true})})}else{let gap=10,bw=(areaW-gap*2)/3;list.forEach((level,index)=>canvasButton('level-'+level,levelDisplayCode(level),bx+index*(bw+gap),gridTop,bw,44,()=>selectLevel(level),{selected:selectedLevel===level,small:true}));canvasText('Enemy-free timed coin challenges',bx,gridTop+64,8,'left',selectedMap.accent,900,areaW)}
+  let optionY=f.y+317;if(bonus){canvasSectionTitle('BONUS RULES',bx,optionY-17,areaW);canvasBox(bx,optionY,areaW,38,{fill:'#151124',stroke:selectedMap.accent,r:9,line:1});canvasText(selectedMap.bonusTime+' SEC · RESPAWNING COINS',bx+areaW/2,optionY+19,8,'center',selectedMap.accent,950,areaW-18)}else{canvasSectionTitle('DIFFICULTY',bx,optionY-17,areaW);let labels=[['easy','EASY'],['normal','NORMAL'],['hard','HARD']],dw=88,dgap=7;labels.forEach(([k,l],i)=>canvasButton('ld-'+k,l,bx+i*(dw+dgap),optionY,dw,38,()=>selectDifficulty(k),{selected:selectedDifficulty===k,small:true}))}
+  canvasButton('play-level',levelSelectActionLabel(),bx,f.y+380,areaW,46,()=>playSelectedLevel(),{primary:true});
 }
 function canvasDrawHud(){
   let map=levelConfig(game.level),bonus=!!map.bonus,got=bonus?bonusCoinsCollected():(game.coins||[]).filter(c=>c.taken).length,remaining=bonus?bonusTimeRemaining():0,displayTime=bonus?remaining:game.time,m=Math.floor(displayTime/60),sec=String(Math.floor(displayTime%60)).padStart(2,'0'),clockAccent=bonus&&remaining<=10?UI.red:UI.cyan;cx.fillStyle=UI.bg;cx.fillRect(0,0,W,64);cx.fillStyle='#0a1422';cx.fillRect(0,0,W,62);canvasRule(0,63,W,63,bonus?map.accent:UI.cyan,1);
@@ -5082,7 +5070,7 @@ function canvasDrawMenu(){
   let resultTitle=bonus&&game.won?'BONUS COMPLETE':game.won&&game.level>=CAMPAIGN_LEVEL_COUNT?'CAMPAIGN COMPLETE':game.won?'LEVEL COMPLETE':'RUN ENDED';canvasText(over?'RESULTS':'GAME MENU',x+30,y+30,9,'left',UI.muted,950);canvasText(over?resultTitle:'PAUSED',x+30,y+62,28,'left',UI.text,1000,w-60);
   let subtitle=over?(bonus?bonusCoinsCollected()+' COINS · '+map.bonusTime+' SECOND RUN':levelDisplayLabel(game.level)+' · '+normalizeDifficulty(game.difficulty).toUpperCase()):client?'Online game continues while this menu is open.':levelDisplayLabel(game.level)+' · '+(bonus?'SCORE ATTACK':normalizeDifficulty(game.difficulty).toUpperCase());canvasText(subtitle,x+30,y+91,9,'left',client&&!over?UI.yellow:UI.muted,850,w-60);canvasRule(x+28,y+112,x+w-28,y+112,UI.lineSoft);
   let by=y+126;for(const b of buttons){canvasButton('menu-'+b.id,b.label,x+48,by,w-96,38,b.action||(()=>{}),{primary:!!b.primary,danger:!!b.danger,disabled:!!b.disabled});by+=44}
-  if(roomOpen){let py=y+h-122;canvasBox(x+28,py,w-56,66,{fill:UI.surface2,stroke:UI.lineSoft,r:10,line:1});canvasText('ONLINE ROOM',x+44,py+17,8,'left',UI.muted,950);canvasText(net.roomCode||'------',x+44,py+43,17,'left',UI.cyanSoft,1000);canvasText(lobbyConnectedCount()+' PLAYERS CONNECTED',x+w-44,py+24,8,'right',UI.text,900);if(net.role==='host')canvasButton('menu-copy','COPY CODE',x+w-150,py+34,106,25,()=>copyTextFrom(els.menuRoomCode,'Room code','menu'),{small:true})}
+  if(roomOpen){let py=y+h-122;canvasBox(x+28,py,w-56,66,{fill:UI.surface2,stroke:UI.lineSoft,r:10,line:1});canvasText('ONLINE ROOM',x+44,py+17,8,'left',UI.muted,950);canvasText(net.roomCode||'------',x+44,py+43,17,'left',UI.cyanSoft,1000);canvasText(lobbyConnectedCount()+' PLAYERS CONNECTED',x+w-44,py+24,8,'right',UI.text,900);if(net.role==='host')canvasButton('menu-copy','COPY CODE',x+w-150,py+34,106,25,()=>copyText(net.roomCode,'Room code','menu'),{small:true})}
   canvasButton('menu-sound',soundEnabled?'SOUND ON':'SOUND OFF',x+28,y+h-43,120,29,()=>toggleSound(),{small:true});canvasButton('menu-full',document.fullscreenElement?'EXIT FULLSCREEN':'FULLSCREEN',x+w-148,y+h-43,120,29,()=>toggleFull(),{small:true});
 }
 function canvasDrawHelp(){
@@ -5093,22 +5081,21 @@ function canvasDrawHelp(){
   section('TOUCH',y+321);canvasText('Left joystick moves. Right button dashes. The two upper buttons activate specials.',x+34,y+346,9,'left',UI.text,850,w-68);canvasText('Online: review the host setup, select Ready Up, then wait for the host to start.',x+34,y+369,9,'left',UI.muted,800,w-68);
   canvasButton('help-close','CLOSE',x+w-174,y+h-54,140,38,()=>closeHelp(),{primary:true});
 }
-function canvasWrap(text,maxChars=52){let words=String(text||'').split(/\s+/),lines=[],line='';for(const word of words){let next=line?line+' '+word:word;if(next.length>maxChars&&line){lines.push(line);line=word}else line=next}if(line)lines.push(line);return lines}
-function canvasDrawConfirm(){canvasSetFocusScope('confirm','confirm-cancel');cx.save();cx.fillStyle='#010308e8';cx.fillRect(0,0,W,H);cx.restore();let x=296,y=155,w=368,h=230;canvasPanel(x,y,w,h,.99);cx.fillStyle=UI.red;cx.fillRect(x,y+22,5,54);canvasText(els.confirmTitle.textContent||'CONFIRM',x+28,y+39,23,'left',UI.text,950,w-56);canvasWrap(els.confirmText.textContent,44).slice(0,3).forEach((line,i)=>canvasText(line,x+28,y+88+i*20,11,'left',UI.muted,800,w-56));canvasButton('confirm-cancel','CANCEL',x+28,y+h-58,142,38,()=>closeConfirm());canvasButton('confirm-action',els.confirmAction.textContent||'CONFIRM',x+w-170,y+h-58,142,38,()=>{let action=pendingConfirm;closeConfirm(false);if(action)action()},{danger:true})}
+function canvasDrawConfirm(){canvasSetFocusScope('confirm','confirm-cancel');cx.save();cx.fillStyle='#010308e8';cx.fillRect(0,0,W,H);cx.restore();let x=296,y=155,w=368,h=230;canvasPanel(x,y,w,h,.99);cx.fillStyle=UI.red;cx.fillRect(x,y+22,5,54);canvasText(uiState.confirm.title||'CONFIRM',x+28,y+39,23,'left',UI.text,950,w-56);canvasWrapLines(uiState.confirm.text,w-56,11,800,3).forEach((line,i)=>canvasText(line,x+28,y+88+i*20,11,'left',UI.muted,800,w-56));canvasButton('confirm-cancel','CANCEL',x+28,y+h-58,142,38,()=>closeConfirm());canvasButton('confirm-action',uiState.confirm.action||'CONFIRM',x+w-170,y+h-58,142,38,()=>acceptConfirm(),{danger:true})}
 function canvasDrawChat(){
   canvasSetFocusScope('chat','chat-input');cx.save();cx.fillStyle='#010308e8';cx.fillRect(0,0,W,H);cx.restore();let x=172,y=42,w=616,h=456;canvasPanel(x,y,w,h,.99);cx.fillStyle=UI.cyan;cx.fillRect(x,y+18,5,48);canvasText('ROOM CHAT',x+28,y+31,17,'left',UI.text,950,w-110);canvasText(net.roomCode?'ROOM '+net.roomCode:'ONLINE PLAYERS',x+28,y+54,8,'left',UI.muted,900);canvasButton('chat-close','CLOSE',x+w-88,y+16,64,30,()=>closeChat(),{small:true});
   let onlineContinues=net.role==='client'&&gameplayScreenVisible()&&!game.over;canvasBox(x+24,y+75,w-48,28,{fill:onlineContinues?'#2d230d':'#071621',stroke:onlineContinues?UI.yellow:UI.cyan,r:8,line:1});canvasText(onlineContinues?'ONLINE GAME CONTINUES WHILE CHAT IS OPEN':'GAME IS PAUSED WHILE CHAT IS OPEN',W/2,y+89,8,'center',onlineContinues?UI.yellow:UI.cyanSoft,900,w-70);
-  let rows=chatHistory.slice(-7),yy=y+124;for(const msg of rows){let name=msg.playerId<0?'SYSTEM':'P'+(msg.playerId+1),own=msg.playerId===currentChatPlayerId(),nameColor=msg.playerId<0?UI.muted:colors[Math.max(0,msg.playerId)%colors.length],lines=canvasWrap(msg.text,66).slice(0,2);canvasText(name,x+28,yy,8,'left',nameColor,950);let bubbleH=Math.max(25,lines.length*18+8);canvasBox(x+86,yy-12,w-116,bubbleH,{fill:own?'#25160e':UI.surface2,stroke:own?'#6b3b21':UI.lineSoft,r:8,line:1});lines.forEach((line,i)=>canvasText(line,x+98,yy+i*18,10,'left',UI.text,800,w-142));yy+=bubbleH+8;if(yy>y+350)break}
+  let rows=chatHistory.slice(-7),yy=y+124;for(const msg of rows){let name=msg.playerId<0?'SYSTEM':'P'+(msg.playerId+1),own=msg.playerId===currentChatPlayerId(),nameColor=msg.playerId<0?UI.muted:colors[Math.max(0,msg.playerId)%colors.length],lines=canvasWrapLines(msg.text,w-142,10,800,2);canvasText(name,x+28,yy,8,'left',nameColor,950);let bubbleH=Math.max(25,lines.length*18+8);canvasBox(x+86,yy-12,w-116,bubbleH,{fill:own?'#25160e':UI.surface2,stroke:own?'#6b3b21':UI.lineSoft,r:8,line:1});lines.forEach((line,i)=>canvasText(line,x+98,yy+i*18,10,'left',UI.text,800,w-142));yy+=bubbleH+8;if(yy>y+350)break}
   let fieldY=y+h-61,typing=canvasInputMode==='chat',shown=typing?canvasInputBuffer+(Math.floor(visualNowMs()/450)%2?'|':''):'Select here to type a message';canvasBox(x+20,fieldY,w-132,42,{fill:'#050b13',stroke:canvasIsFocused('chat-input')?UI.cyanSoft:typing?UI.cyan:'#8f5a2e',r:10,line:1.2});canvasText(shown,x+33,fieldY+21,10.5,'left',typing?UI.text:UI.dim,800,w-165);canvasHit('chat-input',x+20,fieldY,w-132,42,()=>canvasOpenInput('chat',typing?canvasInputBuffer:''));canvasButton('chat-send','SEND',x+w-102,fieldY,82,42,()=>{if(!typing)canvasOpenInput('chat','');else canvasSubmitInput()},{primary:true,small:true});if(!canvasTouchDevice)canvasText('ENTER TO SEND · ESC TO CANCEL',x+24,fieldY-10,7,'left',UI.dim,850,w-48);
 }
 function canvasOpenInput(mode,value=''){canvasInputMode=mode;canvasInputOriginal=String(value||'');canvasInputBuffer=canvasInputOriginal;canvasInputLimit=mode==='code'?6:160;resetGameplayInput();ui(true)}
-function canvasCloseInput(){if(canvasInputMode==='code')els.code.value=normalizeRoomCode(canvasInputOriginal);canvasInputMode='';canvasInputBuffer='';canvasInputOriginal='';ui(true)}
+function canvasCloseInput(){if(canvasInputMode==='code')uiState.roomCode=normalizeRoomCode(canvasInputOriginal);canvasInputMode='';canvasInputBuffer='';canvasInputOriginal='';ui(true)}
 function canvasSubmitInput(){
   if(canvasInputMode==='code'){
-    let code=normalizeRoomCode(canvasInputBuffer);els.code.value=code;canvasInputMode='';canvasInputBuffer='';canvasInputOriginal='';ui(true);if(pairView==='join'&&code.length===6)useInvite();return;
+    let code=normalizeRoomCode(canvasInputBuffer);uiState.roomCode=code;canvasInputMode='';canvasInputBuffer='';canvasInputOriginal='';ui(true);if(pairView==='join'&&code.length===6)useInvite();return;
   }
   if(canvasInputMode==='chat'){
-    let text=canvasInputBuffer.trim();if(text){els.chatInput.value=text;sendChatMessage()}canvasInputBuffer='';canvasInputOriginal='';canvasInputMode='';ui(true);
+    let text=canvasInputBuffer.trim();if(text){uiState.chatDraft=text;sendChatMessage()}canvasInputBuffer='';canvasInputOriginal='';canvasInputMode='';ui(true);
   }
 }
 function canvasKeyboardRows(){return canvasInputMode==='code'?['ABCDEFGH','JKLMNPQR','STUVWXYZ','23456789']:['QWERTYUIOP','ASDFGHJKL','ZXCVBNM']}
@@ -5116,14 +5103,14 @@ function canvasDrawKeyboard(){
   if(!canvasTouchDevice)return;canvasSetFocusScope('keyboard-'+canvasInputMode,'key-done');let codeMode=canvasInputMode==='code',panelH=codeMode?304:249,panelTop=H-panelH;cx.fillStyle='#030812';cx.fillRect(0,panelTop,W,panelH);canvasRule(0,panelTop,W,panelTop,UI.cyan,1.5);canvasText(codeMode?'ENTER ROOM CODE':'TYPE MESSAGE',22,panelTop+20,9,'left',UI.muted,950);canvasPill(canvasInputBuffer||' ',W/2-190,panelTop+8,380,{accent:codeMode?UI.cyan:UI.orange});let rows=canvasKeyboardRows(),top=codeMode?H-226:H-199,rowStep=codeMode?42:48,keyH=codeMode?34:40;
   rows.forEach((row,ri)=>{let keyW=codeMode?54:70,gap=5,total=row.length*keyW+(row.length-1)*gap,start=(W-total)/2;for(let i=0;i<row.length;i++){let ch=row[i];canvasButton('key-'+ri+'-'+i,ch,start+i*(keyW+gap),top+ri*rowStep,keyW,keyH,()=>canvasInputChar(ch),{small:true})}});let bottom=H-48;canvasButton('key-cancel','CANCEL',20,bottom,96,38,()=>canvasCloseInput(),{small:true});canvasButton('key-back','BACKSPACE',W/2-210,bottom,110,38,()=>canvasInputBack(),{small:true});if(!codeMode)canvasButton('key-space','SPACE',W/2-88,bottom,176,38,()=>canvasInputChar(' '),{small:true});canvasButton('key-done',codeMode?'JOIN':'SEND',W/2+100,bottom,110,38,()=>canvasSubmitInput(),{primary:true,small:true});
 }
-function canvasInputChar(ch){if(canvasInputBuffer.length>=canvasInputLimit)return;canvasInputBuffer+=canvasInputMode==='code'?String(ch).toUpperCase():String(ch);if(canvasInputMode==='code')els.code.value=normalizeRoomCode(canvasInputBuffer)}
-function canvasInputBack(){canvasInputBuffer=canvasInputBuffer.slice(0,-1);if(canvasInputMode==='code')els.code.value=normalizeRoomCode(canvasInputBuffer)}
-function portraitRoomCode(code,x,y,w,{editable=false,copy=false}={}){let copyW=copy?92:0,fieldW=w-copyW-(copy?10:0);canvasBox(x,y,fieldW,58,{fill:'#020711',stroke:canvasIsFocused('code-field')?UI.cyanSoft:UI.cyan,r:12,line:canvasIsFocused('code-field')?2.4:1.4});let shown=code||'------';if(editable&&canvasInputMode==='code')shown=canvasInputBuffer+(Math.floor(visualNowMs()/450)%2?'|':'');canvasText(shown,x+fieldW/2,y+29,25,'center',UI.cyanSoft,1000,fieldW-50);if(editable)portraitHit('code-field',x,y,fieldW,58,()=>canvasOpenInput('code',els.code.value||''));if(copy)portraitButton('copy-code','COPY',x+fieldW+10,y,copyW,58,()=>copyTextFrom(els.code,'Room code'),{small:true})}
+function canvasInputChar(ch){if(canvasInputBuffer.length>=canvasInputLimit)return;canvasInputBuffer+=canvasInputMode==='code'?String(ch).toUpperCase():String(ch);if(canvasInputMode==='code')uiState.roomCode=normalizeRoomCode(canvasInputBuffer)}
+function canvasInputBack(){canvasInputBuffer=canvasInputBuffer.slice(0,-1);if(canvasInputMode==='code')uiState.roomCode=normalizeRoomCode(canvasInputBuffer)}
+function portraitRoomCode(code,x,y,w,{editable=false,copy=false}={}){let copyW=copy?92:0,fieldW=w-copyW-(copy?10:0);canvasBox(x,y,fieldW,58,{fill:'#020711',stroke:canvasIsFocused('code-field')?UI.cyanSoft:UI.cyan,r:12,line:canvasIsFocused('code-field')?2.4:1.4});let shown=code||'------';if(editable&&canvasInputMode==='code')shown=canvasInputBuffer+(Math.floor(visualNowMs()/450)%2?'|':'');canvasText(shown,x+fieldW/2,y+29,25,'center',UI.cyanSoft,1000,fieldW-50);if(editable)portraitHit('code-field',x,y,fieldW,58,()=>canvasOpenInput('code',uiState.roomCode||''));if(copy)portraitButton('copy-code','COPY',x+fieldW+10,y,copyW,58,()=>copyText(uiState.roomCode,'Room code'),{small:true})}
 function portraitDrawHome(){canvasSetFocusScope('portrait-home','solo');portraitBackdrop();portraitHeader('MAIN MENU','Choose a mode now. Rotate only when play begins.');canvasPanel(24,158,492,648,.98);canvasText('CHOOSE HOW TO PLAY',48,191,11,'left',UI.muted,950);portraitButton('solo','PLAY SOLO',48,218,444,76,()=>openLevelSelect('home'),{primary:true});canvasText('Select a campaign or bonus score attack',PORTRAIT_W/2,313,9,'center',UI.muted,800);portraitButton('host','HOST ONLINE',48,344,444,68,()=>invite());canvasText('Create a room and control the setup',PORTRAIT_W/2,430,9,'center',UI.muted,800);portraitButton('join','JOIN ONLINE',48,462,444,68,()=>join());canvasText('Enter the host’s six-character room code',PORTRAIT_W/2,548,9,'center',UI.muted,800);canvasBox(48,590,444,154,{fill:'#07111b',stroke:UI.lineSoft,r:14,line:1});canvasText('NEW PLAYER?',70,618,11,'left',UI.cyanSoft,950);canvasText('View movement, dash, special powers, and game goals.',70,648,9,'left',UI.muted,800,400);portraitButton('controls','VIEW CONTROLS',70,680,400,44,()=>openHelp(),{small:true});portraitFooter()}
-function portraitDrawPairing(){canvasSetFocusScope('portrait-join','code-field');portraitBackdrop();portraitHeader('JOIN ONLINE','Enter the room code from the host');let busy=['locating','waiting','connecting','handshake'].includes(net.lobbyStage),code=els.code.value||canvasInputBuffer||'';portraitButton('pair-back',busy?'CANCEL':'BACK',28,155,112,46,()=>closePairing(),{small:true});canvasPanel(24,222,492,580,.98);canvasText('ROOM CODE',48,258,11,'left',UI.muted,950);portraitRoomCode(code,48,278,444,{editable:!busy});let stages=[['ROOM','link'],['HOST','host'],['LINK','wifi'],['READY','check']],stage=net.lobbyStage,index=stage==='code'?0:stage==='locating'||stage==='waiting'?1:stage==='connecting'||stage==='handshake'?2:stage==='connected'?3:0;for(let i=0;i<4;i++){let yy=378+i*60,color=i<index?UI.green:i===index?(stage==='error'?UI.red:UI.yellow):UI.dim;canvasBox(52,yy,436,46,{fill:'#07111b',stroke:color,r:10,line:1.2});cx.save();cx.translate(76,yy+23);drawUiGlyph(cx,i<index?'check':i===index&&i<3?'spinner':stages[i][1],.42,color);cx.restore();canvasText(stages[i][0],103,yy+23,11,'left',color,950);canvasText(i<index?'COMPLETE':i===index?(stage==='error'?'TRY AGAIN':'IN PROGRESS'):'WAITING',470,yy+23,8,'right',color,900)}let notice=activeLobbyNotice()||els.status.textContent||'Enter the room code, then join';canvasBox(48,638,444,48,{fill:'#050b13',stroke:lobbyToneColor(net.lobbyNoticeTone),r:10,line:1.2});canvasText(notice,70,662,9,'left',UI.text,850,400);let valid=(els.code.value||canvasInputBuffer||'').length===6;portraitButton('join-room',busy?'CONNECTING…':net.lobbyStage==='error'?'TRY AGAIN':'JOIN ROOM',48,714,444,60,()=>useInvite(),{primary:!busy,disabled:busy||!valid});portraitFooter()}
+function portraitDrawPairing(){canvasSetFocusScope('portrait-join','code-field');portraitBackdrop();portraitHeader('JOIN ONLINE','Enter the room code from the host');let busy=['locating','waiting','connecting','handshake'].includes(net.lobbyStage),code=uiState.roomCode||canvasInputBuffer||'';portraitButton('pair-back',busy?'CANCEL':'BACK',28,155,112,46,()=>closePairing(),{small:true});canvasPanel(24,222,492,580,.98);canvasText('ROOM CODE',48,258,11,'left',UI.muted,950);portraitRoomCode(code,48,278,444,{editable:!busy});let stages=[['ROOM','link'],['HOST','host'],['LINK','wifi'],['READY','check']],stage=net.lobbyStage,index=stage==='code'?0:stage==='locating'||stage==='waiting'?1:stage==='connecting'||stage==='handshake'?2:stage==='connected'?3:0;for(let i=0;i<4;i++){let yy=378+i*60,color=i<index?UI.green:i===index?(stage==='error'?UI.red:UI.yellow):UI.dim;canvasBox(52,yy,436,46,{fill:'#07111b',stroke:color,r:10,line:1.2});cx.save();cx.translate(76,yy+23);drawUiGlyph(cx,i<index?'check':i===index&&i<3?'spinner':stages[i][1],.42,color);cx.restore();canvasText(stages[i][0],103,yy+23,11,'left',color,950);canvasText(i<index?'COMPLETE':i===index?(stage==='error'?'TRY AGAIN':'IN PROGRESS'):'WAITING',470,yy+23,8,'right',color,900)}let notice=activeLobbyNotice()||uiState.status||'Enter the room code, then join';canvasBox(48,638,444,48,{fill:'#050b13',stroke:lobbyToneColor(net.lobbyNoticeTone),r:10,line:1.2});canvasText(notice,70,662,9,'left',UI.text,850,400);let valid=(uiState.roomCode||canvasInputBuffer||'').length===6;portraitButton('join-room',busy?'CONNECTING…':net.lobbyStage==='error'?'TRY AGAIN':'JOIN ROOM',48,714,444,60,()=>useInvite(),{primary:!busy,disabled:busy||!valid});portraitFooter()}
 function portraitDrawLobby(){canvasSetFocusScope('portrait-lobby',net.role==='host'?'start-game':'ready-toggle');portraitBackdrop();let hosting=net.role==='host',room=net.roomCode||'CREATING',map=levelConfig(selectedLevel),bonus=!!map.bonus;portraitHeader('ONLINE LOBBY',hosting?'You are the host':'Host controls the game setup');portraitRoomCode(room,54,151,432,{copy:hosting&&!!net.roomCode});canvasPanel(24,228,492,604,.98);canvasText('PLAYERS',48,258,11,'left',UI.muted,950);let rows=lobbyRows();for(let i=0;i<5;i++){let row=rows[i]||{label:'P'+(i+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'},yy=278+i*48,color=lobbyToneColor(row.tone);canvasBox(48,yy,444,40,{fill:row.tone==='open'?'#070d16':'#091522',stroke:row.tone==='open'?UI.lineSoft:color,r:9,line:1});cx.save();cx.translate(70,yy+20);drawUiGlyph(cx,row.tone==='pending'?'spinner':row.tone==='host'?'host':row.tone==='success'?'check':'person',.35,color);cx.restore();canvasText(row.label,95,yy+13,9,'left',row.tone==='open'?UI.dim:UI.text,950);canvasText(row.detail,95,yy+29,7,'left',UI.muted,800);canvasText(row.state,474,yy+20,8,'right',color,950)}canvasRule(48,530,492,530,UI.lineSoft);canvasText('GAME SETUP',48,553,11,'left',UI.muted,950);canvasBox(48,572,444,92,{fill:UI.surface2,stroke:bonus?map.accent:UI.lineSoft,r:11,line:1});canvasText(levelDisplayLabel(selectedLevel)+'  '+map.name,66,598,14,'left',bonus?map.accent:UI.text,950,400);canvasText(bonus?'SCORE ATTACK · '+map.bonusTime+' SECONDS':selectedDifficulty.toUpperCase()+' DIFFICULTY',66,626,9,'left',bonus?map.accent:UI.cyanSoft,900);canvasText(map.gimmick||'',66,648,8,'left',UI.muted,800,400);if(hosting){portraitButton('change-level','CHANGE LEVEL',48,686,208,52,()=>openLevelSelect('lobby'),{small:true});let canStart=!!net.roomCode&&allLobbyPlayersReady(),pending=lobbyPendingCount();portraitButton('start-game',pending?'CONNECTING':canStart?(bonus?'START BONUS':'START GAME'):'WAITING FOR READY',272,686,220,52,()=>beginRun(selectedDifficulty,selectedLevel),{primary:canStart,disabled:!canStart,small:true})}else{let ready=!!net.localReady;portraitButton('ready-toggle',ready?'CANCEL READY':'READY UP',48,686,444,56,()=>setLocalReady(!ready),{primary:!ready,selected:ready})}portraitButton('lobby-chat','CHAT',48,758,136,48,()=>openChat(),{small:true,disabled:!chatAvailable()});portraitButton('leave',hosting?'CLOSE LOBBY':'LEAVE LOBBY',198,758,294,48,()=>leaveSession(),{danger:true,small:true});portraitFooter()}
-function portraitDrawLevelSelect(){canvasSetFocusScope('portrait-level','play-level');portraitBackdrop();let map=levelConfig(selectedLevel),bonus=!!map.bonus;portraitHeader(levelSelectOrigin==='lobby'?'LOBBY SETUP':levelSelectOrigin==='menu'?'CHANGE LEVEL':'SELECT LEVEL',map.name);portraitButton('back',levelSelectOrigin==='home'?'BACK':'CANCEL',28,151,112,44,()=>closeLevelSelect(false),{small:true});canvasPanel(24,212,492,625,.98);let preview=els.levelPreviewCanvas;canvasBox(48,232,444,218,{fill:'#02050b',stroke:bonus?map.accent:UI.line,r:12,line:1});if(preview&&preview.width)cx.drawImage(preview,48,232,444,218);canvasText(levelDisplayLabel(selectedLevel)+'  '+map.name,48,478,15,'left',bonus?map.accent:UI.text,950,444);canvasText(map.gimmick||'',48,502,8,'left',UI.muted,800,444);portraitButton('mode-campaign','CAMPAIGN',48,530,212,42,()=>setLevelCategory('campaign'),{selected:levelSelectCategory==='campaign',small:true});portraitButton('mode-bonus','BONUS',280,530,212,42,()=>setLevelCategory('bonus'),{selected:levelSelectCategory==='bonus',small:true});let list=levelListForCategory(),top=590;if(levelSelectCategory==='campaign'){let cols=4,gap=10,bw=(444-gap*3)/4,bh=38;list.forEach((level,index)=>{let col=index%cols,row=Math.floor(index/cols);portraitButton('level-'+level,levelDisplayCode(level),48+col*(bw+gap),top+row*48,bw,bh,()=>selectLevel(level),{selected:selectedLevel===level,small:true})})}else{let gap=12,bw=(444-gap*2)/3;list.forEach((level,index)=>portraitButton('level-'+level,levelDisplayCode(level),48+index*(bw+gap),top,bw,48,()=>selectLevel(level),{selected:selectedLevel===level,small:true}));canvasText('Enemy-free timed coin challenges',PORTRAIT_W/2,660,9,'center',map.accent,900,420)}let optionY=738;if(!bonus){let dw=136,g=10;[['easy','EASY'],['normal','NORMAL'],['hard','HARD']].forEach(([key,label],i)=>portraitButton('ld-'+key,label,48+i*(dw+g),optionY,dw,40,()=>selectDifficulty(key),{selected:selectedDifficulty===key,small:true}))}else{canvasBox(48,optionY,444,40,{fill:'#151124',stroke:map.accent,r:9,line:1});canvasText(map.bonusTime+' SEC · COINS RESPAWN · HIGH SCORE',270,optionY+20,8,'center',map.accent,950,420)}portraitButton('play-level',levelSelectActionLabel(),48,790,444,54,()=>playSelectedLevel(),{primary:true});portraitFooter()}
-function portraitDrawConfirm(){canvasHits.length=0;canvasSetFocusScope('portrait-confirm','confirm-cancel');cx.fillStyle='#010308e8';cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);canvasPanel(34,258,472,370,.99);canvasText(els.confirmTitle.textContent||'CONFIRM',58,309,22,'left',UI.text,950,420);canvasWrap(els.confirmText.textContent,42).slice(0,5).forEach((line,i)=>canvasText(line,58,365+i*27,10,'left',UI.muted,800,420));portraitButton('confirm-cancel','CANCEL',58,544,190,54,()=>closeConfirm());portraitButton('confirm-action',els.confirmAction.textContent||'CONFIRM',292,544,190,54,()=>{let action=pendingConfirm;closeConfirm(false);if(action)action()},{danger:true})}
+function portraitDrawLevelSelect(){canvasSetFocusScope('portrait-level','play-level');portraitBackdrop();let map=levelConfig(selectedLevel),bonus=!!map.bonus;portraitHeader(levelSelectOrigin==='lobby'?'LOBBY SETUP':levelSelectOrigin==='menu'?'CHANGE LEVEL':'SELECT LEVEL',map.name);portraitButton('back',levelSelectOrigin==='home'?'BACK':'CANCEL',28,151,112,44,()=>closeLevelSelect(false),{small:true});canvasPanel(24,212,492,625,.98);let preview=uiState.levelPreviewCanvas;canvasBox(48,232,444,218,{fill:'#02050b',stroke:bonus?map.accent:UI.line,r:12,line:1});if(preview&&preview.width)cx.drawImage(preview,48,232,444,218);canvasText(levelDisplayLabel(selectedLevel)+'  '+map.name,48,478,15,'left',bonus?map.accent:UI.text,950,444);canvasText(map.gimmick||'',48,502,8,'left',UI.muted,800,444);portraitButton('mode-campaign','CAMPAIGN',48,530,212,42,()=>setLevelCategory('campaign'),{selected:levelSelectCategory==='campaign',small:true});portraitButton('mode-bonus','BONUS',280,530,212,42,()=>setLevelCategory('bonus'),{selected:levelSelectCategory==='bonus',small:true});let list=levelListForCategory(),top=590;if(levelSelectCategory==='campaign'){let cols=4,gap=10,bw=(444-gap*3)/4,bh=38;list.forEach((level,index)=>{let col=index%cols,row=Math.floor(index/cols);portraitButton('level-'+level,levelDisplayCode(level),48+col*(bw+gap),top+row*48,bw,bh,()=>selectLevel(level),{selected:selectedLevel===level,small:true})})}else{let gap=12,bw=(444-gap*2)/3;list.forEach((level,index)=>portraitButton('level-'+level,levelDisplayCode(level),48+index*(bw+gap),top,bw,48,()=>selectLevel(level),{selected:selectedLevel===level,small:true}));canvasText('Enemy-free timed coin challenges',PORTRAIT_W/2,660,9,'center',map.accent,900,420)}let optionY=738;if(!bonus){let dw=136,g=10;[['easy','EASY'],['normal','NORMAL'],['hard','HARD']].forEach(([key,label],i)=>portraitButton('ld-'+key,label,48+i*(dw+g),optionY,dw,40,()=>selectDifficulty(key),{selected:selectedDifficulty===key,small:true}))}else{canvasBox(48,optionY,444,40,{fill:'#151124',stroke:map.accent,r:9,line:1});canvasText(map.bonusTime+' SEC · COINS RESPAWN · HIGH SCORE',270,optionY+20,8,'center',map.accent,950,420)}portraitButton('play-level',levelSelectActionLabel(),48,790,444,54,()=>playSelectedLevel(),{primary:true});portraitFooter()}
+function portraitDrawConfirm(){canvasHits.length=0;canvasSetFocusScope('portrait-confirm','confirm-cancel');cx.fillStyle='#010308e8';cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);canvasPanel(34,258,472,370,.99);canvasText(uiState.confirm.title||'CONFIRM',58,309,22,'left',UI.text,950,420);canvasWrapLines(uiState.confirm.text,420,10,800,5).forEach((line,i)=>canvasText(line,58,365+i*27,10,'left',UI.muted,800,420));portraitButton('confirm-cancel','CANCEL',58,544,190,54,()=>closeConfirm());portraitButton('confirm-action',uiState.confirm.action||'CONFIRM',292,544,190,54,()=>acceptConfirm(),{danger:true})}
 function portraitDrawChat(){canvasHits.length=0;canvasSetFocusScope('portrait-chat','chat-input');cx.fillStyle='#010308ee';cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);canvasPanel(22,90,496,760,.99);canvasText('ROOM CHAT',48,126,21,'left',UI.text,950);portraitButton('chat-close','CLOSE',392,105,96,40,()=>closeChat(),{small:true});let messages=chatMessages.slice(-9),yy=174;for(const msg of messages){let own=msg.playerId===(net.role==='client'?net.localId:0),label=msg.system?'SYSTEM':'P'+(msg.playerId+1);canvasText(label,48,yy,8,'left',msg.system?UI.yellow:colors[msg.playerId%colors.length],950);canvasBox(48,yy+12,444,44,{fill:own?'#102337':'#09131f',stroke:UI.lineSoft,r:9,line:1});canvasText(msg.text,62,yy+34,9,'left',UI.text,800,416);yy+=68}let typing=canvasInputMode==='chat',shown=typing?canvasInputBuffer+(Math.floor(visualNowMs()/450)%2?'|':''):'Tap here to type a message';canvasBox(48,773,330,54,{fill:'#050b13',stroke:typing?UI.cyan:UI.line,r:10,line:1.2});canvasText(shown,62,800,9,'left',typing?UI.text:UI.dim,800,300);portraitHit('chat-input',48,773,330,54,()=>canvasOpenInput('chat',typing?canvasInputBuffer:''));portraitButton('chat-send','SEND',392,773,100,54,()=>{if(!typing)canvasOpenInput('chat','');else canvasSubmitInput()},{primary:true,small:true})}
 function portraitDrawKeyboard(){canvasHits.length=0;canvasSetFocusScope('portrait-keyboard','key-done');cx.fillStyle='#02050bf5';cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);canvasText(canvasInputMode==='code'?'ENTER ROOM CODE':'TYPE MESSAGE',28,46,14,'left',UI.text,950);canvasBox(28,72,484,64,{fill:'#050b13',stroke:UI.cyan,r:11,line:1.2});canvasText(canvasInputBuffer+(Math.floor(visualNowMs()/450)%2?'|':''),PORTRAIT_W/2,104,canvasInputMode==='code'?24:12,'center',UI.cyanSoft,950,450);let rows=canvasKeyboardRows(),code=canvasInputMode==='code',top=180,rowStep=code?78:92;rows.forEach((row,ri)=>{let gap=7,keyW=(484-gap*(row.length-1))/row.length,start=28;for(let i=0;i<row.length;i++){let ch=row[i];portraitButton('key-'+ri+'-'+i,ch,start+i*(keyW+gap),top+ri*rowStep,keyW,58,()=>canvasInputChar(ch),{small:true})}});let bottom=830;portraitButton('key-cancel','CANCEL',28,bottom,116,54,()=>canvasCloseInput(),{small:true});portraitButton('key-back','DELETE',158,bottom,116,54,()=>canvasInputBack(),{small:true});if(!code)portraitButton('key-space','SPACE',288,bottom,96,54,()=>canvasInputChar(' '),{small:true});portraitButton('key-done',code?'JOIN':'SEND',code?288:398,bottom,code?224:114,54,()=>canvasSubmitInput(),{primary:true,small:true})}
 function portraitDrawHelp(){canvasHits.length=0;canvasSetFocusScope('portrait-help','help-close');cx.fillStyle='#010308f2';cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);portraitHeader('HOW TO PLAY','Controls and objective');canvasPanel(24,160,492,666,.99);canvasText('OBJECTIVE',48,198,11,'left',UI.orange,1000);canvasText('Collect coins, avoid hazards, and reach the unlocked exit.',48,230,9,'left',UI.text,850,440);canvasText('Bonus stages are timed high-score runs with no enemies.',48,258,9,'left',UI.muted,800,440);canvasText('DESKTOP',48,306,11,'left',UI.orange,1000);let rows=[['MOVE','WASD / ARROWS'],['DASH','SPACE'],['CRYO FREEZE','E'],['STAR SURGE','R']];rows.forEach((row,i)=>{let yy=330+i*48;canvasBox(48,yy,444,38,{fill:UI.surface2,stroke:UI.lineSoft,r:8,line:1});canvasText(row[0],64,yy+19,9,'left',UI.muted,950);canvasText(row[1],474,yy+19,10,'right',UI.cyanSoft,1000)});canvasText('TOUCH',48,548,11,'left',UI.orange,1000);canvasText('Use the left joystick to move.',48,580,9,'left',UI.text,850,440);canvasText('Use the large right button to dash.',48,610,9,'left',UI.text,850,440);canvasText('Use the two upper right buttons for the specials.',48,640,9,'left',UI.text,850,440);canvasText('ONLINE',48,690,11,'left',UI.orange,1000);canvasText('Review the host setup, select Ready Up, then wait for Start.',48,722,9,'left',UI.muted,800,440);portraitButton('help-close','CLOSE',48,756,444,52,()=>closeHelp(),{primary:true})}
@@ -5157,7 +5144,7 @@ function drawCanvasApplication(now){
 function canvasGameplayPointerDown(e,p){if(portraitMode()||gameplayInputBlocked()||!gameplayScreenVisible()||game.phase!=='play'||game.paused||game.over)return false;let id=e.pointerId;if(canvasTouchDevice&&hypot(p.x-65,p.y-330)<64){canvasPointers.set(id,{type:'joy',anchor:{x:65,y:330}});touch.on=true;touch.id=id;touch.anchorX=65;touch.anchorY=330;touch.engaged=true;touch.x=touch.y=0;return true}if(canvasTouchDevice&&hypot(p.x-(W-65),p.y-386)<46){canvasPointers.set(id,{type:'dash'});touch.dash=true;queueDashPress();return true}for(let i=0;i<2;i++){let x=W-65,y=245-i*62;if(canvasTouchDevice&&Math.abs(p.x-x)<32&&Math.abs(p.y-y)<32){canvasPointers.set(id,{type:'super',slot:i});touch.super=true;touch.superSlot=i;return true}}return false}
 function canvasGameplayPointerMove(e,p){let rec=canvasPointers.get(e.pointerId);if(!rec||rec.type!=='joy')return;let dx=p.x-rec.anchor.x,dy=p.y-rec.anchor.y,d=hypot(dx,dy),m=Math.min(1,d/62);touch.x=d?dx/d*m:0;touch.y=d?dy/d*m:0}
 function canvasGameplayPointerEnd(e){let rec=canvasPointers.get(e.pointerId);if(!rec)return;if(rec.type==='joy'){touch.on=false;touch.id=null;touch.x=touch.y=0;touch.engaged=false}else if(rec.type==='dash')touch.dash=false;else if(rec.type==='super'){touch.super=false;touch.superSlot=-1}canvasPointers.delete(e.pointerId)}
-window.__coinDashTest={state:()=>({phase:game.phase,won:game.won,time:game.time,level:game.level,selectedLevel,bonus:isBonusLevel(),remaining:bonusTimeRemaining(),coins:game.coins.length,availableCoins:game.coins.filter(c=>!c.taken).length,enemies:game.enemies.length,score:bonusCoinsCollected(),play:gameplayScreenVisible(),simulationFaults,renderFaults,pendingRemoteDashes:pendingRemoteDashes.size,player0:game.players&&game.players[0]?{x:game.players[0].x,y:game.players[0].y,dt:game.players[0].dt,cd:game.players[0].cd}:null,levelSelect:!els.levelSelect.classList.contains('hide'),setup:!els.setup.classList.contains('hide'),hits:canvasHits.length,pairView,menuOpen,chatOpen,inputMode:canvasInputMode,helpOpen,pendingStart:!!pendingStartRequest,levelCategory:levelSelectCategory,screen:activeBaseScreen(),overlay:activeOverlay(),bodyChildren:document.body.children.length}),click:id=>{let h=canvasHits.find(x=>x.id===id);if(h&&h.enabled){h.action();return true}return false},render:()=>{syncFrameBuffers();let previous=cx;cx=appFrameCx;try{applyCanvasContextDefaults();setWorldTransform();drawCanvasApplication(performance.now())}finally{cx=previous}presentCanvasFrame()},setTime:value=>{game.time=Math.max(0,num(value));return game.time},tick:dt=>{update(Math.max(0,num(dt)),true);return game.phase},collectFirst:()=>{let p=game.players[0],coin=game.coins.find(c=>!c.taken);if(!p||!coin)return false;collectCoin(p,coin);return true}};
+window.__coinDashTest={state:()=>({phase:game.phase,won:game.won,time:game.time,level:game.level,selectedLevel,bonus:isBonusLevel(),remaining:bonusTimeRemaining(),coins:game.coins.length,availableCoins:game.coins.filter(c=>!c.taken).length,enemies:game.enemies.length,score:bonusCoinsCollected(),play:gameplayScreenVisible(),simulationFaults,renderFaults,pendingRemoteDashes:pendingRemoteDashes.size,player0:game.players&&game.players[0]?{x:game.players[0].x,y:game.players[0].y,dt:game.players[0].dt,cd:game.players[0].cd}:null,levelSelect:levelSelectVisible(),setup:uiState.screen==='home',hits:canvasHits.length,pairView,menuOpen,chatOpen,inputMode:canvasInputMode,helpOpen,pendingStart:!!pendingStartRequest,levelCategory:levelSelectCategory,screen:activeBaseScreen(),overlay:activeOverlay(),bodyChildren:document.body.children.length}),click:id=>{let h=canvasHits.find(x=>x.id===id);if(h&&h.enabled){h.action();return true}return false},render:()=>{syncFrameBuffers();let previous=cx;cx=appFrameCx;try{applyCanvasContextDefaults();setWorldTransform();drawCanvasApplication(performance.now())}finally{cx=previous}presentCanvasFrame()},setTime:value=>{game.time=Math.max(0,num(value));return game.time},tick:dt=>{update(Math.max(0,num(dt)),true);return game.phase},collectFirst:()=>{let p=game.players[0],coin=game.coins.find(c=>!c.taken);if(!p||!coin)return false;collectCoin(p,coin);return true}};
 cv.addEventListener('pointerdown',e=>{e.preventDefault();let p=canvasEventPoint(e);if(canvasGameplayPointerDown(e,p))return;let hit=[...canvasHits].reverse().find(h=>h.enabled&&canvasPointIn(h,p.x,p.y));canvasPressedHit=hit||null;if(hit)canvasFocusId=hit.id;if(hit&&hit.id.startsWith('key-')){hit.action();canvasPressedHit=null}});
 cv.addEventListener('pointermove',e=>{let p=canvasEventPoint(e);canvasGameplayPointerMove(e,p);let hit=[...canvasHits].reverse().find(h=>h.enabled&&canvasPointIn(h,p.x,p.y));canvasHoverId=hit?hit.id:'';if(!canvasTouchDevice)cv.style.cursor=hit?'pointer':'default'});
 cv.addEventListener('pointerup',e=>{let p=canvasEventPoint(e);canvasGameplayPointerEnd(e);let hit=canvasPressedHit;canvasPressedHit=null;if(hit&&hit.enabled&&canvasPointIn(hit,p.x,p.y))hit.action()});
