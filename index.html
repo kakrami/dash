@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry Canvas Edition</title>
-<meta name="application-version" content="1.4.0">
+<meta name="application-version" content="1.4.4">
 <style>
 html,body{margin:0;width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#010207;touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
 body{display:grid;place-items:center;box-sizing:border-box;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
@@ -279,14 +279,15 @@ const CLIENT_UI_INTERVAL=1/20;
 const MOTION_BUFFER_DELAY=50;
 const MOTION_EXTRAPOLATION_LIMIT=.08;
 const LOCAL_DASH_SOFT_ERROR=42;
-const PROTOCOL_VERSION=9;
+const PROTOCOL_VERSION=10;
+const ENGINE_REVISION='foundry-2026-08-04-r1';
 const SIMULATION_STEP=1/60;
 const MAX_SIMULATION_STEPS=6;
 const MAX_SIMULATION_BACKLOG=.18;
 const SIMULATION_TIMER_MS=4;
 function normalizeEpoch(value){return Math.max(1,Math.round(num(value,1)))}
 function resetClientEpochState(epoch){
-  net.stateEpoch=normalizeEpoch(epoch);net.pendingEpoch=0;net.lastStateSeq=0;net.lastMotionSeq=0;net.lastEventSeq=0;net.motionFrames=[];net.motionClockOffset=NaN;
+  net.stateEpoch=normalizeEpoch(epoch);net.pendingEpoch=0;net.lastStateSeq=0;net.lastMotionSeq=0;net.lastEventSeq=0;net.lastFireSeq=0;net.motionFrames=[];net.motionClockOffset=NaN;
   net.clientDashPendingSeq=0;net.clientDashTime=0;if(net.clientFireIds)net.clientFireIds.clear();if(game&&Array.isArray(game.firePatches))game.firePatches=[];
 }
 function acceptClientEpoch(epoch,fullState=false){
@@ -532,6 +533,7 @@ let audioMaster=null,audioCompressor=null,audioSfx=null,audioUi=null,audioMusic=
 let audioUnlocked=false,audioPageActive=!document.hidden&&document.hasFocus(),introMusicPlaying=false,introMusicTimer=0,introMusicGeneration=0,introMusicNextStart=0,introVoices=[],levelIntroVoices=[],levelIntroTimer=0,levelIntroGeneration=0,pendingLevelIntro=0,activePowerAudio=new Map();
 let worldAudio=null,movementAudio=null,flameHazardAudioStates=new Map(),gameplayMusicPlaying=false,gameplayMusicTimer=0,gameplayMusicGeneration=0,gameplayMusicNextStart=0,gameplayMusicVoices=[],gameplayMusicSignature='',audioCueTimes=new Map(),coinCueStep=0,coinCueAt=0;
 let inputSeq=0,inputSuperSeq=0,inputPacketSeq=0,inputDashDown=false,inputSuperDown=false,inputAim={x:1,y:0},inputDashDir={x:1,y:0},pendingDashPress=false,pendingDashDir={x:1,y:0};
+function resetConnectionInputSequences(){inputSeq=0;inputSuperSeq=0;inputPacketSeq=0;inputDashDown=false;inputSuperDown=false;pendingDashPress=false;inputDashDir={...inputAim};net.clientDashPendingSeq=0}
 let menuOpen=false,menuPairOpen=false,endMenuDismissed=false,pairView='intro',pendingConfirm=null,levelSelectOrigin='home';
 let levelSelectOriginalLevel=selectedLevel,levelSelectOriginalDifficulty=selectedDifficulty,levelSelectCommitted=false,levelSelectCategory=isBonusLevel(selectedLevel)?'bonus':'campaign';
 let lastCampaignLevel=isBonusLevel(selectedLevel)?1:selectedLevel,lastBonusLevel=isBonusLevel(selectedLevel)?selectedLevel:CAMPAIGN_LEVEL_COUNT+1,pendingStartRequest=null,helpOpen=false;
@@ -559,7 +561,7 @@ function queueDashPress(){
 function sanitizeChatText(value){
   return String(value||'').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,'').replace(/\s+/g,' ').trim().slice(0,160);
 }
-function currentChatPlayerId(){return net.role==='client'?Math.max(0,Math.round(num(net.localId,0))):0}
+function currentChatPlayerId(){return onlineSession()?Math.max(0,Math.round(num(net.localId,0))):0}
 function appendChatMessage(message,{silent=false}={}){
   if(!message||typeof message!=='object')return;
   let textValue=sanitizeChatText(message.text);if(!textValue)return;
@@ -578,8 +580,8 @@ function confirmOpen(){return typeof pendingConfirm==='function'}
 function activeBaseScreen(){
   if(gameplayScreenVisible())return'game';
   if(levelSelectVisible())return'levels';
-  if(pairView==='join'&&net.role==='client'&&!net.localId)return'join';
-  if(net.role==='host'||net.role==='client'&&net.localId)return'lobby';
+  if(pairView==='join'&&net.role==='client'&&!net.connected)return'join';
+  if(onlineSession()&&net.connected)return'lobby';
   return'home';
 }
 function activeOverlay(){if(canvasInputMode&&canvasTouchDevice)return'input';if(confirmOpen())return'confirm';if(chatOpen)return'chat';if(helpOpen)return'help';if(menuOpen||game.over&&!endMenuDismissed)return'menu';return''}
@@ -611,11 +613,7 @@ function closeChat(){
 function openHelp(){closeConfirm(false);if(chatOpen)closeChat();if(canvasInputMode)canvasCloseInput();helpOpen=true;resetGameplayInput();ui(true)}
 function closeHelp(){if(!helpOpen)return;helpOpen=false;ui(true)}
 function resetChatSession(){closeChat();chatUnread=0;chatHistory=[];chatSeen.clear();uiState.chatDraft=''}
-function chatAvailable(){
-  if(net.role==='host')return !!net.roomCode;
-  if(net.role==='client')return !!net.localId&&connectedClient();
-  return false;
-}
+function chatAvailable(){return onlineSession()&&!!net.roomCode&&connectedClient()}
 function syncChatAvailability(){if(!chatAvailable()&&chatOpen)closeChat()}
 function sendChatMessage(){
   let clean=sanitizeChatText(uiState.chatDraft);if(!clean)return false;
@@ -789,10 +787,10 @@ function completeLevel(){
   else if(game.level<CAMPAIGN_LEVEL_COUNT)loadLevel(game.level+1);
   else end(true)
 }
-function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',socket:null,roomCode:'',clientToken:'',localId:0,connected:false,reconnectTimer:0,reconnectAttempt:0,manualClose:false,roster:new Map(),members:[],timer:0,uiTimer:0,stateEpoch:1,pendingEpoch:0,lastStateSeq:0,lastMotionSeq:0,lastEventSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashCooldown:0,clientDashPendingSeq:0,clientDashDir:{x:1,y:0},clientFireIds:new Set(),lobbyStage:'idle',lobbyNotice:'',lobbyNoticeTone:'info',lobbyNoticeUntil:0,lobbyRevision:0,lobbyReady:new Map([[0,true]]),localReady:false,pingMs:0,lastPongAt:0,transitionKey:'',transitionAt:0,transitionSyncAt:0,lastServerAt:0}}
+function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',socket:null,roomCode:'',clientToken:'',connectionId:'',localId:0,ownerId:-1,connected:false,reconnectTimer:0,reconnectAttempt:0,manualClose:false,roster:new Map(),members:[],timer:0,uiTimer:0,stateEpoch:1,pendingEpoch:0,lastStateSeq:0,lastMotionSeq:0,lastEventSeq:0,lastFireSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashCooldown:0,clientDashPendingSeq:0,clientDashDir:{x:1,y:0},clientFireIds:new Set(),fireSeq:0,lobbyStage:'idle',lobbyNotice:'',lobbyNoticeTone:'info',lobbyNoticeUntil:0,lobbyRevision:0,lobbyReady:new Map(),localReady:false,pingMs:0,lastPongAt:0,transitionKey:'',transitionAt:0,transitionSyncAt:0,lastServerAt:0}}
 function onlineSession(){return net.role==='host'||net.role==='client'}
 function dedicatedSession(){return onlineSession()&&!!net.socket}
-function isLobbyOwner(){return net.role==='host'}
+function isLobbyOwner(){return onlineSession()?(net.ownerId>=0?net.localId===net.ownerId:net.role==='host'):false}
 
 
 
@@ -972,7 +970,7 @@ function drawLevelMapPreview(level){
     ctx.restore();
   }
 
-  let previewDifficulty=net.role==='client'?normalizeDifficulty(game.nextDifficulty||game.difficulty):selectedDifficulty;
+  let previewDifficulty=onlineSession()&&!isLobbyOwner()?normalizeDifficulty(game.nextDifficulty||game.difficulty):selectedDifficulty;
   let previewCfg=difficultyConfig(previewDifficulty);
   let previewEnemyCount=Math.min((map.enemies||[]).length,previewCfg.enemyCount+map.enemyBonus);
   (map.enemies||[]).slice(0,previewEnemyCount).forEach(([x0,y0],i)=>{
@@ -995,7 +993,7 @@ function drawLevelMapPreview(level){
 
   previewRoundedRect(ctx,1,1,cw-2,ch-2,11,null,'rgba(115,233,255,0.62)');
 }
-function syncLevelUI(){let active=net.role==='client'?normalizeLevel(game.nextLevel||game.startLevel||game.level):selectedLevel;drawLevelMapPreview(active)}
+function syncLevelUI(){let active=onlineSession()&&!isLobbyOwner()?normalizeLevel(game.nextLevel||game.startLevel||game.level):selectedLevel;drawLevelMapPreview(active)}
 function levelSelectVisible(){return uiState.screen==='levels'}
 function rememberSelectedLevel(level){if(isBonusLevel(level))lastBonusLevel=level;else lastCampaignLevel=level}
 function levelListForCategory(category=levelSelectCategory){
@@ -1003,7 +1001,7 @@ function levelListForCategory(category=levelSelectCategory){
   return Array.from({length:CAMPAIGN_LEVEL_COUNT},(_,i)=>i+1);
 }
 function setLevelCategory(category){
-  if(net.role==='client')return;
+  if(onlineSession()&&!isLobbyOwner())return;
   levelSelectCategory=category==='bonus'?'bonus':'campaign';
   let target=levelSelectCategory==='bonus'?lastBonusLevel:lastCampaignLevel;
   if(!levelListForCategory().includes(target))target=levelSelectCategory==='bonus'?CAMPAIGN_LEVEL_COUNT+1:1;
@@ -1019,13 +1017,13 @@ function applySelectedSettings(previousLevel=selectedLevel,previousDifficulty=se
   ui(true);return changed;
 }
 function selectDifficulty(level){
-  if(net.role==='client')return;
+  if(onlineSession()&&!isLobbyOwner())return;
   let previous=selectedDifficulty;selectedDifficulty=normalizeDifficulty(level);
   if(levelSelectVisible()){syncLevelUI();ui(true);return}
   applySelectedSettings(selectedLevel,previous);
 }
 function selectLevel(level){
-  if(net.role==='client')return;
+  if(onlineSession()&&!isLobbyOwner())return;
   level=normalizeLevel(level);let previous=selectedLevel;selectedLevel=level;rememberSelectedLevel(level);levelSelectCategory=isBonusLevel(level)?'bonus':'campaign';syncLevelUI();
   if(levelSelectVisible()){ui(true);return}
   applySelectedSettings(previous,selectedDifficulty);
@@ -1057,7 +1055,7 @@ function showLobby(){
   syncSetupUI();ui(true);playIntroTune();
 }
 function openLevelSelect(origin='home'){
-  if(net.role==='client')return;
+  if(onlineSession()&&!isLobbyOwner())return;
   beginLevelSelection(origin);menuPairOpen=false;closeConfirm(false);
   uiState.screen='levels';
   syncLevelUI();playIntroTune();ui(true);
@@ -1077,22 +1075,24 @@ function finishMainMenu(){
   let difficulty=normalizeDifficulty(selectedDifficulty),startLevel=normalizeLevel(selectedLevel);game=makeGame(difficulty,startLevel);game.nextDifficulty=difficulty;game.nextLevel=startLevel;showLobby();
 }
 function requestMainMenu(){
-  if(net.role==='client'){leaveSession();return}
+  if(onlineSession()&&!isLobbyOwner()){leaveSession();return}
   if(game.over){finishMainMenu();return}
   askConfirm('Quit to Main Menu','The current run will end.','Quit to Main Menu',finishMainMenu);
 }
 function showPlay(){let changed=uiState.screen!=='game';uiState.screen='game';if(changed)setTimeout(fitCanvas,0)}
 function beginRunNow(difficulty=selectedDifficulty,startLevel=selectedLevel){
   if(isLobbyOwner()&&dedicatedSession()){
-    if(!allLobbyPlayersReady()){notifyLobby(lobbySummary(),'pending',3200,false);ui(true);return false}
-    if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();pendingStartRequest=null;stopIntroTune(.16);showPlay();sendServer({t:'start',pv:PROTOCOL_VERSION});return true;
+    let fromLobby=game.phase==='menu'&&!game.over;
+    if(fromLobby&&!allLobbyPlayersReady()){notifyLobby(lobbySummary(),'pending',3200,false);ui(true);return false}
+    if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();pendingStartRequest=null;stopIntroTune(.16);showPlay();
+    sendServer({t:fromLobby?'start':'startLevel',pv:PROTOCOL_VERSION,level:normalizeLevel(startLevel),difficulty:normalizeDifficulty(difficulty)});return true;
   }
   if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();pendingStartRequest=null;stopIntroTune(.16);let runDifficulty=normalizeDifficulty(difficulty),runLevel=normalizeLevel(startLevel);game=makeGame(runDifficulty,runLevel);game.nextDifficulty=runDifficulty;game.nextLevel=runLevel;game.phase='count';game.count=3;game.paused=false;menuOpen=false;menuPairOpen=false;helpOpen=false;endMenuDismissed=false;showPlay();playLevelIntroMusic(runLevel);beep('start');ui(true);return true;
 }
 function beginRun(difficulty=selectedDifficulty,startLevel=selectedLevel){
-  if(net.role==='host'&&game.phase==='menu'&&!allLobbyPlayersReady()){notifyLobby(lobbySummary(),'pending',3200,false);ui(true);return false}
+  if(isLobbyOwner()&&game.phase==='menu'&&!allLobbyPlayersReady()){notifyLobby(lobbySummary(),'pending',3200,false);ui(true);return false}
   let request={difficulty:normalizeDifficulty(difficulty),startLevel:normalizeLevel(startLevel)};
-  if(canvasTouchDevice&&portraitMode()&&net.role!=='client'){
+  if(canvasTouchDevice&&portraitMode()&&(!onlineSession()||isLobbyOwner())){
     pendingStartRequest=request;prepareGameplayDisplay();setDisplayNotice('Rotate to landscape. The level has not started yet.',4200);ui(true);return false
   }
   return beginRunNow(request.difficulty,request.startLevel)
@@ -1100,7 +1100,7 @@ function beginRun(difficulty=selectedDifficulty,startLevel=selectedLevel){
 function continuePendingStart(){if(!pendingStartRequest||portraitMode())return false;let request=pendingStartRequest;pendingStartRequest=null;return beginRunNow(request.difficulty,request.startLevel)}
 function cancelPendingStart(){if(!pendingStartRequest)return;pendingStartRequest=null;setDisplayNotice('Start canceled.');ui(true)}
 function playSelectedLevel(){
-  if(net.role==='client')return;
+  if(onlineSession()&&!isLobbyOwner())return;
   if(levelSelectOrigin==='lobby'){closeLevelSelect(true);return}
   let launch=()=>beginRun(selectedDifficulty,selectedLevel);
   if(levelSelectOrigin==='menu'&&!game.over){askConfirm('Start New Level','Current level progress will be lost.','Start Level',launch);return}
@@ -1113,7 +1113,7 @@ function openGameMenu(){
   ui(true);
 }
 function resumeGame(){
-  if(game.over){if(net.role==='client')endMenuDismissed=true;menuOpen=false;ui(true);return}
+  if(game.over){if(onlineSession()&&!isLobbyOwner())endMenuDismissed=true;menuOpen=false;ui(true);return}
   menuOpen=false;if(!onlineSession())game.paused=false;ui(true);
 }
 function restartCurrentLevel(){
@@ -1121,13 +1121,13 @@ function restartCurrentLevel(){
   if(!onlineSession())beginRun(game.difficulty,game.level);
 }
 function chooseLevelFromGameMenu(){
-  if(net.role==='client')return;
+  if(onlineSession()&&!isLobbyOwner())return;
   selectedLevel=normalizeLevel(game.level);selectedDifficulty=normalizeDifficulty(game.difficulty);saveLevelProgress();
   menuOpen=false;menuPairOpen=false;openLevelSelect('menu');
 }
 function menuSecondaryAction(){
-  if(game.over&&net.role!=='client')return chooseLevelFromGameMenu();
-  if(net.role!=='client')askConfirm('Restart Level','Current level progress and every player score will be reset.','Restart Level',restartCurrentLevel);
+  if(game.over&&(!onlineSession()||isLobbyOwner()))return chooseLevelFromGameMenu();
+  if(!onlineSession()||isLobbyOwner())askConfirm('Restart Level','Current level progress and every player score will be reset.','Restart Level',restartCurrentLevel);
 }
 function toggleMenuPlayers(){
   if(net.role!=='host'&&net.role!=='client')return;
@@ -1738,11 +1738,7 @@ function addFirePatch(x,y,owner=-1,dangerous=false,radius=21,life=1.9){
   x=clamp(num(x),28,W-28);y=clamp(num(y),28,H-28);if(navPointBlocked(x,y,4))return;
   let patch={id:++net.fireSeq,x,y,r:radius,life,maxLife:life,owner,dangerous,phase:Math.random()*6.28};
   game.firePatches.push(patch);if(game.firePatches.length>90)game.firePatches.splice(0,game.firePatches.length-90);
-  if(net.role==='host'){
-    let row=[patch.id,Math.round(x*10),Math.round(y*10),Math.round(radius*10),Math.round(life*100),owner,dangerous?1:0,Math.round(patch.phase*100)];
-    net.pendingFireEvents.push({row,expires:performance.now()+850});
-    if(net.pendingFireEvents.length>180)net.pendingFireEvents.splice(0,net.pendingFireEvents.length-180);
-  }
+
 }
 function spawnFireRing(x,y,count=8,radius=76,dangerous=true){
   for(let i=0;i<count;i++){let a=i*Math.PI*2/count;addFirePatch(x+Math.cos(a)*radius,y+Math.sin(a)*radius,-1,dangerous,20,1.65)}
@@ -3088,7 +3084,7 @@ function cueAllowed(type,force=false){
 }
 function audioViewPlayer(){
   if(!game||!Array.isArray(game.players))return null;
-  let id=net.role==='client'?net.localId:0;
+  let id=onlineSession()?net.localId:0;
   return game.players.find(player=>player.id===id)||game.players[0]||null;
 }
 function spatialAudioOptions(x,y){
@@ -3200,7 +3196,7 @@ function beep(type,options={}){
 function gameSound(type,source=null,options={}){
   let x=source&&Number.isFinite(source.x)?source.x:Number.isFinite(options.x)?options.x:null;
   let y=source&&Number.isFinite(source.y)?source.y:Number.isFinite(options.y)?options.y:null;
-  let targetId=Number.isInteger(options.targetId)?options.targetId:null,localId=net.role==='client'?net.localId:0;
+  let targetId=Number.isInteger(options.targetId)?options.targetId:null,localId=onlineSession()?net.localId:0;
   if(targetId===null||targetId===localId)beep(type,{x,y,force:options.force});
 }
 function premiumUiPointerSound(e){
@@ -3754,7 +3750,7 @@ function applyClientSnapshot(g,hard=false,seq=0,epoch=net.stateEpoch){
   return true;
 }
 function markClientJoined(id,g,epoch=net.stateEpoch){
-  net.localId=id;net.localReady=false;if(!net.lobbyReady)net.lobbyReady=new Map([[0,true]]);net.lobbyReady.set(id,false);
+  net.localId=id;if(!net.lobbyReady)net.lobbyReady=new Map();net.localReady=isLobbyOwner()||!!net.lobbyReady.get(id);
   pairView='none';
   let label='P'+(id+1);
   setLobbyStage('connected','CONNECTED AS '+label,'success',5200);setSetupStatus('Connected as '+label+'.');setSessionStatus(g&&g.phase!=='menu'?'Game starting.':'Connected · ready up when prepared.');
@@ -3779,7 +3775,7 @@ function advanceClientView(dt){
   game.hazardTime+=clamp(target.hazardTime-game.hazardTime,-.22,.22)*Math.min(1,dt*8);
   game.shake=target.shake;game.timeStop=target.timeStop;game.count=target.count;
   game.superFx=target.superFx?{...target.superFx}:null;
-  game.coins=syncCollectibleView(game.coins,target.coins);game.powerups=syncCollectibleView(game.powerups,target.powerups||[]);game.inkSplats=syncCollectibleView(game.inkSplats||[],target.inkSplats||[]);game.inkSeq=Math.max(0,Math.round(num(target.inkSeq)));updateClientFirePatches(dt);
+  game.coins=syncCollectibleView(game.coins,target.coins);game.powerups=syncCollectibleView(game.powerups,target.powerups||[]);game.inkSplats=syncCollectibleView(game.inkSplats||[],target.inkSplats||[]);game.inkSeq=Math.max(0,Math.round(num(target.inkSeq)));syncClientFirePatches(target.firePatches||[]);updateClientFirePatches(dt);
   let current=new Map((game.players||[]).map(p=>[p.id,p])),next=[];
   for(const t of target.players){
     let local=t.id===net.localId,p=current.get(t.id)||cloneGameState({players:[t],enemies:[],coins:[],exit:{}}).players[0];
@@ -3849,7 +3845,6 @@ function receiveMotionState(packet){
   if(seq)net.lastMotionSeq=seq;
   net.motionFrames.push(decodeMotionFrame(packet));
   if(net.motionFrames.length>8)net.motionFrames.splice(0,net.motionFrames.length-8);
-  applyFireRows(packet.a);
 }
 function mixNumber(a,b,t){return a+(b-a)*t}
 function mixDirection(ax,ay,bx,by,t){
@@ -3918,6 +3913,16 @@ function syncCollectibleView(current,target){
   if(!Array.isArray(current)||current.length!==target.length)return target.map(x=>({...x}));
   for(let i=0;i<target.length;i++)Object.assign(current[i],target[i]);return current;
 }
+function syncClientFirePatches(targetRows){
+  if(!Array.isArray(game.firePatches))game.firePatches=[];
+  let current=new Map(game.firePatches.map(f=>[Math.max(0,Math.round(num(f.id))),f]));
+  for(const source of targetRows||[]){
+    let id=Math.max(0,Math.round(num(source&&source.id)));if(!id)continue;
+    let patch=current.get(id);
+    if(!patch){patch={...source};game.firePatches.push(patch);current.set(id,patch);net.clientFireIds.add(id)}
+    else{patch.x=num(source.x,patch.x);patch.y=num(source.y,patch.y);patch.r=num(source.r,patch.r);patch.owner=Math.round(num(source.owner,patch.owner));patch.dangerous=!!source.dangerous;patch.phase=num(source.phase,patch.phase);patch.maxLife=Math.max(num(patch.maxLife),num(source.maxLife,source.life));if(num(source.life)>num(patch.life)+.22)patch.life=num(source.life)}
+  }
+}
 function updateClientFirePatches(dt){
   if(!Array.isArray(game.firePatches))game.firePatches=[];
   for(let i=game.firePatches.length-1;i>=0;i--){let f=game.firePatches[i];f.life-=dt;if(f.life<=0){game.firePatches.splice(i,1);if(f.id)net.clientFireIds.delete(f.id)}}
@@ -3945,20 +3950,23 @@ function createRoomCode(){return fetch(ONLINE_API+'/rooms',{method:'POST',header
 function applyLobbyState(o){
   if(!o||o.pv!==PROTOCOL_VERSION)return;
   selectedLevel=normalizeLevel(o.level||selectedLevel);selectedDifficulty=normalizeDifficulty(o.difficulty||selectedDifficulty);game.nextLevel=selectedLevel;game.nextDifficulty=selectedDifficulty;
-  net.lobbyReady=new Map([[0,true]]);for(const row of o.ready||[])net.lobbyReady.set(Math.max(0,Math.round(num(row&&row[0]))),!!(row&&row[1]));
+  net.lobbyReady=new Map();for(const row of o.ready||[])net.lobbyReady.set(Math.max(0,Math.round(num(row&&row[0]))),!!(row&&row[1]));
   net.members=Array.isArray(o.members)?o.members.map(member=>({id:Math.max(0,Math.round(num(member.id))),connected:!!member.connected,reserved:!!member.reserved,ready:!!member.ready,owner:!!member.owner})):[];
+  let ownerMember=net.members.find(member=>member.owner);net.ownerId=Number.isInteger(o.ownerId)?Math.max(0,Math.round(o.ownerId)):(ownerMember?ownerMember.id:-1);
   net.roster=new Map(net.members.filter(member=>member.connected||member.reserved).map(member=>[member.id,{id:member.id,connected:member.connected,reserved:member.reserved}]));
-  net.localReady=net.localId===0||!!net.lobbyReady.get(net.localId);net.lobbyRevision++;syncLevelUI();ui(true);
+  net.localReady=isLobbyOwner()||!!net.lobbyReady.get(net.localId);net.lobbyRevision++;syncLevelUI();ui(true);
 }
 function handleServerMessage(message){
   if(!message||typeof message!=='object')return;net.lastServerAt=performance.now();
   if(message.t==='versionError'){let text='Game versions do not match. The game client and server versions do not match.';setLobbyStage('error',text,'error',8000);return}
-  if(message.t==='welcome'){if(message.pv!==PROTOCOL_VERSION)return handleServerMessage({t:'versionError'});net.connected=true;net.reconnectAttempt=0;clearReconnect();net.localId=Math.max(0,Math.round(num(message.id)));resetClientEpochState(message.epoch);if(message.lobby)applyLobbyState(message.lobby);markClientJoined(net.localId,message.g,message.epoch);receiveChatHistory(message.chat);return}
+  if(message.t==='welcome'){if(message.pv!==PROTOCOL_VERSION||message.engine&&message.engine!==ENGINE_REVISION)return handleServerMessage({t:'versionError'});net.connected=true;net.reconnectAttempt=0;clearReconnect();net.localId=Math.max(0,Math.round(num(message.id)));net.ownerId=Number.isInteger(message.ownerId)?Math.max(0,Math.round(message.ownerId)):(message.owner?net.localId:net.ownerId);net.connectionId=String(message.connectionId||'');resetConnectionInputSequences();resetClientEpochState(message.epoch);if(message.lobby)applyLobbyState(message.lobby);markClientJoined(net.localId,message.g,message.epoch);receiveChatHistory(message.chat);return}
   if(message.t==='lobbyState')return applyLobbyState(message);
+  if(message.t==='ownerChanged'){net.ownerId=Math.max(0,Math.round(num(message.ownerId)));notifyLobby(String(message.text||('P'+(net.ownerId+1)+' IS NOW ROOM OWNER')),'success',6000,true);ui(true);return}
   if(message.t==='notice'){notifyLobby(String(message.text||''),String(message.tone||'info'),5200,true);return}
   if(message.t==='roomClosed'){let reason=String(message.reason||'Room closed.');finishLeaveSession();setSetupStatus(reason);notifyLobby(reason,'error',6500,true);return}
   if(message.t==='state'){if(message.pv!==PROTOCOL_VERSION)return;applyClientSnapshot(message.g,false,message.seq,message.epoch);return}
   if(message.t==='motion'){receiveMotionState(message);return}
+  if(message.t==='fire'){if(message.pv!==PROTOCOL_VERSION||!acceptClientEpoch(message.epoch,false))return;let seq=Math.max(0,Math.round(num(message.seq)));if(seq&&seq<=net.lastFireSeq)return;if(seq)net.lastFireSeq=seq;applyFireRows([message.row]);return}
   if(message.t==='event'){
     if(message.pv!==PROTOCOL_VERSION)return;let seq=Math.max(0,Math.round(num(message.seq)));if(seq&&seq<=net.lastEventSeq)return;
     if(['run','go','setup','level','clear'].includes(message.kind))clearTransientUiForServerState();
@@ -3972,9 +3980,9 @@ function handleServerMessage(message){
   if(message.t==='error'){notifyLobby(String(message.error||'Server error.'),'error',5000,true)}
 }
 function openServerSocket(role,code,reconnecting=false){return new Promise((resolve,reject)=>{
-  let session=net.session,settled=false,ready=false,ws=new WebSocket(socketUrl(code,role));net.socket=ws;net.connected=false;if(!reconnecting){net.reconnectAttempt=0;net.manualClose=false;clearReconnect()}
+  net.clientToken=getClientToken(code);let session=net.session,settled=false,ws=new WebSocket(socketUrl(code,role));net.socket=ws;net.connected=false;if(!reconnecting){net.reconnectAttempt=0;net.manualClose=false;clearReconnect()}
   let timeout=setTimeout(()=>{if(!settled){settled=true;try{ws.close()}catch(e){}reject(Error('Room unavailable'))}},12000);
-  ws.onopen=()=>{ready=true;clearTimeout(timeout);if(!settled){settled=true;resolve(true)}};
+  ws.onopen=()=>{clearTimeout(timeout);if(!settled){settled=true;resolve(true)}};
   ws.onmessage=e=>{if(net.session!==session||net.socket!==ws)return;let message;try{message=JSON.parse(e.data)}catch(err){return}handleServerMessage(message)};
   ws.onerror=()=>{clearTimeout(timeout);if(!settled){settled=true;reject(Error('Room unavailable'))}};
   ws.onclose=()=>{clearTimeout(timeout);if(net.session!==session)return;if(net.socket===ws)net.socket=null;net.connected=false;if(!settled){settled=true;reject(Error('Room unavailable'))}if(!net.manualClose){setSessionStatus('Connection interrupted. Reconnecting…');scheduleReconnect(session)}ui(true)};
@@ -3985,7 +3993,7 @@ function join(){resetNetwork('client');pairMode('join');setLobbyStage('code');se
 function useInvite(){return safePair(async()=>{let code=normalizeRoomCode(uiState.roomCode);if(code.length!==6)throw Error('Missing code');uiState.roomCode=code;setLobbyStage('locating');setSetupStatus('Finding room…');net.roomCode=code;await openServerSocket('player',code);setLobbyStage('connecting');setSetupStatus('Connecting to the game server…');ui(true)})}
 function closeNet(){net.manualClose=true;clearReconnect();if(net.socket)try{net.socket.onclose=null;net.socket.close()}catch(e){}net.socket=null;net.connected=false;net.motionFrames=[];net.clientTarget=null;net.clientFireIds.clear();resetChatSession()}
 function resetNetwork(role='solo'){closeNet();net=netState();net.role=role;net.clientToken=getClientToken();net.manualClose=false;resetClientEpochState(1);ui(true)}
-function getClientToken(){try{let t=sessionStorage.getItem('coinDashClientToken');if(!t){t=newClientToken();sessionStorage.setItem('coinDashClientToken',t)}return t}catch(e){return newClientToken()}}
+function getClientToken(roomCode=''){let code=normalizeRoomCode(roomCode),key='coinDashClientToken'+(code?':'+code:'');try{let t=localStorage.getItem(key);if(!t){t=newClientToken();localStorage.setItem(key,t)}return t}catch(e){return newClientToken()}}
 function closePairing(){if(onlineSession()&&net.localId>=0)pairView='none';else{resetNetwork('solo');pairView='intro';uiState.roomCode='';setSetupStatus('Ready.')}ui(true)}
 function pairMode(mode,preserve=false){pairView=mode;if(!preserve)uiState.roomCode='';if(mode==='host'&&net.roomCode)uiState.roomCode=net.roomCode;ui(true)}
 function finishLeaveSession(){pendingStartRequest=null;helpOpen=false;resetNetwork('solo');selectedLevel=savedSelectedLevel();game=makeGame(selectedDifficulty,selectedLevel);menuOpen=false;endMenuDismissed=false;pairView='intro';uiState.screen='home';setSetupStatus('Ready.');ui(true)}
@@ -3994,16 +4002,15 @@ function leaveSession(){
   askConfirm(hosting?'Close Online Room':'Leave Game',hosting?'This closes the room for every player.':'You will disconnect from the current room.',hosting?'Close Room':'Leave Game',action);
 }
 function copyText(value,label='Text',target='setup'){let text=String(value||'').trim();if(!text)return;let success=()=>{(target==='menu'?setMenuStatus:setSetupStatus)(label+' copied.');beep('uiConfirm',{bus:'ui'})};if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(text).then(success).catch(()=>{});else{try{let area=document.createElement('textarea');area.value=text;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();success()}catch(e){}}}
-function lobbyPendingCount(){return 0}
 function lobbyConnectedCount(){let count=net.members.filter(member=>member.connected).length;return Math.max(onlineSession()?1:0,count)}
-function lobbyReadyFor(id){return id===0||!!net.lobbyReady.get(id)}
+function lobbyReadyFor(id){return id===net.ownerId||!!net.lobbyReady.get(id)}
 function lobbyConnectedIds(){return net.members.filter(member=>member.connected).map(member=>member.id).sort((a,b)=>a-b)}
-function lobbyUnreadyIds(){return lobbyConnectedIds().filter(id=>id>0&&!lobbyReadyFor(id))}
+function lobbyUnreadyIds(){return lobbyConnectedIds().filter(id=>id!==net.ownerId&&!lobbyReadyFor(id))}
 function allLobbyPlayersReady(){return isLobbyOwner()&&lobbyUnreadyIds().length===0}
-function setLocalReady(ready){if(net.role!=='client'||!connectedClient())return;net.localReady=!!ready;net.lobbyReady.set(net.localId,net.localReady);sendServer({t:'ready',pv:PROTOCOL_VERSION,ready:net.localReady});notifyLobby(net.localReady?'YOU ARE READY':'READY CANCELED',net.localReady?'success':'info',2800,false);ui(true)}
+function setLocalReady(ready){if(isLobbyOwner()||!connectedClient())return;net.localReady=!!ready;net.lobbyReady.set(net.localId,net.localReady);sendServer({t:'ready',pv:PROTOCOL_VERSION,ready:net.localReady});notifyLobby(net.localReady?'YOU ARE READY':'READY CANCELED',net.localReady?'success':'info',2800,false);ui(true)}
 function lobbyUiKey(){return[net.lobbyStage,net.lobbyRevision,net.connected?1:0,net.members.map(m=>[m.id,m.connected?1:0,m.ready?1:0,m.reserved?1:0].join(':')).join(','),Math.ceil(Math.max(0,num(net.lobbyNoticeUntil)-performance.now())/1000)].join('|')}
-function lobbySummary(){if(isLobbyOwner()){let unready=lobbyUnreadyIds();if(unready.length)return'WAITING FOR '+unready.map(id=>'P'+(id+1)).join(', ')+' TO READY UP';if(lobbyConnectedCount()>1)return'EVERYONE READY · START THE GAME';return net.connected?'LOBBY OPEN · INVITE PLAYERS OR START ALONE':'RECONNECTING TO SERVER'}if(net.role==='client'){if(connectedClient())return net.localReady?'READY · WAITING FOR OWNER':'CONNECTED · READY UP WHEN PREPARED';return'CONNECTING TO SERVER'}return''}
-function lobbyRows(){let byId=new Map(net.members.map(member=>[member.id,member])),rows=[];for(let id=0;id<=ROOM_JOINERS;id++){let member=byId.get(id),mine=id===net.localId;if(member&&member.connected)rows.push({id,label:'P'+(id+1),detail:id===0?'OWNER':mine?'YOU':'PLAYER',state:id===0?'OWNER · READY':member.ready?'READY':'NOT READY',tone:id===0?'host':member.ready?'success':'pending'});else if(member&&member.reserved)rows.push({id,label:'P'+(id+1),detail:'RESERVED',state:'OFFLINE',tone:'offline'});else rows.push({id,label:'P'+(id+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'})}return rows}
+function lobbySummary(){if(isLobbyOwner()){let unready=lobbyUnreadyIds();if(unready.length)return'WAITING FOR '+unready.map(id=>'P'+(id+1)).join(', ')+' TO READY UP';if(lobbyConnectedCount()>1)return'EVERYONE READY · START THE GAME';return net.connected?'LOBBY OPEN · INVITE PLAYERS OR START ALONE':'RECONNECTING TO SERVER'}if(onlineSession()){if(connectedClient())return net.localReady?'READY · WAITING FOR OWNER':'CONNECTED · READY UP WHEN PREPARED';return'CONNECTING TO SERVER'}return''}
+function lobbyRows(){let byId=new Map(net.members.map(member=>[member.id,member])),rows=[];for(let id=0;id<=ROOM_JOINERS;id++){let member=byId.get(id),mine=id===net.localId,owner=!!(member&&member.owner);if(member&&member.connected)rows.push({id,label:'P'+(id+1),detail:owner?'OWNER':mine?'YOU':'PLAYER',state:owner?'OWNER · READY':member.ready?'READY':'NOT READY',tone:owner?'host':member.ready?'success':'pending'});else if(member&&member.reserved)rows.push({id,label:'P'+(id+1),detail:owner?'OWNER OFFLINE':'RESERVED',state:'OFFLINE',tone:'offline'});else rows.push({id,label:'P'+(id+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'})}return rows}
 function monitorOnlineTransition(){
   if(!dedicatedSession())return;let timed=['count','level','clear'].includes(game.phase),key=net.stateEpoch+'|'+game.level+'|'+game.phase,now=performance.now();
   if(!timed){net.transitionKey='';net.transitionAt=0;return}
@@ -4073,9 +4080,9 @@ window.addEventListener('keydown',e=>{
     if(confirmOpen()){closeConfirm();e.preventDefault();return}
     if(pendingStartRequest){cancelPendingStart();e.preventDefault();return}
     if(levelSelectVisible()){closeLevelSelect(false);e.preventDefault();return}
-    if(!gameplayScreenVisible()&&pairView==='join'&&net.role==='client'&&!net.localId){closePairing();e.preventDefault();return}
-    if(!gameplayScreenVisible()&&(net.role==='host'||net.role==='client'&&net.localId)){leaveSession();e.preventDefault();return}
-    if(game.over&&!endMenuDismissed){net.role==='client'?resumeGame():requestMainMenu();e.preventDefault();return}
+    if(!gameplayScreenVisible()&&pairView==='join'&&net.role==='client'&&!net.connected){closePairing();e.preventDefault();return}
+    if(!gameplayScreenVisible()&&onlineSession()&&net.connected){leaveSession();e.preventDefault();return}
+    if(game.over&&!endMenuDismissed){onlineSession()&&!isLobbyOwner()?resumeGame():requestMainMenu();e.preventDefault();return}
     if(menuOpen){resumeGame();e.preventDefault();return}
     if(gameplayScreenVisible()){openGameMenu();e.preventDefault()}return;
   }
@@ -4158,7 +4165,7 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.4.3';
+const CANVAS_APP_VERSION='1.4.4';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
@@ -4314,17 +4321,17 @@ function menuActionIcon(id){return id.includes('resume')||id.includes('result-pr
 function canvasDrawLobbyRoster(x,y,w){
   let rows=lobbyRows(),rowH=42,gap=5;for(let i=0;i<5;i++){let row=rows[i]||{label:'P'+(i+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'},yy=y+i*(rowH+gap),color=lobbyToneColor(row.tone),joining=row.tone==='pending'&&row.state==='JOINING';canvasBox(x,yy,w,rowH,{fill:row.tone==='open'?'#060d15':row.tone==='host'?'#21160d':'#091827',stroke:row.tone==='open'?UI.lineSoft:color,r:11,line:row.tone==='open'?1:1.5});cx.save();cx.translate(x+25,yy+rowH/2);drawUiGlyph(cx,joining?'spinner':row.tone==='host'?'host':row.tone==='success'?'check':row.tone==='offline'?'person':'person',.5,color);cx.restore();canvasText(row.label,x+52,yy+rowH/2,13,'left',row.tone==='open'?UI.dim:UI.text,1000,90);canvasPill(row.state,x+w-132,yy+9,122,{accent:color,fill:'#050b13'});}
 }
-function canvasDrawLobbyNotice(x,y,w,fallback=''){let message=activeLobbyNotice()||fallback||lobbySummary(),tone=activeLobbyNotice()?net.lobbyNoticeTone:(lobbyPendingCount()?'pending':net.role==='client'&&net.lobbyStage==='error'?'error':'info'),color=lobbyToneColor(tone);canvasBox(x,y,w,42,{fill:'#050b13',stroke:color,r:11,line:1.3});cx.save();cx.translate(x+24,y+21);drawUiGlyph(cx,tone==='success'?'check':tone==='pending'?'spinner':tone==='error'?'lock':'wifi',.38,color);cx.restore();canvasText(message,x+48,y+21,11,'left',tone==='error'?UI.red:UI.text,900,w-62)}
+function canvasDrawLobbyNotice(x,y,w,fallback=''){let message=activeLobbyNotice()||fallback||lobbySummary(),tone=activeLobbyNotice()?net.lobbyNoticeTone:(net.lobbyStage==='error'?'error':'info'),color=lobbyToneColor(tone);canvasBox(x,y,w,42,{fill:'#050b13',stroke:color,r:11,line:1.3});cx.save();cx.translate(x+24,y+21);drawUiGlyph(cx,tone==='success'?'check':tone==='pending'?'spinner':tone==='error'?'lock':'wifi',.38,color);cx.restore();canvasText(message,x+48,y+21,11,'left',tone==='error'?UI.red:UI.text,900,w-62)}
 function canvasDrawRoomCode(code,x,y,w,{editable=false,copy=false}={}){let copyW=copy?82:0,fieldW=w-copyW-(copy?10:0);canvasBox(x,y,fieldW,50,{fill:'#020711',stroke:canvasIsFocused('code-field')?UI.cyanSoft:UI.cyan,r:13,line:canvasIsFocused('code-field')?2.6:1.6});let shown=code||'------';if(editable&&canvasInputMode==='code')shown=canvasInputBuffer+(Math.floor(visualNowMs()/450)%2?'|':'');canvasText(shown,x+fieldW/2,y+25,28,'center',UI.cyanSoft,1000,fieldW-30);if(editable)canvasHit('code-field',x,y,fieldW,50,()=>canvasOpenInput('code',uiState.roomCode||''));if(copy)canvasButton('copy-code','COPY',x+fieldW+10,y,copyW,50,()=>copyText(uiState.roomCode,'Room code'),{small:true})}
 function canvasDrawJoinTimeline(x,y,w){let steps=[['CODE','link'],['HOST','host'],['LINK','wifi'],['READY','check']],stage=net.lobbyStage,index=stage==='code'?0:stage==='locating'||stage==='waiting'?1:stage==='connecting'||stage==='handshake'?2:stage==='connected'?3:0,gap=w/(steps.length-1);canvasRule(x,y,x+w,y,UI.line,4);steps.forEach(([label,icon],i)=>{let px=x+i*gap,done=i<index,current=i===index,color=done?UI.green:current?stage==='error'?UI.red:UI.yellow:UI.dim;cx.fillStyle='#07101a';cx.beginPath();cx.arc(px,y,23,0,Math.PI*2);cx.fill();cx.strokeStyle=color;cx.lineWidth=current?4:2;cx.stroke();cx.save();cx.translate(px,y);drawUiGlyph(cx,done?'check':current&&i<3?'spinner':icon,.52,color);cx.restore();canvasText(label,px,y+40,10,'center',color,1000,72)})}
 function canvasDrawSetup(){
-  let hosting=net.role==='host',joined=net.role==='client'&&!!net.localId;if(hosting||joined)return canvasDrawLobby();if(pairView==='join')return canvasDrawPairing();canvasSetFocusScope('home','solo');let f=canvasScreenShell();canvasScreenTitle(f,'FORGE CONSOLE','CHOOSE MODE');let x=f.x+26,y=f.y+122,gap=16,w=(f.w-52-gap*2)/3,h=294;canvasModeCard('solo','SOLO','Campaign and bonus','1 PLAYER','play',x,y,w,h,UI.orange,()=>openLevelSelect('home'),{primary:true});canvasModeCard('host','HOST','Create an online forge','UP TO 5','host',x+w+gap,y,w,h,UI.cyan,()=>invite());canvasModeCard('join','JOIN','Enter a room code','ONLINE','link',x+(w+gap)*2,y,w,h,UI.purple,()=>join())
+  let hosting=isLobbyOwner(),joined=onlineSession()&&net.connected;if(hosting||joined)return canvasDrawLobby();if(pairView==='join')return canvasDrawPairing();canvasSetFocusScope('home','solo');let f=canvasScreenShell();canvasScreenTitle(f,'FORGE CONSOLE','CHOOSE MODE');let x=f.x+26,y=f.y+122,gap=16,w=(f.w-52-gap*2)/3,h=294;canvasModeCard('solo','SOLO','Campaign and bonus','1 PLAYER','play',x,y,w,h,UI.orange,()=>openLevelSelect('home'),{primary:true});canvasModeCard('host','HOST','Create an online forge','UP TO 5','host',x+w+gap,y,w,h,UI.cyan,()=>invite());canvasModeCard('join','JOIN','Enter a room code','ONLINE','link',x+(w+gap)*2,y,w,h,UI.purple,()=>join())
 }
 function canvasDrawLobby(){
-  canvasSetFocusScope('lobby-'+net.role,net.role==='host'?(allLobbyPlayersReady()?'start-game':'change-level'):'ready-toggle');let f=canvasScreenShell(),hosting=net.role==='host',room=net.roomCode||'CREATING',map=levelConfig(selectedLevel),bonus=!!map.bonus;canvasScreenTitle(f,'ONLINE','LOBBY');canvasPill(hosting?'HOST':'PLAYER '+(net.localId+1),f.x+255,f.y+27,108,{accent:hosting?UI.yellow:UI.cyan});canvasDrawRoomCode(room,f.x+580,f.y+23,264,{copy:hosting&&!!net.roomCode});
+  canvasSetFocusScope('lobby-'+net.role,isLobbyOwner()?(allLobbyPlayersReady()?'start-game':'change-level'):'ready-toggle');let f=canvasScreenShell(),hosting=isLobbyOwner(),room=net.roomCode||'CREATING',map=levelConfig(selectedLevel),bonus=!!map.bonus;canvasScreenTitle(f,'ONLINE','LOBBY');canvasPill(hosting?'HOST':'PLAYER '+(net.localId+1),f.x+255,f.y+27,108,{accent:hosting?UI.yellow:UI.cyan});canvasDrawRoomCode(room,f.x+580,f.y+23,264,{copy:hosting&&!!net.roomCode});
   let lx=f.x+28,lw=330,rx=f.x+382,rw=462,top=f.y+106;canvasDrawLobbyRoster(lx,top,lw);canvasDrawLobbyNotice(lx,top+238,lw);if(chatAvailable())canvasIconButton('lobby-chat','chat',lx,top+288,58,34,()=>openChat(),{accent:UI.cyan});canvasButton('leave',hosting?'CLOSE':'LEAVE',lx+(chatAvailable()?70:0),top+288,lw-(chatAvailable()?70:0),34,()=>leaveSession(),{danger:true,small:true});
   let preview=uiState.levelPreviewCanvas,px=rx,py=top,pw=274,ph=154;canvasBox(px-4,py-4,pw+8,ph+8,{fill:'#02050b',stroke:bonus?map.accent:UI.line,r:14,line:1.4});if(preview&&preview.width)cx.drawImage(preview,px,py,pw,ph);canvasBox(rx+290,py,172,ph,{fill:UI.surface2,stroke:bonus?map.accent:UI.lineSoft,r:14,line:1.2});canvasText(levelDisplayLabel(selectedLevel),rx+306,py+24,11,'left',bonus?map.accent:UI.orange,1000,140);canvasText(map.name,rx+306,py+55,17,'left',UI.text,1000,140);canvasPill(bonus?map.bonusTime+' SEC':selectedDifficulty.toUpperCase(),rx+306,py+100,140,{accent:bonus?map.accent:selectedDifficulty==='hard'?UI.red:selectedDifficulty==='easy'?UI.green:UI.cyan});
-  if(hosting){if(!bonus){let labels=[['easy','EASY'],['normal','NORMAL'],['hard','HARD']],gap=9,dw=(rw-gap*2)/3;labels.forEach(([key,label],i)=>canvasButton('lobby-diff-'+key,label,rx+i*(dw+gap),top+176,dw,46,()=>selectDifficulty(key),{selected:selectedDifficulty===key,small:true}))}else{canvasPill('NO ENEMIES',rx,top+185,138,{accent:UI.green});canvasPill('HIGH SCORE',rx+150,top+185,138,{accent:map.accent})}canvasButton('change-level','LEVEL',rx,top+244,130,52,()=>openLevelSelect('lobby'));let canStart=!!net.roomCode&&allLobbyPlayersReady(),pending=lobbyPendingCount();canvasButton('start-game',pending?'CONNECTING':canStart?'START':'NOT READY',rx+142,top+244,rw-142,52,()=>beginRun(selectedDifficulty,selectedLevel),{primary:canStart,disabled:!canStart})}else{let ready=!!net.localReady;canvasBox(rx,top+180,rw,56,{fill:UI.surface2,stroke:UI.lineSoft,r:12,line:1});canvasText('HOST CONTROLS THE SETUP',rx+rw/2,top+208,12,'center',UI.muted,950,rw-30);canvasButton('ready-toggle',ready?'CANCEL READY':'READY UP',rx,top+258,rw,58,()=>setLocalReady(!ready),{primary:!ready,selected:ready})}
+  if(hosting){if(!bonus){let labels=[['easy','EASY'],['normal','NORMAL'],['hard','HARD']],gap=9,dw=(rw-gap*2)/3;labels.forEach(([key,label],i)=>canvasButton('lobby-diff-'+key,label,rx+i*(dw+gap),top+176,dw,46,()=>selectDifficulty(key),{selected:selectedDifficulty===key,small:true}))}else{canvasPill('NO ENEMIES',rx,top+185,138,{accent:UI.green});canvasPill('HIGH SCORE',rx+150,top+185,138,{accent:map.accent})}canvasButton('change-level','LEVEL',rx,top+244,130,52,()=>openLevelSelect('lobby'));let canStart=!!net.roomCode&&allLobbyPlayersReady();canvasButton('start-game',canStart?'START':'NOT READY',rx+142,top+244,rw-142,52,()=>beginRun(selectedDifficulty,selectedLevel),{primary:canStart,disabled:!canStart})}else{let ready=!!net.localReady;canvasBox(rx,top+180,rw,56,{fill:UI.surface2,stroke:UI.lineSoft,r:12,line:1});canvasText('HOST CONTROLS THE SETUP',rx+rw/2,top+208,12,'center',UI.muted,950,rw-30);canvasButton('ready-toggle',ready?'CANCEL READY':'READY UP',rx,top+258,rw,58,()=>setLocalReady(!ready),{primary:!ready,selected:ready})}
 }
 function canvasDrawPairing(){
   canvasSetFocusScope('join-room','code-field');let f=canvasScreenShell(),code=uiState.roomCode||canvasInputBuffer||'',busy=['locating','waiting','connecting','handshake'].includes(net.lobbyStage);canvasScreenTitle(f,'ONLINE','JOIN ROOM','',{backAction:()=>closePairing()});
@@ -4350,7 +4357,7 @@ function canvasDrawTouchControls(){
   canvasBox(8,82,114,H-94,{fill:'#060e19',stroke:UI.lineSoft,r:14,line:1});canvasBox(W-122,82,114,H-94,{fill:'#060e19',stroke:UI.lineSoft,r:14,line:1});
   cx.save();cx.translate(65,102);drawUiGlyph(cx,'move',.58,UI.muted);cx.restore();cx.save();cx.translate(W-65,102);drawUiGlyph(cx,'actions',.58,UI.muted);cx.restore();
   let joyX=65,joyY=330,joyR=53;canvasBox(joyX-61,joyY-61,122,122,{fill:'#091625',stroke:UI.line,r:61,line:1.5});cx.save();cx.fillStyle='#0e2035';cx.strokeStyle=UI.cyan;cx.lineWidth=2;cx.beginPath();cx.arc(joyX,joyY,joyR,0,Math.PI*2);cx.fill();cx.stroke();canvasRule(joyX-34,joyY,joyX+34,joyY,'#2d4a62');canvasRule(joyX,joyY-34,joyX,joyY+34,'#2d4a62');let sx=joyX+touch.x*32,sy=joyY+touch.y*32;cx.fillStyle=touch.on?UI.cyanSoft:UI.cyan;cx.beginPath();cx.arc(sx,sy,20,0,Math.PI*2);cx.fill();cx.restore();
-  let p=(game.players||[]).find(x=>x.id===(net.role==='client'?net.localId:0))||game.players[0],dashX=W-65,dashY=386,dashReady=!p||p.cd<=0;
+  let p=(game.players||[]).find(x=>x.id===(onlineSession()?net.localId:0))||game.players[0],dashX=W-65,dashY=386,dashReady=!p||p.cd<=0;
   canvasBox(dashX-43,dashY-43,86,86,{fill:'#091625',stroke:UI.line,r:43,line:1});cx.fillStyle=touch.dash?'#fff':dashReady?UI.orange:'#70301f';cx.strokeStyle=dashReady?'#ffd39a':'#704537';cx.lineWidth=2;cx.beginPath();cx.arc(dashX,dashY,34,0,Math.PI*2);cx.fill();cx.stroke();cx.save();cx.translate(dashX-2,dashY);drawUiGlyph(cx,'dash',.82,touch.dash?UI.orangeDark:'#17100a');cx.restore();
   if(p&&p.cd>0){let ratio=clamp(1-p.cd/Math.max(.01,playerDashCooldown(p)),0,1);cx.strokeStyle=UI.cyan;cx.lineWidth=4;cx.beginPath();cx.arc(dashX,dashY,39,-Math.PI/2,-Math.PI/2+Math.PI*2*ratio);cx.stroke()}
   let slots=sanitizeSuperSlots(p&&p.superSlots);
@@ -4395,14 +4402,14 @@ function resultPrimaryLabel(){
   return game.level>=CAMPAIGN_LEVEL_COUNT?'PLAY AGAIN':'NEXT LEVEL';
 }
 function startNextLevel(){
-  if(net.role==='client')return;let next=nextResultLevel();selectedLevel=next;selectedDifficulty=normalizeDifficulty(game.difficulty);saveLevelProgress();beginRun(selectedDifficulty,next);
+  if(onlineSession()&&!isLobbyOwner())return;let next=nextResultLevel();selectedLevel=next;selectedDifficulty=normalizeDifficulty(game.difficulty);saveLevelProgress();beginRun(selectedDifficulty,next);
 }
 function canvasDrawMenu(){
-  let online=net.role==='host'||net.role==='client',client=net.role==='client',over=!!game.over,roomOpen=menuPairOpen&&online,buttons=[],map=levelConfig(game.level),bonus=!!map.bonus;canvasSetFocusScope('menu-'+(over?'results':'pause'),over?(client?'menu-leave':'menu-result-primary'):'menu-resume');
+  let online=onlineSession(),client=online&&!isLobbyOwner(),over=!!game.over,roomOpen=menuPairOpen&&online,buttons=[],map=levelConfig(game.level),bonus=!!map.bonus;canvasSetFocusScope('menu-'+(over?'results':'pause'),over?(client?'menu-leave':'menu-result-primary'):'menu-resume');
   if(over){if(client){buttons.push({id:'wait',label:'WAITING',disabled:true});buttons.push({id:'leave',label:'LEAVE',action:()=>leaveSession(),danger:true})}else{buttons.push({id:'result-primary',label:resultPrimaryLabel(),action:game.won?()=>startNextLevel():()=>restartCurrentLevel(),primary:true});buttons.push({id:'select-level',label:'LEVEL SELECT',action:()=>chooseLevelFromGameMenu()});buttons.push({id:'controls',label:'CONTROLS',action:()=>openHelp()});buttons.push({id:'main-menu',label:'MAIN MENU',action:()=>requestMainMenu()})}}else{buttons.push({id:'resume',label:'RESUME',action:()=>resumeGame(),primary:true});if(!client){buttons.push({id:'restart',label:bonus?'RESTART BONUS':'RESTART',action:()=>menuSecondaryAction()});buttons.push({id:'select-level',label:'CHANGE LEVEL',action:()=>chooseLevelFromGameMenu()});buttons.push({id:'controls',label:'CONTROLS',action:()=>openHelp()})}if(online)buttons.push({id:'room',label:roomOpen?'HIDE ROOM':'ROOM INFO',action:()=>toggleMenuPlayers()});if(chatAvailable())buttons.push({id:'chat-menu',label:'CHAT',action:()=>openChat()});buttons.push({id:'main-menu',label:client?'LEAVE GAME':'MAIN MENU',action:()=>requestMainMenu(),danger:client})}
   let columns=buttons.length>5?2:1,rows=Math.ceil(buttons.length/columns),buttonH=46,gap=10,bodyH=rows*buttonH+Math.max(0,rows-1)*gap,roomH=roomOpen?76:0,w=columns===2?700:440,h=Math.min(500,132+bodyH+roomH+58),x=(W-w)/2,y=(H-h)/2;cx.save();cx.fillStyle='#010308e8';cx.fillRect(0,0,W,H);cx.restore();canvasPanel(x,y,w,h,.99);let accent=over?(game.won?UI.green:UI.red):UI.orange;cx.fillStyle=accent;cx.fillRect(x,y+24,6,62);canvasText(over?'RESULTS':online?'GAME MENU':'PAUSED',x+34,y+43,30,'left',UI.text,1000,w-68);let subtitle=over?(bonus?bonusCoinsCollected()+' COINS':levelDisplayLabel(game.level)):levelDisplayLabel(game.level);canvasPill(subtitle,x+34,y+76,150,{accent});canvasRule(x+28,y+116,x+w-28,y+116,UI.lineSoft);
   let by=y+132,colGap=12,side=44,buttonW=(w-side*2-colGap*(columns-1))/columns;buttons.forEach((b,index)=>{let col=Math.floor(index/rows),row=index%rows,bx=x+side+col*(buttonW+colGap),yy=by+row*(buttonH+gap);canvasMenuButton('menu-'+b.id,b.label,menuActionIcon(b.id),bx,yy,buttonW,buttonH,b.action||(()=>{}),{primary:!!b.primary,danger:!!b.danger,disabled:!!b.disabled})});
-  if(roomOpen){let py=by+bodyH+12;canvasBox(x+28,py,w-56,58,{fill:UI.surface2,stroke:UI.lineSoft,r:12,line:1});canvasText(net.roomCode||'------',x+44,py+29,21,'left',UI.cyanSoft,1000);canvasText(lobbyConnectedCount()+' ONLINE',x+w-44,py+29,11,'right',UI.text,1000);if(net.role==='host')canvasHit('menu-copy',x+28,py,w-56,58,()=>copyText(net.roomCode,'Room code','menu'))}
+  if(roomOpen){let py=by+bodyH+12;canvasBox(x+28,py,w-56,58,{fill:UI.surface2,stroke:UI.lineSoft,r:12,line:1});canvasText(net.roomCode||'------',x+44,py+29,21,'left',UI.cyanSoft,1000);canvasText(lobbyConnectedCount()+' ONLINE',x+w-44,py+29,11,'right',UI.text,1000);if(isLobbyOwner())canvasHit('menu-copy',x+28,py,w-56,58,()=>copyText(net.roomCode,'Room code','menu'))}
   canvasIconButton('menu-sound','sound',x+28,y+h-44,54,32,()=>toggleSound(),{accent:soundEnabled?UI.cyan:UI.dim});canvasIconButton('menu-full','fullscreen',x+w-82,y+h-44,54,32,()=>toggleFull(),{accent:UI.cyan})
 }
 function canvasDrawHelp(){
@@ -4452,14 +4459,14 @@ function portraitDrawHome(){
   canvasSetFocusScope('portrait-home','solo');portraitBackdrop();portraitHeader('CHOOSE MODE');portraitModeCard('solo','SOLO','Campaign and bonus runs','play',188,UI.orange,()=>openLevelSelect('home'),{primary:true});portraitModeCard('host','HOST','Open a five-player forge','host',370,UI.cyan,()=>invite());portraitModeCard('join','JOIN','Link to a room code','link',552,UI.purple,()=>join());forgeHazardBand(62,742,416,10,UI.orange,.6);for(let i=0;i<5;i++)forgeRivet(94+i*88,777,3,i%2?UI.cyan:UI.orange);portraitFooter()
 }
 function portraitDrawPairing(){canvasSetFocusScope('portrait-join','code-field');portraitBackdrop();portraitHeader('JOIN ROOM');let busy=['locating','waiting','connecting','handshake'].includes(net.lobbyStage),code=uiState.roomCode||canvasInputBuffer||'';portraitButton('pair-back',busy?'CANCEL':'BACK',28,172,112,48,()=>closePairing(),{small:true});canvasPanel(24,238,492,574,.98);canvasText('ROOM CODE',PORTRAIT_W/2,278,14,'center',UI.muted,1000);portraitRoomCode(code,48,302,444,{editable:!busy});let stages=[['CODE','link'],['HOST','host'],['LINK','wifi'],['READY','check']],stage=net.lobbyStage,index=stage==='code'?0:stage==='locating'||stage==='waiting'?1:stage==='connecting'||stage==='handshake'?2:stage==='connected'?3:0,gap=118;canvasRule(92,438,446,438,UI.line,4);for(let i=0;i<4;i++){let xx=92+i*gap,color=i<index?UI.green:i===index?(stage==='error'?UI.red:UI.yellow):UI.dim;cx.fillStyle='#07101a';cx.beginPath();cx.arc(xx,438,25,0,Math.PI*2);cx.fill();cx.strokeStyle=color;cx.lineWidth=i===index?4:2;cx.stroke();cx.save();cx.translate(xx,438);drawUiGlyph(cx,i<index?'check':i===index&&i<3?'spinner':stages[i][1],.54,color);cx.restore();canvasText(stages[i][0],xx,480,11,'center',color,1000,76)}let notice=activeLobbyNotice()||uiState.status||'ENTER A CODE';canvasBox(48,530,444,58,{fill:'#050b13',stroke:lobbyToneColor(net.lobbyNoticeTone),r:12,line:1.4});canvasText(notice,PORTRAIT_W/2,559,12,'center',UI.text,900,410);let valid=(uiState.roomCode||canvasInputBuffer||'').length===6;portraitButton('join-room',busy?'CONNECTING':net.lobbyStage==='error'?'TRY AGAIN':'JOIN',48,630,444,68,()=>useInvite(),{primary:!busy,disabled:busy||!valid});portraitFooter()}
-function portraitDrawLobby(){canvasSetFocusScope('portrait-lobby',net.role==='host'?'start-game':'ready-toggle');portraitBackdrop();let hosting=net.role==='host',room=net.roomCode||'CREATING',map=levelConfig(selectedLevel),bonus=!!map.bonus;portraitHeader('LOBBY');portraitRoomCode(room,54,174,432,{copy:hosting&&!!net.roomCode});canvasPanel(24,250,492,582,.98);let rows=lobbyRows();for(let i=0;i<5;i++){let row=rows[i]||{label:'P'+(i+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'},yy=272+i*52,color=lobbyToneColor(row.tone);canvasBox(48,yy,444,44,{fill:row.tone==='open'?'#070d16':'#091827',stroke:row.tone==='open'?UI.lineSoft:color,r:11,line:1.2});cx.save();cx.translate(73,yy+22);drawUiGlyph(cx,row.tone==='pending'?'spinner':row.tone==='host'?'host':row.tone==='success'?'check':'person',.43,color);cx.restore();canvasText(row.label,103,yy+22,13,'left',row.tone==='open'?UI.dim:UI.text,1000);canvasPill(row.state,376,yy+8,100,{accent:color,fill:'#050b13'})}canvasBox(48,550,444,94,{fill:UI.surface2,stroke:bonus?map.accent:UI.lineSoft,r:13,line:1.2});canvasText(levelDisplayLabel(selectedLevel),66,575,12,'left',bonus?map.accent:UI.orange,1000);canvasText(map.name,66,607,19,'left',UI.text,1000,390);canvasPill(bonus?map.bonusTime+' SEC':selectedDifficulty.toUpperCase(),340,568,136,{accent:bonus?map.accent:UI.cyan});if(hosting){portraitButton('change-level','LEVEL',48,668,150,58,()=>openLevelSelect('lobby'),{small:true});let canStart=!!net.roomCode&&allLobbyPlayersReady(),pending=lobbyPendingCount();portraitButton('start-game',pending?'CONNECTING':canStart?'START':'NOT READY',214,668,278,58,()=>beginRun(selectedDifficulty,selectedLevel),{primary:canStart,disabled:!canStart,small:true})}else{let ready=!!net.localReady;portraitButton('ready-toggle',ready?'CANCEL READY':'READY UP',48,668,444,62,()=>setLocalReady(!ready),{primary:!ready,selected:ready})}portraitButton('lobby-chat','CHAT',48,752,140,52,()=>openChat(),{small:true,disabled:!chatAvailable()});portraitButton('leave',hosting?'CLOSE':'LEAVE',204,752,288,52,()=>leaveSession(),{danger:true,small:true});portraitFooter()}
+function portraitDrawLobby(){canvasSetFocusScope('portrait-lobby',isLobbyOwner()?'start-game':'ready-toggle');portraitBackdrop();let hosting=isLobbyOwner(),room=net.roomCode||'CREATING',map=levelConfig(selectedLevel),bonus=!!map.bonus;portraitHeader('LOBBY');portraitRoomCode(room,54,174,432,{copy:hosting&&!!net.roomCode});canvasPanel(24,250,492,582,.98);let rows=lobbyRows();for(let i=0;i<5;i++){let row=rows[i]||{label:'P'+(i+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'},yy=272+i*52,color=lobbyToneColor(row.tone);canvasBox(48,yy,444,44,{fill:row.tone==='open'?'#070d16':'#091827',stroke:row.tone==='open'?UI.lineSoft:color,r:11,line:1.2});cx.save();cx.translate(73,yy+22);drawUiGlyph(cx,row.tone==='pending'?'spinner':row.tone==='host'?'host':row.tone==='success'?'check':'person',.43,color);cx.restore();canvasText(row.label,103,yy+22,13,'left',row.tone==='open'?UI.dim:UI.text,1000);canvasPill(row.state,376,yy+8,100,{accent:color,fill:'#050b13'})}canvasBox(48,550,444,94,{fill:UI.surface2,stroke:bonus?map.accent:UI.lineSoft,r:13,line:1.2});canvasText(levelDisplayLabel(selectedLevel),66,575,12,'left',bonus?map.accent:UI.orange,1000);canvasText(map.name,66,607,19,'left',UI.text,1000,390);canvasPill(bonus?map.bonusTime+' SEC':selectedDifficulty.toUpperCase(),340,568,136,{accent:bonus?map.accent:UI.cyan});if(hosting){portraitButton('change-level','LEVEL',48,668,150,58,()=>openLevelSelect('lobby'),{small:true});let canStart=!!net.roomCode&&allLobbyPlayersReady();portraitButton('start-game',canStart?'START':'NOT READY',214,668,278,58,()=>beginRun(selectedDifficulty,selectedLevel),{primary:canStart,disabled:!canStart,small:true})}else{let ready=!!net.localReady;portraitButton('ready-toggle',ready?'CANCEL READY':'READY UP',48,668,444,62,()=>setLocalReady(!ready),{primary:!ready,selected:ready})}portraitButton('lobby-chat','CHAT',48,752,140,52,()=>openChat(),{small:true,disabled:!chatAvailable()});portraitButton('leave',hosting?'CLOSE':'LEAVE',204,752,288,52,()=>leaveSession(),{danger:true,small:true});portraitFooter()}
 function portraitDrawLevelSelect(){canvasSetFocusScope('portrait-level','play-level');portraitBackdrop();let map=levelConfig(selectedLevel),bonus=!!map.bonus;portraitHeader('SELECT LEVEL');portraitButton('back',levelSelectOrigin==='home'?'BACK':'CANCEL',28,171,112,48,()=>closeLevelSelect(false),{small:true});canvasPanel(24,236,492,606,.98);let preview=uiState.levelPreviewCanvas;canvasBox(48,256,444,222,{fill:'#02050b',stroke:bonus?map.accent:UI.line,r:14,line:1.4});if(preview&&preview.width)cx.drawImage(preview,48,256,444,222);cx.fillStyle='#02050bdc';cx.fillRect(48,424,444,54);canvasText(map.name,68,451,20,'left',UI.text,1000,404);portraitButton('mode-campaign','CAMPAIGN',48,502,212,50,()=>setLevelCategory('campaign'),{selected:levelSelectCategory==='campaign',small:true});portraitButton('mode-bonus','BONUS',280,502,212,50,()=>setLevelCategory('bonus'),{selected:levelSelectCategory==='bonus',small:true});let list=levelListForCategory(),top=576;if(levelSelectCategory==='campaign'){let cols=4,gap=10,bw=(444-gap*3)/4;list.forEach((level,index)=>{let col=index%cols,row=Math.floor(index/cols);portraitButton('level-'+level,levelDisplayCode(level),48+col*(bw+gap),top+row*48,bw,40,()=>selectLevel(level),{selected:selectedLevel===level,small:true})})}else{let gap=12,bw=(444-gap*2)/3;list.forEach((level,index)=>portraitButton('level-'+level,levelDisplayCode(level),48+index*(bw+gap),top,bw,60,()=>selectLevel(level),{selected:selectedLevel===level,small:true}));canvasText('SCORE ATTACK',PORTRAIT_W/2,668,14,'center',map.accent,1000)}let optionY=716;if(!bonus){let dw=136,g=10;[['easy','EASY'],['normal','NORMAL'],['hard','HARD']].forEach(([key,label],i)=>portraitButton('ld-'+key,label,48+i*(dw+g),optionY,dw,48,()=>selectDifficulty(key),{selected:selectedDifficulty===key,small:true}))}else{canvasPill(map.bonusTime+' SEC',70,optionY+10,174,{accent:map.accent});canvasPill('NO ENEMIES',296,optionY+10,174,{accent:UI.green})}portraitButton('play-level',levelSelectActionLabel(),48,778,444,50,()=>playSelectedLevel(),{primary:true});portraitFooter()}
 function portraitDrawConfirm(){canvasHits.length=0;canvasSetFocusScope('portrait-confirm','confirm-cancel');cx.fillStyle='#010308e8';cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);canvasPanel(34,260,472,390,.99);canvasText(uiState.confirm.title||'CONFIRM',58,316,27,'left',UI.text,1000,420);canvasWrapLines(uiState.confirm.text,420,13,850,5).forEach((line,i)=>canvasText(line,58,378+i*30,13,'left',UI.muted,850,420));portraitButton('confirm-cancel','CANCEL',58,558,190,58,()=>closeConfirm());portraitButton('confirm-action',uiState.confirm.action||'CONFIRM',292,558,190,58,()=>acceptConfirm(),{danger:true})}
 function portraitDrawChat(){canvasHits.length=0;canvasSetFocusScope('portrait-chat','chat-input');cx.fillStyle='#010308f2';cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);portraitHeader('TEAM CHAT');canvasPanel(22,180,496,666,.99);portraitButton('chat-close','CLOSE',382,198,110,46,()=>closeChat(),{small:true});canvasPill(net.roomCode?'ROOM '+net.roomCode:'ONLINE',48,207,156,{accent:UI.cyan});canvasBox(48,270,444,386,{fill:'#05090e',stroke:UI.lineSoft,r:14,line:1});canvasDrawChatMessages(66,286,408,354,{fontSize:14,maxLines:4,maxMessages:12});drawQuickChatButtons(48,674,444,44,true);let typing=canvasInputMode==='chat',draft=typing?canvasInputBuffer:'',shown=draft||'TAP TO TYPE';canvasBox(48,738,324,66,{fill:'#050b13',stroke:typing?UI.cyan:UI.line,r:13,line:1.5});canvasText(shown,64,771,15,'left',draft?UI.text:UI.dim,850,260);canvasText((draft.length||0)+'/160',354,790,10,'right',UI.dim,900,54);portraitHit('chat-input',48,738,324,66,()=>canvasOpenInput('chat',typing?canvasInputBuffer:''));portraitButton('chat-send',typing?'SEND':'TYPE',388,738,104,66,()=>{if(!typing)canvasOpenInput('chat','');else canvasSubmitInput()},{primary:true,small:true})}
 function portraitDrawKeyboard(){canvasHits.length=0;canvasSetFocusScope('portrait-keyboard','key-done');cx.fillStyle='#010308fa';cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);let code=canvasInputMode==='code';portraitHeader(code?'ROOM CODE':'CHAT MESSAGE');canvasPanel(18,180,504,690,.995);canvasBox(40,204,460,90,{fill:'#050b13',stroke:code?UI.cyan:UI.orange,r:14,line:1.5});let draft=canvasInputBuffer+(Math.floor(visualNowMs()/450)%2?'|':'');canvasWrapLines(draft||' ',420,code?24:17,900,3).forEach((line,index)=>canvasText(line,60,237+index*24,code?24:17,'left',UI.text,900,400));canvasText(canvasInputBuffer.length+'/'+canvasInputLimit,478,278,11,'right',UI.dim,900,70);if(!code)drawQuickChatButtons(40,312,460,46,true);let rows=canvasKeyboardRows(),keysTop=code?334:386,keyH=code?62:68,rowGap=14,gap=7;drawKeyboardRows(rows,40,keysTop,460,keyH,rowGap,gap,true);let controlY=keysTop+3*(keyH+rowGap)+4;if(!code){canvasKeyboardKey('key-shift',canvasKeyboardShift?'SHIFT ON':'SHIFT',40,controlY,112,58,()=>canvasToggleKeyboardShift(),{muted:!canvasKeyboardShift,portrait:true});['.',',','?','!',"'"] .forEach((ch,index)=>canvasKeyboardKey('key-punct-'+index,ch,164+index*54,controlY,46,58,()=>canvasInputChar(ch),{portrait:true}));canvasKeyboardKey('key-back','DELETE',410,controlY,90,58,()=>canvasInputBack(),{muted:true,portrait:true})}let bottom=774;canvasKeyboardKey('key-cancel','CLOSE',40,bottom,106,58,()=>canvasCloseInput(),{muted:true,portrait:true});canvasKeyboardKey('key-back-bottom','DELETE',158,bottom,106,58,()=>canvasInputBack(),{muted:true,portrait:true});if(!code)canvasKeyboardKey('key-space','SPACE',276,bottom,112,58,()=>canvasInputChar(' '),{portrait:true});canvasKeyboardKey('key-done',code?'JOIN':'SEND',code?276:400,bottom,code?224:100,58,()=>canvasSubmitInput(),{primary:true,portrait:true})}
 function portraitDrawHelp(){canvasHits.length=0;canvasSetFocusScope('portrait-help','help-close');cx.fillStyle='#010308f2';cx.fillRect(0,0,PORTRAIT_W,PORTRAIT_H);portraitHeader('CONTROLS');canvasPanel(24,180,492,650,.99);let cards=[['move','MOVE','WASD / ARROWS',UI.cyan],['dash','DASH','SPACE',UI.orange],['freeze','CRYO','E',POWER_DEFS.freeze.color],['bonus','STAR SURGE','R',UI.yellow]];cards.forEach(([icon,title,key,color],i)=>{let yy=208+i*105;canvasBox(48,yy,444,84,{fill:UI.surface2,stroke:color,r:15,line:1.4});cx.save();cx.translate(91,yy+42);if(icon==='freeze')drawPowerGlyph(cx,'freeze',.78);else drawUiGlyph(cx,icon,.78,color);cx.restore();canvasText(title,136,yy+30,18,'left',UI.text,1000);canvasPill(key,136,yy+46,190,{accent:color})});canvasBox(48,648,444,82,{fill:'#071522',stroke:UI.lineSoft,r:14,line:1});cx.save();cx.translate(86,689);drawUiGlyph(cx,'coin',.75,UI.yellow);cx.restore();canvasText('COLLECT ALL COINS',126,677,16,'left',UI.text,1000);canvasText('THEN REACH THE EXIT',126,704,12,'left',UI.muted,900);portraitButton('help-close','DONE',48,752,444,58,()=>closeHelp(),{primary:true})}
 function portraitDrawStartGate(){canvasHits.length=0;canvasSetFocusScope('portrait-start-gate','start-full');portraitBackdrop();let request=pendingStartRequest,map=levelConfig(request?request.startLevel:selectedLevel);portraitHeader('READY TO PLAY',levelDisplayLabel(request?request.startLevel:selectedLevel)+' · '+map.name);canvasPanel(24,190,492,610,.98);cx.save();cx.translate(PORTRAIT_W/2,320);cx.strokeStyle=UI.cyanSoft;cx.lineWidth=8;cx.beginPath();cx.roundRect(-42,-76,84,152,16);cx.stroke();cx.strokeStyle=UI.orange;cx.lineWidth=6;cx.beginPath();cx.arc(0,0,112,-.7,.7);cx.stroke();cx.beginPath();cx.moveTo(84,-70);cx.lineTo(108,-80);cx.lineTo(101,-54);cx.stroke();cx.restore();canvasText('ROTATE',PORTRAIT_W/2,460,31,'center',UI.text,1000,450);canvasText('COUNTDOWN WAITING',PORTRAIT_W/2,500,13,'center',UI.green,1000,450);portraitButton('start-full','FULLSCREEN',54,552,432,68,()=>requestLandscapeFullscreen(),{primary:true});portraitButton('start-check','CHECK',54,640,432,58,()=>refreshLayout(),{small:true});portraitButton('start-cancel','BACK',54,718,432,58,()=>cancelPendingStart(),{small:true})}
-function canvasDrawRotateDevice(){portraitBackdrop();portraitHeader('ROTATE TO PLAY');canvasPanel(24,190,492,610,.98);cx.save();cx.translate(PORTRAIT_W/2,320);cx.strokeStyle=UI.cyanSoft;cx.lineWidth=8;cx.beginPath();cx.roundRect(-42,-76,84,152,16);cx.stroke();cx.strokeStyle=UI.orange;cx.lineWidth=6;cx.beginPath();cx.arc(0,0,112,-.7,.7);cx.stroke();cx.beginPath();cx.moveTo(84,-70);cx.lineTo(108,-80);cx.lineTo(101,-54);cx.stroke();cx.restore();canvasText('LANDSCAPE',PORTRAIT_W/2,462,31,'center',UI.text,1000,450);canvasText('GAME PAUSED',PORTRAIT_W/2,500,13,'center',UI.green,1000,450);portraitButton('orientation-full',document.fullscreenElement?'EXIT FULLSCREEN':'FULLSCREEN',54,554,432,68,()=>document.fullscreenElement?toggleFull():requestLandscapeFullscreen(),{primary:!document.fullscreenElement});portraitButton('orientation-menu',net.role==='client'?'LEAVE GAME':'MAIN MENU',54,642,432,58,()=>requestMainMenu(),{danger:true,small:true});portraitButton('orientation-sound',soundEnabled?'AUDIO ON':'AUDIO OFF',54,720,208,54,()=>toggleSound(),{small:true});portraitButton('orientation-retry','CHECK',278,720,208,54,()=>refreshLayout(),{small:true})}
+function canvasDrawRotateDevice(){portraitBackdrop();portraitHeader('ROTATE TO PLAY');canvasPanel(24,190,492,610,.98);cx.save();cx.translate(PORTRAIT_W/2,320);cx.strokeStyle=UI.cyanSoft;cx.lineWidth=8;cx.beginPath();cx.roundRect(-42,-76,84,152,16);cx.stroke();cx.strokeStyle=UI.orange;cx.lineWidth=6;cx.beginPath();cx.arc(0,0,112,-.7,.7);cx.stroke();cx.beginPath();cx.moveTo(84,-70);cx.lineTo(108,-80);cx.lineTo(101,-54);cx.stroke();cx.restore();canvasText('LANDSCAPE',PORTRAIT_W/2,462,31,'center',UI.text,1000,450);canvasText(onlineSession()?'MATCH CONTINUES ONLINE':'GAME PAUSED',PORTRAIT_W/2,500,13,'center',onlineSession()?UI.orange:UI.green,1000,450);portraitButton('orientation-full',document.fullscreenElement?'EXIT FULLSCREEN':'FULLSCREEN',54,554,432,68,()=>document.fullscreenElement?toggleFull():requestLandscapeFullscreen(),{primary:!document.fullscreenElement});portraitButton('orientation-menu',onlineSession()&&!isLobbyOwner()?'LEAVE GAME':'MAIN MENU',54,642,432,58,()=>requestMainMenu(),{danger:true,small:true});portraitButton('orientation-sound',soundEnabled?'AUDIO ON':'AUDIO OFF',54,720,208,54,()=>toggleSound(),{small:true});portraitButton('orientation-retry','CHECK',278,720,208,54,()=>refreshLayout(),{small:true})}
 function canvasDrawPortraitApplication(){
   resetFrameCanvas();portraitTransformStart();let base=activeBaseScreen();
   if(pendingStartRequest)portraitDrawStartGate();
