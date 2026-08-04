@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry Canvas Edition</title>
-<meta name="application-version" content="1.4.5">
+<meta name="application-version" content="1.4.6">
 <style>
 html,body{margin:0;width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#010207;touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
 body{display:grid;place-items:center;box-sizing:border-box;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
@@ -279,8 +279,8 @@ const CLIENT_UI_INTERVAL=1/20;
 const MOTION_BUFFER_DELAY=50;
 const MOTION_EXTRAPOLATION_LIMIT=.08;
 const LOCAL_DASH_SOFT_ERROR=42;
-const PROTOCOL_VERSION=11;
-const ENGINE_REVISION='foundry-2026-08-04-r2';
+const PROTOCOL_VERSION=12;
+const ENGINE_REVISION='foundry-2026-08-04-r3';
 const SIMULATION_STEP=1/60;
 const MAX_SIMULATION_STEPS=6;
 const MAX_SIMULATION_BACKLOG=.18;
@@ -773,7 +773,7 @@ function resetPlayersForLevel(){
   }
 }
 function loadLevel(level){
-  level=normalizeLevel(level);let parts=makeLevelObjects(level,game.difficulty);
+  resetGameplayInput();level=normalizeLevel(level);let parts=makeLevelObjects(level,game.difficulty);
   game.level=level;game.maxLevel=LEVELS.length;game.levelName=levelConfig(level).name;game.levelHint=levelConfig(level).gimmick||'';game.coins=parts.coins;game.enemies=parts.enemies;game.powerups=parts.powerups;game.firePatches=[];game.inkSplats=[];game.inkSeq=0;game.exit=parts.exit;game.total=parts.coins.length;game.phase='level';game.count=2.4;game.paused=false;game.shake=0;game.timeStop=0;game.superFx=null;
   resetPlayersForLevel();
   menuOpen=false;endMenuDismissed=false;showPlay();playLevelIntroMusic(level);beep('level');ui(true);
@@ -1088,7 +1088,7 @@ function beginRunNow(difficulty=selectedDifficulty,startLevel=selectedLevel){
     if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();pendingStartRequest=null;stopIntroTune(.16);showPlay();
     sendServer({t:fromLobby?'start':'startLevel',pv:PROTOCOL_VERSION,level:normalizeLevel(startLevel),difficulty:normalizeDifficulty(difficulty)});return true;
   }
-  if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();pendingStartRequest=null;stopIntroTune(.16);let runDifficulty=normalizeDifficulty(difficulty),runLevel=normalizeLevel(startLevel);game=makeGame(runDifficulty,runLevel);game.nextDifficulty=runDifficulty;game.nextLevel=runLevel;game.phase='count';game.count=3;game.paused=false;menuOpen=false;menuPairOpen=false;helpOpen=false;endMenuDismissed=false;showPlay();playLevelIntroMusic(runLevel);beep('start');ui(true);return true;
+  if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();pendingStartRequest=null;stopIntroTune(.16);resetGameplayInput();let runDifficulty=normalizeDifficulty(difficulty),runLevel=normalizeLevel(startLevel);game=makeGame(runDifficulty,runLevel);game.nextDifficulty=runDifficulty;game.nextLevel=runLevel;game.phase='count';game.count=3;game.paused=false;menuOpen=false;menuPairOpen=false;helpOpen=false;endMenuDismissed=false;showPlay();playLevelIntroMusic(runLevel);beep('start');ui(true);return true;
 }
 function beginRun(difficulty=selectedDifficulty,startLevel=selectedLevel){
   if(isLobbyOwner()&&game.phase==='menu'&&!allLobbyPlayersReady()){notifyLobby(lobbySummary(),'pending',3200,false);ui(true);return false}
@@ -1822,7 +1822,7 @@ function updateHazardsForPlayer(p,dt,map){
   }
 }
 function update(dt,flush=true){
-if(onlineSession()){maintainServerConnection(dt);sendInput(dt,flush);advanceClientView(dt);if(isBonusLevel())updateBonusCoinPositionsFor(game.coins,levelConfig(game.level),game.hazardTime);updateBonusCountdownCue();net.uiTimer+=dt;if(flush&&net.uiTimer>=CLIENT_UI_INTERVAL){net.uiTimer=0;ui()}return}
+if(onlineSession()){maintainServerConnection(dt);sendInput(dt,flush);advanceClientView(dt);updateBonusCountdownCue();net.uiTimer+=dt;if(flush&&net.uiTimer>=CLIENT_UI_INTERVAL){net.uiTimer=0;ui()}return}
 if(game.over)return;
 if(game.phase==='menu'||game.paused){if(flush)ui();return}
 if(game.phase==='count'||game.phase==='level'){game.count=Math.max(0,game.count-dt);
@@ -3776,7 +3776,9 @@ function advanceClientView(dt){
   game.hazardTime+=clamp(target.hazardTime-game.hazardTime,-.22,.22)*Math.min(1,dt*8);
   game.shake=target.shake;game.timeStop=target.timeStop;game.count=target.count;
   game.superFx=target.superFx?{...target.superFx}:null;
-  game.coins=syncCollectibleView(game.coins,target.coins);game.powerups=syncCollectibleView(game.powerups,target.powerups||[]);game.inkSplats=syncCollectibleView(game.inkSplats||[],target.inkSplats||[]);game.inkSeq=Math.max(0,Math.round(num(target.inkSeq)));syncClientFirePatches(target.firePatches||[]);updateClientFirePatches(dt);
+  game.coins=syncCollectibleView(game.coins,target.coins);
+  if(motion&&motion.coins.length===game.coins.length)for(let i=0;i<game.coins.length;i++){let mc=motion.coins[i];if(!mc)continue;game.coins[i].x=mc.x;game.coins[i].y=mc.y;game.coins[i].taken=mc.taken}
+  game.powerups=syncCollectibleView(game.powerups,target.powerups||[]);game.inkSplats=syncCollectibleView(game.inkSplats||[],target.inkSplats||[]);game.inkSeq=Math.max(0,Math.round(num(target.inkSeq)));syncClientFirePatches(target.firePatches||[]);updateClientFirePatches(dt);
   let current=new Map((game.players||[]).map(p=>[p.id,p])),next=[];
   for(const t of target.players){
     let local=t.id===net.localId,p=current.get(t.id)||cloneGameState({players:[t],enemies:[],coins:[],exit:{}}).players[0];
@@ -3829,7 +3831,7 @@ function syncMotionClock(hostTime,received){
   return hostTime+net.motionClockOffset;
 }
 function decodeMotionFrame(packet){
-  let received=performance.now(),hostTime=num(packet.ts,received),timeline=syncMotionClock(hostTime,received),players=new Map(),enemies=[];
+  let received=performance.now(),hostTime=num(packet.ts,received),timeline=syncMotionClock(hostTime,received),players=new Map(),enemies=[],coins=[];
   for(const row of packet.p||[]){
     let id=Math.max(0,Math.round(num(row[0])));
     players.set(id,{id,x:num(row[1])/10,y:num(row[2])/10,vx:num(row[3])/10,vy:num(row[4])/10,dt:Math.max(0,num(row[5])/100),dx:num(row[6])/100,dy:num(row[7])/100,faceX:num(row[8])/100,faceY:num(row[9])/100,bob:num(row[10])/100,inv:Math.max(0,num(row[11])/100),dashHit:Math.max(0,num(row[12])/100),dashSeq:Math.max(0,Math.round(num(row[13]))),hitTime:Math.max(0,num(row[14])/100)});
@@ -3837,7 +3839,8 @@ function decodeMotionFrame(packet){
   for(const row of packet.e||[]){
     enemies.push({x:num(row[0])/10,y:num(row[1])/10,vx:num(row[2])/10,vy:num(row[3])/10,phase:num(row[4])/100,mode:ENEMY_MODE_KEYS[Math.round(num(row[5]))]||'chase',aimX:num(row[6])/100,aimY:num(row[7])/100,pulseRadius:Math.max(0,num(row[8])/10),burn:Math.max(0,num(row[9])/100),stun:Math.max(0,num(row[10])/100),armProgress:clamp(num(row[11])/100,0,1),armLength:Math.max(0,num(row[12])/10),armTargetX:num(row[13])/10,armTargetY:num(row[14])/10,inkCharge:clamp(num(row[15])/100,0,1)});
   }
-  return{seq:Math.max(0,Math.round(num(packet.seq))),received,timeline,players,enemies};
+  for(const row of packet.c||[])coins.push({x:num(row[0])/10,y:num(row[1])/10,taken:!!row[2]});
+  return{seq:Math.max(0,Math.round(num(packet.seq))),received,timeline,players,enemies,coins};
 }
 function receiveMotionState(packet){
   if(!packet||!onlineSession()||packet.pv!==PROTOCOL_VERSION||!acceptClientEpoch(packet.epoch,false))return;
@@ -3882,7 +3885,15 @@ function sampleMotionFrame(now=performance.now()){
   for(const id of ids){let value=extrapolation>0?extrapolateMotionEntity(b.players.get(id)||a.players.get(id),extrapolation,true):interpolateMotionEntity(a.players.get(id),b.players.get(id),t,true);players.set(id,value)}
   let count=Math.max(a.enemies.length,b.enemies.length),enemies=[];
   for(let i=0;i<count;i++)enemies[i]=extrapolation>0?extrapolateMotionEntity(b.enemies[i]||a.enemies[i],extrapolation,false):interpolateMotionEntity(a.enemies[i],b.enemies[i],t,false);
-  return{players,enemies};
+  let coinCount=Math.max(a.coins.length,b.coins.length),coins=[];
+  for(let i=0;i<coinCount;i++){
+    let ca=a.coins[i],cb=b.coins[i]||ca;if(!ca){coins[i]=cb;continue}if(!cb){coins[i]=ca;continue}
+    let ax=ca.x,bx=cb.x,meta=net.clientTarget&&net.clientTarget.coins&&net.clientTarget.coins[i];
+    if(meta&&meta.bonusMotion==='lane'&&Math.abs(bx-ax)>410){if(bx<ax)bx+=820;else ax+=820}
+    let x=mixNumber(ax,bx,t);if(meta&&meta.bonusMotion==='lane')x=70+(((x-70)%820)+820)%820;
+    coins[i]={x,y:mixNumber(ca.y,cb.y,t),taken:!!cb.taken};
+  }
+  return{players,enemies,coins};
 }
 function decodeFireEvent(row){return{id:Math.max(0,Math.round(num(row&&row[0]))),x:num(row&&row[1])/10,y:num(row&&row[2])/10,r:num(row&&row[3])/10,life:num(row&&row[4])/100,maxLife:num(row&&row[4])/100,owner:Math.round(num(row&&row[5],-1)),dangerous:!!(row&&row[6]),phase:num(row&&row[7])/100}}
 function applyFireRows(rows){
@@ -4057,9 +4068,10 @@ function maintainServerConnection(dt){
 }
 function sendInput(dt,allowSend=true){
   monitorOnlineTransition();if(!connectedClient()||game.phase==='menu'||game.over)return;net.timer+=dt;if(!allowSend||net.timer<1/20)return;net.timer=0;
-  let v=control({control:'local'}),l=hypot(v.x,v.y);if(l>.001)inputAim={x:v.x/l,y:v.y/l};let dashPressed=pendingDashPress||(v.dash&&!inputDashDown);
+  let v=control({control:'local'}),actionPhase=game.phase==='play'&&!game.paused,l=hypot(v.x,v.y);if(l>.001)inputAim={x:v.x/l,y:v.y/l};let dashPressed=actionPhase&&(pendingDashPress||(v.dash&&!inputDashDown));
+  if(!actionPhase)pendingDashPress=false;
   if(dashPressed){let direction=pendingDashPress?pendingDashDir:inputAim,dl=hypot(direction.x,direction.y);pendingDashPress=false;if(dl>.001){inputDashDir={x:direction.x/dl,y:direction.y/dl};inputSeq++;let p=(game.players||[]).find(player=>player.id===net.localId);if(p&&p.alive&&p.cd<=0){let dashTime=p.boost>0?.25:.2;net.clientDashTime=dashTime;net.clientDashCooldown=playerDashCooldown(p);net.clientDashPendingSeq=inputSeq;net.clientDashDir={...inputDashDir};p.cd=net.clientDashCooldown;p.dt=dashTime;p.dx=inputDashDir.x;p.dy=inputDashDir.y;p._visualDashActive=true;p._visualDashSeq=inputSeq;p._lastTrailAt=performance.now();p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:p._lastTrailAt,life:420,ring:true});beep('dash')}}}
-  v.dashSeq=inputSeq;v.dashX=inputDashDir.x;v.dashY=inputDashDir.y;if(v.super&&!inputSuperDown){inputSuperSeq++;v.superSeq=inputSuperSeq;beep('superTap')}else v.superSeq=inputSuperSeq;inputDashDown=v.dash;inputSuperDown=v.super;v.dash=false;v.super=false;sendServer({t:'input',pv:PROTOCOL_VERSION,seq:++inputPacketSeq,v});
+  v.dashSeq=inputSeq;v.dashX=inputDashDir.x;v.dashY=inputDashDir.y;if(actionPhase&&v.super&&!inputSuperDown){inputSuperSeq++;v.superSeq=inputSuperSeq;beep('superTap')}else v.superSeq=inputSuperSeq;inputDashDown=v.dash;inputSuperDown=v.super;v.dash=false;v.super=false;sendServer({t:'input',pv:PROTOCOL_VERSION,seq:++inputPacketSeq,v});
 }
 
 
@@ -4202,7 +4214,7 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.4.5';
+const CANVAS_APP_VERSION='1.4.6';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
