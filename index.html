@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry Canvas Edition</title>
-<meta name="application-version" content="1.3.7">
+<meta name="application-version" content="1.4.0">
 <style>
 html,body{margin:0;width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#010207;touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
 body{display:grid;place-items:center;box-sizing:border-box;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
@@ -37,7 +37,7 @@ cx.lineCap='round';
 
 const W=cv.width,H=cv.height,colors=['#20dcff','#ff365f','#66f23f','#ffd21f','#c95bff','#ff7b16'];
 const ROOM_JOINERS=4;
-const ONLINE_API='https://coin-dash-online.kiadesignenterprise.workers.dev';
+const ONLINE_API=['localhost','127.0.0.1'].includes(location.hostname)?'http://127.0.0.1:8787':'https://coin-dash-online.kiadesignenterprise.workers.dev';
 const DIFFICULTIES={
   easy:{label:'Easy',hint:'2 slower drones',enemyCount:2,enemySpeed:48,enemyAccel:22,enemyStart:54,invulnerability:2.6,stun:.95},
   normal:{label:'Normal',hint:'3 balanced drones',enemyCount:3,enemySpeed:58,enemyAccel:34,enemyStart:70,invulnerability:2.15,stun:.75},
@@ -275,16 +275,11 @@ function levelConfig(v){let map=LEVELS[normalizeLevel(v)-1];if(!map.hazards)map.
 function levelWalls(v=game&&game.level){return BORDER_WALLS.concat(levelConfig(v).walls)}
 const MAX_CHANNEL_BUFFER=96*1024; // Never let replaceable realtime traffic build a stale queue.
 const MAX_INPUT_BUFFER=16*1024;
-const REMOTE_INPUT_TIMEOUT=240;
 const CLIENT_UI_INTERVAL=1/20;
-const INPUT_INTERVAL=1/60;
-const SNAPSHOT_INTERVAL=1/20;
-const MOTION_INTERVAL=1/60;
 const MOTION_BUFFER_DELAY=50;
 const MOTION_EXTRAPOLATION_LIMIT=.08;
 const LOCAL_DASH_SOFT_ERROR=42;
-const MAX_MOTION_BUFFER=28*1024;
-const PROTOCOL_VERSION=7;
+const PROTOCOL_VERSION=8;
 const SIMULATION_STEP=1/60;
 const MAX_SIMULATION_STEPS=6;
 const MAX_SIMULATION_BACKLOG=.18;
@@ -296,7 +291,7 @@ function resetClientEpochState(epoch){
 }
 function acceptClientEpoch(epoch,fullState=false){
   epoch=normalizeEpoch(epoch);
-  if(net.role!=='client')return epoch===net.stateEpoch;
+  if(!onlineSession())return epoch===net.stateEpoch;
   if(epoch<net.stateEpoch)return false;
   if(epoch>net.stateEpoch){
     if(!fullState){net.pendingEpoch=Math.max(net.pendingEpoch||0,epoch);return false}
@@ -304,10 +299,7 @@ function acceptClientEpoch(epoch,fullState=false){
   }
   return true;
 }
-function advanceStateEpoch(){
-  if(net.role!=='host')return;
-  pendingRemoteDashes.clear();net.stateEpoch=normalizeEpoch(net.stateEpoch+1);net.stateSeq=0;net.motionSeq=0;net.pendingFireEvents.length=0;net.fireSeq=0;
-}
+
 
 
 const G={floorA:'#100906',floorB:'#2b130b',grid:'#ff8a2424',wall:'#35211a',wallTop:'#7b5a45',wallEdge:'#090403',coin:'#ffd31f',coinHot:'#fff8bd',enemy:'#ff3e24',enemyDark:'#351008',exit:'#65ffb3'};
@@ -454,7 +446,7 @@ function drawScreenVignette(){
   cx.fillRect(0,0,W,H);
   cx.restore();
 }
-const keys=new Set(),touch={x:0,y:0,dash:false,super:false,superSlot:-1,on:false,id:null,anchorX:0,anchorY:0,engaged:false},remoteInputs=new Map(),canvasPointers=new Map();
+const keys=new Set(),touch={x:0,y:0,dash:false,super:false,superSlot:-1,on:false,id:null,anchorX:0,anchorY:0,engaged:false},canvasPointers=new Map();
 
 function normalizeDifficulty(v){return Object.prototype.hasOwnProperty.call(DIFFICULTIES,v)?v:'normal'}
 function difficultyConfig(v){return DIFFICULTIES[normalizeDifficulty(v)]}
@@ -500,7 +492,7 @@ function sampleRenderPerformance(frameMs,drawMs,now){
 }
 function visualNowMs(){
   let now=performance.now();
-  if(net.role==='client'&&Number.isFinite(net.motionClockOffset))return Math.max(0,now-MOTION_BUFFER_DELAY-net.motionClockOffset);
+  if(onlineSession()&&Number.isFinite(net.motionClockOffset))return Math.max(0,now-MOTION_BUFFER_DELAY-net.motionClockOffset);
   return now;
 }
 function applyCanvasContextDefaults(ctx=cx){
@@ -540,7 +532,6 @@ let audioMaster=null,audioCompressor=null,audioSfx=null,audioUi=null,audioMusic=
 let audioUnlocked=false,audioPageActive=!document.hidden&&document.hasFocus(),introMusicPlaying=false,introMusicTimer=0,introMusicGeneration=0,introMusicNextStart=0,introVoices=[],levelIntroVoices=[],levelIntroTimer=0,levelIntroGeneration=0,pendingLevelIntro=0,activePowerAudio=new Map();
 let worldAudio=null,movementAudio=null,flameHazardAudioStates=new Map(),gameplayMusicPlaying=false,gameplayMusicTimer=0,gameplayMusicGeneration=0,gameplayMusicNextStart=0,gameplayMusicVoices=[],gameplayMusicSignature='',audioCueTimes=new Map(),coinCueStep=0,coinCueAt=0;
 let inputSeq=0,inputSuperSeq=0,inputPacketSeq=0,inputDashDown=false,inputSuperDown=false,inputAim={x:1,y:0},inputDashDir={x:1,y:0},pendingDashPress=false,pendingDashDir={x:1,y:0};
-const pendingRemoteDashes=new Map();
 let menuOpen=false,menuPairOpen=false,endMenuDismissed=false,pairView='intro',pendingConfirm=null,levelSelectOrigin='home';
 let levelSelectOriginalLevel=selectedLevel,levelSelectOriginalDifficulty=selectedDifficulty,levelSelectCommitted=false,levelSelectCategory=isBonusLevel(selectedLevel)?'bonus':'campaign';
 let lastCampaignLevel=isBonusLevel(selectedLevel)?1:selectedLevel,lastBonusLevel=isBonusLevel(selectedLevel)?selectedLevel:CAMPAIGN_LEVEL_COUNT+1,pendingStartRequest=null,helpOpen=false;
@@ -594,9 +585,9 @@ function activeBaseScreen(){
 function activeOverlay(){if(canvasInputMode&&canvasTouchDevice)return'input';if(confirmOpen())return'confirm';if(chatOpen)return'chat';if(helpOpen)return'help';if(menuOpen||game.over&&!endMenuDismissed)return'menu';return''}
 function gameplayInputBlocked(){return chatOpen||helpOpen||menuOpen||confirmOpen()||canvasInputMode!==''}
 function sendNeutralClientInput(){
-  if(net.role!=='client')return;
-  let ch=net.stateDc&&net.stateDc.readyState==='open'?net.stateDc:net.dc;if(!ch||ch.readyState!=='open')return;
-  let v=inputSafe({dashSeq:inputSeq,superSeq:inputSuperSeq});sendRealtime(ch,{t:'input',pv:PROTOCOL_VERSION,epoch:net.stateEpoch,seq:++inputPacketSeq,v},MAX_INPUT_BUFFER);
+  if(!dedicatedSession())return;
+  let v=inputSafe({dashSeq:inputSeq,superSeq:inputSuperSeq});
+  sendServer({t:'input',pv:PROTOCOL_VERSION,seq:++inputPacketSeq,v});
 }
 function resetGameplayInput(){
   keys.clear();Object.assign(touch,{x:0,y:0,dash:false,super:false,superSlot:-1,on:false,id:null,anchorX:0,anchorY:0,engaged:false});
@@ -607,13 +598,13 @@ function openChat(){
   if(!chatAvailable())return;
   helpOpen=false;closeConfirm(false);if(canvasInputMode)canvasCloseInput();
   chatPausedHost=false;
-  if(net.role==='host'&&gameplayScreenVisible()&&!menuOpen&&!game.over&&!game.paused&&game.phase!=='menu'){chatPausedHost=true;game.paused=true;broadcastGameEvent('pause');broadcastNow()}
+  if(isLobbyOwner()&&gameplayScreenVisible()&&!menuOpen&&!game.over&&!game.paused&&game.phase!=='menu'){chatPausedHost=true;sendServer({t:'pause',pv:PROTOCOL_VERSION})}
   chatOpen=true;chatUnread=0;resetGameplayInput();ui(true);
 }
 function closeChat(){
   if(!chatOpen)return;
-  let shouldResume=chatPausedHost&&net.role==='host'&&!game.over&&!menuOpen;
-  chatPausedHost=false;chatOpen=false;if(shouldResume){game.paused=false;broadcastGameEvent('resume');broadcastPulse()}ui(true);
+  let shouldResume=chatPausedHost&&isLobbyOwner()&&!game.over&&!menuOpen;
+  chatPausedHost=false;chatOpen=false;if(shouldResume)sendServer({t:'resume',pv:PROTOCOL_VERSION});ui(true);
 }
 function openHelp(){closeConfirm(false);if(chatOpen)closeChat();if(canvasInputMode)canvasCloseInput();helpOpen=true;resetGameplayInput();ui(true)}
 function closeHelp(){if(!helpOpen)return;helpOpen=false;ui(true)}
@@ -624,31 +615,10 @@ function chatAvailable(){
   return false;
 }
 function syncChatAvailability(){if(!chatAvailable()&&chatOpen)closeChat()}
-function allowChatFrom(playerId){
-  let now=Date.now(),items=net.chatRate.get(playerId)||[];
-  items=items.filter(time=>now-time<6000);
-  if(items.length>=5){net.chatRate.set(playerId,items);return false}
-  items.push(now);net.chatRate.set(playerId,items);return true;
-}
-function publishHostChat(playerId,textValue){
-  if(net.role!=='host')return false;
-  let clean=sanitizeChatText(textValue);if(!clean)return false;
-  let message={t:'chat',id:net.session+'-'+(++net.chatSeq),playerId:Math.round(num(playerId,0)),text:clean,time:Date.now()};
-  appendChatMessage(message);
-  let ids=new Set([...net.channels.keys(),...net.stateChannels.keys()]);
-  for(const id of ids){let control=net.channels.get(id),state=net.stateChannels.get(id),channel=control&&control.readyState==='open'?control:state;sendTo(channel,message)}
-  return true;
-}
 function sendChatMessage(){
   let clean=sanitizeChatText(uiState.chatDraft);if(!clean)return;
-  let sent=false;
-  if(net.role==='host')sent=publishHostChat(0,clean);
-  else if(net.role==='client'){
-    let channel=net.dc&&net.dc.readyState==='open'?net.dc:net.stateDc;
-    sent=sendTo(channel,{t:'chatSend',text:clean});
-  }
-  if(sent)uiState.chatDraft=''
-  else appendChatNotice('Chat is reconnecting.');
+  let sent=dedicatedSession()&&sendServer({t:'chat',pv:PROTOCOL_VERSION,text:clean});
+  if(sent)uiState.chatDraft='';else appendChatNotice('Chat is reconnecting.');
 }
 
 function sanitizeSuperSlots(v){
@@ -767,7 +737,7 @@ function updateBonusCoinPositionsFor(coins,map,time){
 function updateBonusCoinField(){
   let map=levelConfig(game.level);if(!map.bonus)return;
   updateBonusCoinPositionsFor(game.coins,map,game.hazardTime);
-  if(net.role==='client')return;
+  if(onlineSession())return;
   for(const coin of game.coins){if(coin.taken&&num(coin.respawnAt)>0&&game.time>=coin.respawnAt){coin.taken=false;coin.respawnAt=0;coin.pulse+=.73}}
 }
 function bonusCoinsCollected(){return(game.players||[]).reduce((sum,p)=>sum+Math.max(0,Math.round(num(p.score))),0)}
@@ -793,18 +763,17 @@ function makeGame(difficulty=selectedDifficulty,startLevel=selectedLevel){
 }
 function resetPlayersForLevel(){
   for(const p of game.players){
-    let score=p.score,id=p.id,control=p.control,connected=p.connected!==false,lastDash=id?remoteDashSeq(id):0,lastSuper=id?remoteSuperSeq(id):0;
+    let score=p.score,id=p.id,control=p.control,connected=p.connected!==false,lastDash=0,lastSuper=0;
     let superSlots=sanitizeSuperSlots(p.superSlots),superMeter=clamp(num(p.superMeter),0,100),superBuild=sanitizeSuperBuild(p.superBuild),superPassive=clamp(num(p.superPassive),0,3);
     resetPlayerState(p,id,control,lastDash,connected,lastSuper);p.score=score;
     p.superSlots=superSlots;p.superMeter=superMeter;p.superBuild=superBuild;p.superPassive=superPassive;
   }
 }
 function loadLevel(level){
-  level=normalizeLevel(level);if(net.role==='host')advanceStateEpoch();let parts=makeLevelObjects(level,game.difficulty);
+  level=normalizeLevel(level);let parts=makeLevelObjects(level,game.difficulty);
   game.level=level;game.maxLevel=LEVELS.length;game.levelName=levelConfig(level).name;game.levelHint=levelConfig(level).gimmick||'';game.coins=parts.coins;game.enemies=parts.enemies;game.powerups=parts.powerups;game.firePatches=[];game.inkSplats=[];game.inkSeq=0;game.exit=parts.exit;game.total=parts.coins.length;game.phase='level';game.count=2.4;game.paused=false;game.shake=0;game.timeStop=0;game.superFx=null;
   resetPlayersForLevel();
-  for(const id of remoteInputs.keys())neutralizeRemoteInput(id);
-  menuOpen=false;endMenuDismissed=false;showPlay();playLevelIntroMusic(level);beep('level');broadcastGameEvent('level');broadcastPulse();ui(true);
+  menuOpen=false;endMenuDismissed=false;showPlay();playLevelIntroMusic(level);beep('level');ui(true);
 }
 function saveLevelProgress(){
   try{localStorage.setItem('coinDashSelectedLevel',String(selectedLevel))}catch(e){}
@@ -816,25 +785,19 @@ function completeLevel(){
   else if(game.level<CAMPAIGN_LEVEL_COUNT)loadLevel(game.level+1);
   else end(true)
 }
-function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',pc:null,dc:null,stateDc:null,channels:new Map(),stateChannels:new Map(),roster:new Map(),pendingSlots:new Map(),joinPeers:new Map(),clientSlots:new Map(),signal:null,signalPeers:new Map(),signalMembers:new Set(),signalRetries:new Map(),signalHost:'',signalRole:'',signalReady:false,signalReconnectTimer:0,signalReconnectAttempt:0,roomCode:'',iceServers:[],pendingFireEvents:[],clientFireIds:new Set(),fireSeq:0,chatSeq:0,chatRate:new Map(),clientToken:'',certificate:null,certificatePromise:null,localId:0,nextId:1,timer:0,snapshotTimer:0,motionTimer:0,uiTimer:0,roomSlots:ROOM_JOINERS,stateEpoch:1,pendingEpoch:0,stateSeq:0,motionSeq:0,lastStateSeq:0,lastMotionSeq:0,eventSeq:0,lastEventSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashCooldown:0,clientDashPendingSeq:0,clientDashDir:{x:1,y:0},lobbyStage:'idle',lobbyNotice:'',lobbyNoticeTone:'info',lobbyNoticeUntil:0,lobbyRevision:0,lobbyReady:new Map([[0,true]]),localReady:false}}
-function remoteInputRecord(id){return remoteInputs.get(id)||null}
-function remoteDashSeq(id){let r=remoteInputRecord(id);return r&&r.value?Math.max(0,Math.round(num(r.value.dashSeq,0))):0}
-function remoteSuperSeq(id){let r=remoteInputRecord(id);return r&&r.value?Math.max(0,Math.round(num(r.value.superSeq,0))):0}
-function remoteControl(id){let r=remoteInputRecord(id),dashSeq=remoteDashSeq(id),superSeq=remoteSuperSeq(id);if(!r||performance.now()-r.at>REMOTE_INPUT_TIMEOUT)return inputSafe({dashSeq,superSeq});return inputSafe(r.value)}
-function control(p){if(p.control==='remote')return remoteControl(p.id);
+function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',socket:null,roomCode:'',clientToken:'',localId:0,connected:false,reconnectTimer:0,reconnectAttempt:0,manualClose:false,roster:new Map(),members:[],timer:0,uiTimer:0,stateEpoch:1,pendingEpoch:0,lastStateSeq:0,lastMotionSeq:0,lastEventSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashCooldown:0,clientDashPendingSeq:0,clientDashDir:{x:1,y:0},clientFireIds:new Set(),lobbyStage:'idle',lobbyNotice:'',lobbyNoticeTone:'info',lobbyNoticeUntil:0,lobbyRevision:0,lobbyReady:new Map([[0,true]]),localReady:false,pingMs:0,lastPongAt:0}}
+function onlineSession(){return net.role==='host'||net.role==='client'}
+function dedicatedSession(){return onlineSession()&&!!net.socket}
+function isLobbyOwner(){return net.role==='host'}
+
+
+
+
+
+function control(p){
 if(gameplayInputBlocked())return inputSafe({dashSeq:inputSeq,superSeq:inputSuperSeq});
-let x=0,y=0;
-if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;
-if(keys.has('KeyD')||keys.has('ArrowRight'))x++;
-if(keys.has('KeyW')||keys.has('ArrowUp'))y--;
-if(keys.has('KeyS')||keys.has('ArrowDown'))y++;
-if(touch.on){x+=touch.x;
-y+=touch.y}
-let l=hypot(x,y);
-if(l>1){x/=l;
-y/=l}
-let superSlot=touch.super?touch.superSlot:keys.has('KeyE')?0:keys.has('KeyR')?1:-1;
-return inputSafe({x,y,dash:keys.has('Space')||touch.dash,super:superSlot>=0,superSlot})}
+let x=0,y=0;if(keys.has('KeyA')||keys.has('ArrowLeft'))x--;if(keys.has('KeyD')||keys.has('ArrowRight'))x++;if(keys.has('KeyW')||keys.has('ArrowUp'))y--;if(keys.has('KeyS')||keys.has('ArrowDown'))y++;if(touch.on){x+=touch.x;y+=touch.y}let l=hypot(x,y);if(l>1){x/=l;y/=l}let superSlot=touch.super?touch.superSlot:keys.has('KeyE')?0:keys.has('KeyR')?1:-1;return inputSafe({x,y,dash:keys.has('Space')||touch.dash,super:superSlot>=0,superSlot})
+}
 function circleRect(o,b){
   let nearestX=clamp(o.x,b.x,b.x+b.w),nearestY=clamp(o.y,b.y,b.y+b.h),dx=o.x-nearestX,dy=o.y-nearestY,d=hypot(dx,dy),nx=0,ny=0,push=0;
   if(d>=o.r)return false;
@@ -1044,17 +1007,11 @@ function setLevelCategory(category){
 }
 function applySelectedSettings(previousLevel=selectedLevel,previousDifficulty=selectedDifficulty){
   let changed=previousLevel!==selectedLevel||previousDifficulty!==selectedDifficulty;
-  saveLevelProgress();
-  try{localStorage.setItem('coinDashDifficulty',selectedDifficulty)}catch(e){}
+  saveLevelProgress();try{localStorage.setItem('coinDashDifficulty',selectedDifficulty)}catch(e){}
   game.nextLevel=selectedLevel;game.nextDifficulty=selectedDifficulty;
-  if(game.phase==='menu'){
-    game.startLevel=selectedLevel;game.level=selectedLevel;game.levelName=levelConfig(selectedLevel).name;game.levelHint=levelConfig(selectedLevel).gimmick||'';game.difficulty=selectedDifficulty;
-  }
+  if(game.phase==='menu'&&!onlineSession()){game.startLevel=selectedLevel;game.level=selectedLevel;game.levelName=levelConfig(selectedLevel).name;game.levelHint=levelConfig(selectedLevel).gimmick||'';game.difficulty=selectedDifficulty}
   syncLevelUI();
-  if(net.role==='host'){
-    if(changed&&game.phase==='menu')resetLobbyReadiness('Game settings changed. Players must ready again.');
-    broadcastGameEvent('settings');broadcastPulse();if(!changed||game.phase!=='menu')broadcastLobbyState();
-  }
+  if(isLobbyOwner()&&dedicatedSession()&&changed)sendServer({t:'settings',pv:PROTOCOL_VERSION,level:selectedLevel,difficulty:selectedDifficulty});
   ui(true);return changed;
 }
 function selectDifficulty(level){
@@ -1111,12 +1068,9 @@ function closeLevelSelect(commit=false){
   ui(true);
 }
 function finishMainMenu(){
-  pendingStartRequest=null;helpOpen=false;let difficulty=normalizeDifficulty(selectedDifficulty),startLevel=normalizeLevel(selectedLevel);
-  if(net.role==='host')advanceStateEpoch();
-  game=makeGame(difficulty,startLevel);game.nextDifficulty=difficulty;game.nextLevel=startLevel;
-  if(net.role==='host')restoreRemotes();
-  showLobby();
-  if(net.role==='host'){resetLobbyReadiness();broadcastGameEvent('setup');broadcastPulse()}
+  pendingStartRequest=null;helpOpen=false;
+  if(isLobbyOwner()&&dedicatedSession()){sendServer({t:'lobby',pv:PROTOCOL_VERSION});showLobby();return}
+  let difficulty=normalizeDifficulty(selectedDifficulty),startLevel=normalizeLevel(selectedLevel);game=makeGame(difficulty,startLevel);game.nextDifficulty=difficulty;game.nextLevel=startLevel;showLobby();
 }
 function requestMainMenu(){
   if(net.role==='client'){leaveSession();return}
@@ -1125,9 +1079,11 @@ function requestMainMenu(){
 }
 function showPlay(){let changed=uiState.screen!=='game';uiState.screen='game';if(changed)setTimeout(fitCanvas,0)}
 function beginRunNow(difficulty=selectedDifficulty,startLevel=selectedLevel){
-  if(net.role==='host'&&game.phase==='menu'&&!allLobbyPlayersReady()){notifyLobby(lobbySummary(),'pending',3200,false);ui(true);return false}
-  if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();
-  pendingStartRequest=null;stopIntroTune(.16);let runDifficulty=normalizeDifficulty(difficulty),runLevel=normalizeLevel(startLevel);if(net.role==='host')advanceStateEpoch();game=makeGame(runDifficulty,runLevel);game.nextDifficulty=runDifficulty;game.nextLevel=runLevel;restoreRemotes();game.phase='count';game.count=3;game.paused=false;menuOpen=false;menuPairOpen=false;helpOpen=false;endMenuDismissed=false;showPlay();playLevelIntroMusic(runLevel);beep('start');broadcastGameEvent('run');broadcastPulse();ui(true);return true
+  if(isLobbyOwner()&&dedicatedSession()){
+    if(!allLobbyPlayersReady()){notifyLobby(lobbySummary(),'pending',3200,false);ui(true);return false}
+    if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();pendingStartRequest=null;stopIntroTune(.16);showPlay();sendServer({t:'start',pv:PROTOCOL_VERSION});return true;
+  }
+  if(levelSelectVisible()&&!levelSelectCommitted)commitLevelSelection();pendingStartRequest=null;stopIntroTune(.16);let runDifficulty=normalizeDifficulty(difficulty),runLevel=normalizeLevel(startLevel);game=makeGame(runDifficulty,runLevel);game.nextDifficulty=runDifficulty;game.nextLevel=runLevel;game.phase='count';game.count=3;game.paused=false;menuOpen=false;menuPairOpen=false;helpOpen=false;endMenuDismissed=false;showPlay();playLevelIntroMusic(runLevel);beep('start');ui(true);return true;
 }
 function beginRun(difficulty=selectedDifficulty,startLevel=selectedLevel){
   if(net.role==='host'&&game.phase==='menu'&&!allLobbyPlayersReady()){notifyLobby(lobbySummary(),'pending',3200,false);ui(true);return false}
@@ -1149,18 +1105,20 @@ function playSelectedLevel(){
 function openGameMenu(){
   if(game.phase==='menu'||menuOpen)return;
   resetGameplayInput();menuOpen=true;menuPairOpen=false;
-  if(net.role!=='client'&&!game.over){game.paused=true;broadcastGameEvent('pause');broadcastNow()}
+  if(isLobbyOwner()&&dedicatedSession()&&!game.over)sendServer({t:'pause',pv:PROTOCOL_VERSION});
+  else if(!onlineSession()&&!game.over)game.paused=true;
   ui(true);
 }
 function resumeGame(){
-  if(net.role==='client'){
-    if(game.over)endMenuDismissed=true;
-    menuOpen=false;ui(true);return;
-  }
-  if(game.over)return;
-  menuOpen=false;game.paused=false;broadcastGameEvent('resume');broadcastPulse();ui(true);
+  if(net.role==='client'){if(game.over)endMenuDismissed=true;menuOpen=false;ui(true);return}
+  if(game.over)return;menuOpen=false;
+  if(isLobbyOwner()&&dedicatedSession())sendServer({t:'resume',pv:PROTOCOL_VERSION});else game.paused=false;
+  ui(true);
 }
-function restartCurrentLevel(){if(net.role!=='client')beginRun(game.difficulty,game.level)}
+function restartCurrentLevel(){
+  if(isLobbyOwner()&&dedicatedSession()){sendServer({t:'restart',pv:PROTOCOL_VERSION});return}
+  if(!onlineSession())beginRun(game.difficulty,game.level);
+}
 function chooseLevelFromGameMenu(){
   if(net.role==='client')return;
   selectedLevel=normalizeLevel(game.level);selectedDifficulty=normalizeDifficulty(game.difficulty);saveLevelProgress();
@@ -1175,20 +1133,8 @@ function toggleMenuPlayers(){
   menuPairOpen=!menuPairOpen;
   
 }
-function restoreRemotes(){ensureHostPlayers(true)}
-function ensureHostPlayers(reset=false){if(net.role!=='host'||!game||!Array.isArray(game.players))return;
-  let ids=new Set([...(net.roster?net.roster.keys():[]),...net.channels.keys(),...net.stateChannels.keys()]),changed=false;
-  for(const id of ids){
-    if(id===0)continue;
-    let member=net.roster.get(id)||{id,connected:net.channels.has(id)||net.stateChannels.has(id)};
-    net.roster.set(id,member);
-    let p=game.players.find(x=>x.id===id),connected=member.connected!==false;
-    if(!p){let s=spawnPoint(id);p=player(id,s.x,s.y,'remote',connected);p.lastDashSeq=remoteDashSeq(id);game.players.push(p);changed=true}
-    else if(reset){resetPlayerState(p,id,'remote',remoteDashSeq(id),connected,remoteSuperSeq(id));changed=true}
-    else{p.control='remote';p.connected=connected}
-  }
-  if(changed){game.players.sort((a,b)=>a.id-b.id);repairGameState()}
-}
+
+
 function playerMoveSpeed(p){return p.boost>0?224:178}
 function playerDashSpeed(p){return p.boost>0?650:520}
 function playerDashCooldown(p){return p.boost>0?.27:.45}
@@ -1204,26 +1150,8 @@ function startDash(p,c){
   try{gameSound('dash',p,{skipId:p.id})}catch(error){console.warn('Dash audio failed',error)}
   return true;
 }
-function acceptRemoteDash(id,seq,x,y){
-  if(net.role!=='host')return false;
-  id=Math.max(1,Math.round(num(id)));seq=Math.max(0,Math.round(num(seq)));
-  let p=game&&Array.isArray(game.players)?game.players.find(player=>player.id===id):null;
-  let queued=pendingRemoteDashes.get(id);
-  if(!p||!seq||seq<=Math.max(Math.round(num(p.lastDashSeq)),queued?queued.seq:0))return false;
-  let direction=inputSafe({x,y,dashX:x,dashY:y});
-  pendingRemoteDashes.set(id,{seq,x:direction.dashX,y:direction.dashY});
-  return true;
-}
-function processRemoteDash(p){
-  let action=pendingRemoteDashes.get(p.id);if(!action)return false;
-  pendingRemoteDashes.delete(p.id);
-  if(action.seq<=Math.max(0,Math.round(num(p.lastDashSeq))))return false;
-  p.lastDashSeq=action.seq;
-  let dx=num(action.x),dy=num(action.y),length=hypot(dx,dy);
-  if(length<.001){dx=num(p.faceX,1);dy=num(p.faceY);length=hypot(dx,dy)}
-  if(game.phase!=='play'||game.paused||game.over||!p.alive||p.cd>0||length<.001)return false;
-  return startDash(p,{x:dx/length,y:dy/length});
-}
+
+
 function forgeSuper(p){
   p.superSlots=sanitizeSuperSlots(p.superSlots);
   let reduced=false;
@@ -1896,11 +1824,11 @@ function updateHazardsForPlayer(p,dt,map){
   }
 }
 function update(dt,flush=true){
-if(net.role==='client'){sendInput(dt,flush);advanceClientView(dt);if(isBonusLevel())updateBonusCoinPositionsFor(game.coins,levelConfig(game.level),game.hazardTime);updateBonusCountdownCue();net.uiTimer+=dt;if(flush&&net.uiTimer>=CLIENT_UI_INTERVAL){net.uiTimer=0;ui()}return}
+if(onlineSession()){sendInput(dt,flush);advanceClientView(dt);if(isBonusLevel())updateBonusCoinPositionsFor(game.coins,levelConfig(game.level),game.hazardTime);updateBonusCountdownCue();net.uiTimer+=dt;if(flush&&net.uiTimer>=CLIENT_UI_INTERVAL){net.uiTimer=0;ui()}return}
 if(game.over)return;
-if(game.phase==='menu'||game.paused){broadcast(dt,flush);if(flush)ui();return}
+if(game.phase==='menu'||game.paused){if(flush)ui();return}
 if(game.phase==='count'||game.phase==='level'){game.count=Math.max(0,game.count-dt);
-if(!game.count){game.phase='play';beep('go');broadcastGameEvent('go')}broadcast(dt,flush);
+if(!game.count){game.phase='play';beep('go')}
 if(flush)ui();return}
 game.time+=dt;
 game.hazardTime+=game.timeStop>0?0:dt;
@@ -1919,15 +1847,9 @@ let c=control(p),sp=playerMoveSpeed(p);
 if(c.x||c.y||p.dt>0){p.superPassive+=dt;if(p.superPassive>=2){let ticks=Math.floor(p.superPassive/2);p.superPassive-=ticks*2;gainSuperEnergy(p,ticks,'survival')}}
 if(c.x||c.y){p.faceX=c.x;
 p.faceY=c.y}
-if(p.control==='remote'){
-  if(c.dashSeq>p.lastDashSeq)acceptRemoteDash(p.id,c.dashSeq,c.dashX,c.dashY);
-  processRemoteDash(p);
-  if(c.superSeq&&c.superSeq!==p.lastSuperSeq){p.lastSuperSeq=c.superSeq;activateSuper(p,c.superSlot)}
-}else{
-  if(pendingDashPress){let dc=pendingDashDir;pendingDashPress=false;if(p.cd<=0&&(dc.x||dc.y))startDash(p,dc)}
-  if(c.super&&!p.superHeld)activateSuper(p,c.superSlot);
-  p.superHeld=c.super;
-}
+if(pendingDashPress){let dc=pendingDashDir;pendingDashPress=false;if(p.cd<=0&&(dc.x||dc.y))startDash(p,dc)}
+if(c.super&&!p.superHeld)activateSuper(p,c.superSlot);
+p.superHeld=c.super;
 	let recoiling=p.hitTime>0&&p.dt<=0;
 	if(p.dt>0){let dashSpeed=playerDashSpeed(p);p.vx=p.dx*dashSpeed;
 	p.vy=p.dy*dashSpeed;
@@ -1965,7 +1887,6 @@ else if(map.bonus){if(game.time>=num(map.bonusTime,45))end(true)}
 else if(map.boss){if(boss&&boss.defeated&&boss.deathTimer<=0)completeLevel()}
 else if(taken===game.total&&game.players.some(p=>p.alive&&hypot(p.x-game.exit.x,p.y-game.exit.y)<p.r+game.exit.r)){completeLevel()}
 game.shake=Math.max(0,game.shake-dt);
-broadcast(dt,flush);
 if(flush)ui()}
 function nearestAlive(e){let best=null,bd=1e9;
 for(const p of game.players)if(p.alive){let d=hypot(p.x-e.x,p.y-e.y);
@@ -1980,8 +1901,6 @@ menuPairOpen=false;
 endMenuDismissed=false;
 beep(won?'win':'lose');
 
-broadcastGameEvent('end');
-broadcastPulse();
 ui(true)}
 function resetFrameCanvas(){
   cx.setTransform(1,0,0,1,0,0);
@@ -3064,11 +2983,10 @@ function ui(force=false){
   syncChatAvailability();
   let rosterKey=net.role==='host'?[...net.roster.values()].sort((a,b)=>a.id-b.id).map(x=>x.id+':'+Number(x.connected)).join(','):String(net.localId);
   let lobbyKey=lobbyUiKey();
-  let setupKey=[net.role,net.localId,net.signalReady,game.phase,game.level,game.nextLevel,selectedLevel,game.over,game.paused,pairView,rosterKey,lobbyKey].join('|');
+  let setupKey=[net.role,net.localId,net.connected,game.phase,game.level,game.nextLevel,selectedLevel,game.over,game.paused,pairView,rosterKey,lobbyKey].join('|');
   if(force||uiCache.setup!==setupKey){uiCache.setup=setupKey;syncSetupUI()}
 }
-function connectedClient(){return !!((net.dc&&net.dc.readyState==='open')||(net.stateDc&&net.stateDc.readyState==='open'))}
-function clearPairFields(){uiState.roomCode='';setSetupStatus('')}
+function connectedClient(){return !!(net.socket&&net.socket.readyState===WebSocket.OPEN&&net.connected)}
 function syncSetupUI(){
   syncLevelUI();
   if(net.role==='host'&&net.roomCode)uiState.roomCode=net.roomCode
@@ -3281,12 +3199,8 @@ function beep(type,options={}){
 function gameSound(type,source=null,options={}){
   let x=source&&Number.isFinite(source.x)?source.x:Number.isFinite(options.x)?options.x:null;
   let y=source&&Number.isFinite(source.y)?source.y:Number.isFinite(options.y)?options.y:null;
-  let targetId=Number.isInteger(options.targetId)?options.targetId:null,skipId=Number.isInteger(options.skipId)?options.skipId:null,localId=net.role==='client'?net.localId:0;
+  let targetId=Number.isInteger(options.targetId)?options.targetId:null,localId=net.role==='client'?net.localId:0;
   if(targetId===null||targetId===localId)beep(type,{x,y,force:options.force});
-  if(net.role!=='host'||options.broadcast===false)return;
-  let packet={t:'sfx',k:type,x:Number.isFinite(x)?quantize(x):null,y:Number.isFinite(y)?quantize(y):null,target:targetId,skip:skipId};
-  let recipients=new Map();for(const [id,ch] of net.stateChannels)recipients.set(id,ch);for(const [id,ch] of net.channels)recipients.set(id,ch);
-  for(const [id,ch] of recipients){if(targetId!==null&&id!==targetId)continue;if(skipId!==null&&id===skipId)continue;sendTo(ch,packet)}
 }
 function premiumUiPointerSound(e){
   let button=e.target.closest&&e.target.closest('button');if(!button||button.disabled||button.matches('#dash,[data-super-slot],#soundBtn,#soundGameBtn,.chat-send'))return;
@@ -3810,454 +3724,20 @@ function setSoundEnabled(enabled){
 }
 function toggleSound(){if(soundEnabled)beep('uiBack',{force:true,bus:'ui'});setSoundEnabled(!soundEnabled)}
 
-function unpack(s){return JSON.parse(String(s||'').trim())}
 
 function normalizeRoomCode(value){return String(value||'').toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g,'').slice(0,6)}
 function newClientToken(){
   try{return crypto.randomUUID().replace(/-/g,'').slice(0,20)}
   catch(e){return(Date.now().toString(36)+Math.random().toString(36).slice(2,12)).replace(/[^a-z0-9]/gi,'')}
 }
-async function ensureRtcCertificate(){
-  if(net.certificate)return net.certificate;
-  if(net.certificatePromise)return net.certificatePromise;
-  if(!RTCPeerConnection.generateCertificate)return null;
-  net.certificatePromise=RTCPeerConnection.generateCertificate({name:'ECDSA',namedCurve:'P-256'}).then(c=>net.certificate=c).catch(e=>{console.warn('Shared WebRTC certificate unavailable',e);return null});
-  return net.certificatePromise;
-}
-async function loadIceServers(){
-  if(Array.isArray(net.iceServers)&&net.iceServers.length)return net.iceServers;
-  let response=await fetch(ONLINE_API+'/turn',{cache:'no-store'});
-  if(!response.ok)throw Error('TURN unavailable');
-  let data=await response.json();
-  if(!data||!Array.isArray(data.iceServers)||!data.iceServers.length)throw Error('TURN unavailable');
-  net.iceServers=data.iceServers;
-  return net.iceServers;
-}
-function pc(){
-  let cfg={iceServers:Array.isArray(net.iceServers)?net.iceServers:[]};
-  if(net.certificate)cfg.certificates=[net.certificate];
-  return new RTCPeerConnection(cfg);
-}
-function signalSocketUrl(code,role,client){
-  let base=ONLINE_API.replace(/^http/,'ws');
-  return base+'/rooms/'+encodeURIComponent(code)+'/socket?role='+encodeURIComponent(role)+'&client='+encodeURIComponent(client);
-}
-function signalSend(payload){
-  let ws=net.signal;
-  if(!ws||ws.readyState!==WebSocket.OPEN)return false;
-  try{ws.send(JSON.stringify(payload));return true}catch(e){console.warn('Signaling send failed',e);return false}
-}
-function closeSignalRecord(record){
-  if(!record)return;
-  record.retired=true;
-  try{record.pc&&record.pc.close()}catch(e){}
-}
-function sendLocalCandidate(record,candidate){
-  if(!record||record.retired||!candidate)return;
-  let value=typeof candidate.toJSON==='function'?candidate.toJSON():{candidate:candidate.candidate,sdpMid:candidate.sdpMid,sdpMLineIndex:candidate.sdpMLineIndex,usernameFragment:candidate.usernameFragment};
-  if(!record.descriptionSent){record.localCandidates.push(value);return}
-  signalSend({type:'signal',to:record.token,playerId:record.id||0,candidate:value});
-}
-function attachSignalIce(record){
-  record.localCandidates=[];record.descriptionSent=false;
-  record.pc.addEventListener('icecandidate',e=>{if(e.candidate)sendLocalCandidate(record,e.candidate)});
-}
-function sendSignalDescription(record,description){
-  if(!record||record.retired)return;
-  signalSend({type:'signal',to:record.token,playerId:record.id||0,description:{type:description.type,sdp:description.sdp}});
-  record.descriptionSent=true;
-  for(const candidate of record.localCandidates.splice(0))signalSend({type:'signal',to:record.token,playerId:record.id||0,candidate});
-}
-async function addSignalCandidate(record,candidate){
-  if(!record||record.retired||!candidate)return;
-  if(!record.pc.remoteDescription){record.remoteCandidates.push(candidate);return}
-  try{await record.pc.addIceCandidate(candidate)}catch(e){console.warn('ICE candidate skipped',e)}
-}
-async function flushSignalCandidates(record){
-  if(!record||!record.pc.remoteDescription)return;
-  for(const candidate of record.remoteCandidates.splice(0)){
-    try{await record.pc.addIceCandidate(candidate)}catch(e){console.warn('Queued ICE candidate skipped',e)}
-  }
-}
-function releasePlayerIdMappings(id,exceptToken=''){
-  for(const [token,mapped] of net.clientSlots)if(mapped===id&&token!==exceptToken)net.clientSlots.delete(token);
-}
-function allocateOnlinePlayerId(clientToken){
-  let preferred=net.clientSlots.get(clientToken),preferredMember=preferred&&net.roster.get(preferred);
-  if(preferred&&(!preferredMember||!preferredMember.connected||preferredMember.client===clientToken))return preferred;
-  for(let id=1;id<=ROOM_JOINERS;id++){
-    let member=net.roster.get(id),record=[...net.signalPeers.values()].find(x=>x.id===id&&!x.retired);
-    if((!member||!member.connected)&&!record){releasePlayerIdMappings(id,clientToken);net.clientSlots.set(clientToken,id);return id}
-  }
-  return 0;
-}
-const SIGNAL_RECONNECT_MAX_DELAY=10000;
-function clearSignalReconnect(){
-  if(net.signalReconnectTimer)clearTimeout(net.signalReconnectTimer);
-  net.signalReconnectTimer=0;
-}
-function signalReconnectDelay(attempt){return Math.min(SIGNAL_RECONNECT_MAX_DELAY,500*Math.pow(2,Math.min(5,Math.max(0,attempt))))}
-function hostPeerIsComplete(token){
-  let record=net.signalPeers.get(token),id=record&&record.id||net.clientSlots.get(token)||0;
-  let control=id&&net.channels.get(id),state=id&&net.stateChannels.get(id);
-  return !!(control&&control.readyState==='open'&&state&&state.readyState==='open');
-}
-function hostPeerIsPending(token){
-  let record=net.signalPeers.get(token);
-  if(!record||record.retired||!record.pc)return false;
-  let state=record.pc.connectionState;
-  return (state==='new'||state==='connecting')&&Date.now()-num(record.createdAt,0)<12000;
-}
-async function ensureOnlineHostPeer(token){
-  if(net.role!=='host'||!token||!net.signalMembers.has(token))return;
-  if(hostPeerIsComplete(token)||hostPeerIsPending(token))return;
-  await createOnlineHostPeer(token);
-}
-function restoreSignalMembers(members){
-  let tokens=new Set((Array.isArray(members)?members:[]).filter(member=>member&&member.role==='player').map(member=>String(member.clientId||'')).filter(Boolean));
-  net.signalMembers=tokens;
-  for(const token of [...net.signalRetries.keys()])if(!tokens.has(token))net.signalRetries.delete(token);
-  for(const token of tokens){
-    if(!net.signalRetries.has(token))net.signalRetries.set(token,0);
-    if(net.role==='host')ensureOnlineHostPeer(token).catch(e=>console.warn('Online peer restore failed',e));
-  }
-}
-function scheduleRoomSocketReconnect(session=net.session){
-  if(!sameSession(session)||net.role==='solo'||!net.roomCode||!net.signalRole||net.signalReconnectTimer)return;
-  let attempt=Math.max(0,Math.round(num(net.signalReconnectAttempt,0))),delay=signalReconnectDelay(attempt);
-  net.signalReconnectAttempt=attempt+1;
-  net.signalReconnectTimer=setTimeout(()=>{
-    net.signalReconnectTimer=0;
-    if(!sameSession(session)||net.signalReady||net.role==='solo'||!net.roomCode)return;
-    let active=net.signal&&net.signal.readyState<=WebSocket.OPEN;
-    if(active)return;
-    openRoomSocket(net.signalRole,net.roomCode,true).catch(()=>scheduleRoomSocketReconnect(session));
-  },delay);
-  ui(true);
-}
-async function createOnlineHostPeer(clientToken){
-  if(net.role!=='host'||!clientToken)return;
-  let existing=net.signalPeers.get(clientToken);
-  if(existing){
-    let oldSlot=net.pendingSlots.get(existing.id);if(oldSlot)oldSlot.retired=true;
-    net.channels.delete(existing.id);net.stateChannels.delete(existing.id);closeSignalRecord(existing);net.signalPeers.delete(clientToken);
-  }
-  let id=allocateOnlinePlayerId(clientToken);
-  if(!id){signalSend({type:'room-error',to:clientToken,error:'Room is full.'});return}
-  net.clientSlots.set(clientToken,id);
-  let peer=pc(),control=peer.createDataChannel('control'),state=peer.createDataChannel('state',{ordered:false,maxRetransmits:0});
-  let slot={id,pc:peer,ch:control,stateCh:state,code:'',done:false,accepted:true,connected:false,stateConnected:false,retired:false,rebuilding:false,clientToken,online:true};
-  let record={token:clientToken,id,pc:peer,slot,remoteCandidates:[],localCandidates:[],descriptionSent:false,retired:false,createdAt:Date.now()};
-  net.pendingSlots.set(id,slot);net.signalPeers.set(clientToken,record);
-  attachSignalIce(record);watchPeer(peer,id,slot,false);open(control,id,peer);open(state,id,peer);
-  let offer=await peer.createOffer();await peer.setLocalDescription(offer);sendSignalDescription(record,peer.localDescription);
-  refreshHostInvite();syncSetupUI();ui(true);
-}
-async function acceptOnlineOffer(message){
-  if(net.role!=='client'||!message.description||message.description.type!=='offer')return;
-  setLobbyStage('connecting');setSetupStatus('Host responded. Establishing connection…');
-  let hostToken=String(message.from||'');if(!hostToken)return;
-  if(net.pc)try{net.pc.close()}catch(e){}
-  for(const record of net.signalPeers.values())closeSignalRecord(record);
-  net.signalPeers.clear();
-  let peer=pc(),record={token:hostToken,id:Math.max(1,Math.round(num(message.playerId,1))),pc:peer,remoteCandidates:[],localCandidates:[],descriptionSent:false,retired:false,createdAt:Date.now()};
-  net.pc=peer;net.signalHost=hostToken;net.signalPeers.set(hostToken,record);
-  attachSignalIce(record);watchPeer(peer,0,null,true);peer.ondatachannel=e=>open(e.channel,0,peer);
-  await peer.setRemoteDescription(message.description);await flushSignalCandidates(record);
-  let answer=await peer.createAnswer();await peer.setLocalDescription(answer);sendSignalDescription(record,peer.localDescription);
-}
-async function handleSignalMessage(message){
-  if(!message||typeof message!=='object')return;
-  if(message.to&&message.to!==net.clientToken)return;
-  if(message.type==='peer-joined'&&net.role==='host'&&message.role==='player'){
-    let token=String(message.clientId||'');net.signalMembers.add(token);net.signalRetries.set(token,0);
-    setSessionStatus('A player requested to join. Connecting…');notifyLobby('JOIN REQUEST RECEIVED · CONNECTING PLAYER','pending',7200,true);
-    await ensureOnlineHostPeer(token);return;
-  }
-  if(message.type==='peer-left'){
-    let token=String(message.clientId||'');
-    if(net.role==='host'&&message.role==='player'){
-      net.signalMembers.delete(token);net.signalRetries.delete(token);
-      let record=net.signalPeers.get(token),id=record&&record.id||net.clientSlots.get(token)||0;
-      let control=id&&net.channels.get(id),state=id&&net.stateChannels.get(id),transportAlive=!!((control&&control.readyState==='open')||(state&&state.readyState==='open')||(record&&record.pc&&record.pc.connectionState==='connected'));
-      if(!transportAlive){
-        if(record){closeSignalRecord(record);net.signalPeers.delete(token)}
-        if(id)markRemoteDisconnected(id);else notifyLobby('PLAYER LEFT BEFORE CONNECTION COMPLETED','error',4200,false);
-      }
-    }else if(net.role==='client'&&message.role==='host'&&!connectedClient()){
-      setSessionStatus('Host disconnected.');syncSetupUI();ui(true);
-    }
-    return;
-  }
-  if(message.type==='room-error'){
-    let error=String(message.error||'Room error.');if(net.role==='client')setLobbyStage('error',error,'error',6200);setSetupStatus(error);return;
-  }
-  if(message.type!=='signal')return;
-  let from=String(message.from||'');
-  if(net.role==='client'&&message.fromRole==='host'&&message.description){await acceptOnlineOffer(message);return}
-  let record=net.signalPeers.get(from);
-  if(!record)return;
-  if(message.description&&net.role==='host'&&message.description.type==='answer'){
-    await record.pc.setRemoteDescription(message.description);await flushSignalCandidates(record);
-  }
-  if(message.candidate)await addSignalCandidate(record,message.candidate);
-}
-function openRoomSocket(role,code,reconnecting=false){
-  return new Promise((resolve,reject)=>{
-    let session=net.session,settled=false,ready=false,ws=new WebSocket(signalSocketUrl(code,role,net.clientToken));
-    if(!reconnecting){clearSignalReconnect();net.signalReconnectAttempt=0;net.signalRole=role}else if(!net.signalRole)net.signalRole=role;
-    net.signal=ws;
-    let timeout=setTimeout(()=>{if(!settled){settled=true;try{ws.close()}catch(e){}reject(Error('Room unavailable'))}},12000);
-    ws.onmessage=e=>{
-      if(!sameSession(session)||net.signal!==ws)return;
-      let message;try{message=JSON.parse(e.data)}catch(err){return}
-      if(message.type==='room-ready'){
-        ready=true;net.signalReady=true;net.signalReconnectAttempt=0;clearSignalReconnect();clearTimeout(timeout);
-        if(role==='host')restoreSignalMembers(message.members);
-        else if(net.role==='client'&&!net.localId){net.lobbyStage='waiting';net.lobbyRevision++;setSetupStatus('Room found. Host has been notified…')}
-        if(!settled){settled=true;resolve(message)}
-        syncSetupUI();ui(true);return;
-      }
-      handleSignalMessage(message).catch(err=>{console.error(err);setSetupStatus('Connection failed.')});
-    };
-    ws.onerror=()=>{clearTimeout(timeout);if(!settled){settled=true;reject(Error('Room unavailable'))}};
-    ws.onclose=()=>{
-      clearTimeout(timeout);if(!sameSession(session))return;
-      if(net.signal===ws)net.signal=null;
-      net.signalReady=false;
-      if(!settled){settled=true;reject(Error('Room unavailable'))}
-      if(reconnecting||ready)scheduleRoomSocketReconnect(session);
-      syncSetupUI();ui(true);
-    };
-  });
-}
-async function createRoomCode(){
-  let response=await fetch(ONLINE_API+'/rooms',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store'});
-  if(!response.ok)throw Error('Room unavailable');
-  let data=await response.json(),code=normalizeRoomCode(data&&data.code);
-  if(code.length!==6)throw Error('Room unavailable');
-  return code;
-}
-
-function setSetupStatus(s){uiState.status=String(s||'')}
-function setMenuStatus(s){s=String(s||'');if(s)setDisplayNotice(s,2800)}
-function setSessionStatus(s){s=String(s||'');if(s)setDisplayNotice(s,3200)}
-function setLobbyStage(stage,message='',tone='info',duration=0){
-  if(!net)return;
-  net.lobbyStage=String(stage||'idle');net.lobbyRevision=Math.max(0,Math.round(num(net.lobbyRevision)))+1;
-  if(message)notifyLobby(message,tone,duration||4800,false);
-  ui(true);
-}
-function notifyLobby(message,tone='info',duration=5200,sound=true){
-  if(!net)return;
-  net.lobbyNotice=String(message||'');net.lobbyNoticeTone=String(tone||'info');net.lobbyNoticeUntil=performance.now()+Math.max(900,num(duration,5200));net.lobbyRevision=Math.max(0,Math.round(num(net.lobbyRevision)))+1;
-  if(sound){try{beep(tone==='success'?'join':tone==='error'?'uiError':'uiConfirm',{force:true,bus:'ui'})}catch(e){}}
-}
-function activeLobbyNotice(){return net&&net.lobbyNotice&&performance.now()<num(net.lobbyNoticeUntil)?net.lobbyNotice:''}
-function lobbyPendingCount(){
-  if(!net||net.role!=='host')return 0;
-  let count=0;
-  for(const slot of net.pendingSlots.values())if(slot&&!slot.retired&&!slot.connected)count++;
-  return count;
-}
-function lobbyConnectedCount(){
-  if(!net)return 1;
-  if(net.role==='host')return 1+[...net.roster.values()].filter(member=>member&&member.connected).length;
-  if(net.role==='client')return connectedClient()?Math.max(2,(game.players||[]).filter(player=>player.connected!==false).length):1;
-  return 1;
-}
-function lobbyReadyFor(id){
-  if(id===0)return true;
-  if(!net)return false;
-  if(net.role==='client'&&id===net.localId)return !!net.localReady;
-  return !!(net.lobbyReady&&net.lobbyReady.get(id));
-}
-function lobbyConnectedIds(){
-  if(!net)return[0];
-  if(net.role==='host')return[0,...[...net.roster.values()].filter(member=>member&&member.connected).map(member=>member.id).sort((a,b)=>a-b)];
-  if(net.role==='client')return(game.players||[]).filter(player=>player.connected!==false).map(player=>player.id).sort((a,b)=>a-b);
-  return[0];
-}
-function lobbyUnreadyIds(){return lobbyConnectedIds().filter(id=>id>0&&!lobbyReadyFor(id))}
-function allLobbyPlayersReady(){return net.role==='host'&&lobbyPendingCount()===0&&lobbyUnreadyIds().length===0}
-function committedLobbyLevel(){return levelSelectVisible()&&!levelSelectCommitted?levelSelectOriginalLevel:selectedLevel}
-function committedLobbyDifficulty(){return levelSelectVisible()&&!levelSelectCommitted?levelSelectOriginalDifficulty:selectedDifficulty}
-function lobbyStatePacket(){
-  return{t:'lobbyState',pv:PROTOCOL_VERSION,level:committedLobbyLevel(),difficulty:committedLobbyDifficulty(),ready:[...net.lobbyReady.entries()].map(([id,ready])=>[id,ready?1:0])};
-}
-function sendLobbyStateTo(ch){if(net.role==='host')sendTo(ch,lobbyStatePacket())}
-function broadcastLobbyState(){if(net.role!=='host')return;let packet=lobbyStatePacket();for(const ch of net.channels.values())sendTo(ch,packet);net.lobbyRevision++;ui(true)}
-function resetLobbyReadiness(message=''){
-  if(net.role!=='host')return;
-  if(!net.lobbyReady)net.lobbyReady=new Map([[0,true]]);
-  net.lobbyReady.set(0,true);
-  for(const member of net.roster.values())if(member&&member.connected)net.lobbyReady.set(member.id,false);
-  net.lobbyRevision++;
-  if(message&&lobbyConnectedCount()>1)notifyLobby(message,'pending',4300,false);
-  broadcastLobbyState();
-}
-function setLocalReady(ready){
-  if(net.role!=='client'||!net.localId||!connectedClient())return;
-  net.localReady=!!ready;if(!net.lobbyReady)net.lobbyReady=new Map([[0,true]]);net.lobbyReady.set(net.localId,net.localReady);net.lobbyRevision++;
-  let ch=net.dc&&net.dc.readyState==='open'?net.dc:net.stateDc;
-  sendTo(ch,{t:'lobbyReady',pv:PROTOCOL_VERSION,ready:net.localReady?1:0});
-  notifyLobby(net.localReady?'YOU ARE READY':'READY CANCELED',net.localReady?'success':'info',2800,false);ui(true);
-}
-function applyLobbyState(o){
-  if(net.role!=='client'||!o||o.pv!==PROTOCOL_VERSION)return;
-  selectedLevel=normalizeLevel(o.level||selectedLevel);selectedDifficulty=normalizeDifficulty(o.difficulty||selectedDifficulty);
-  game.nextLevel=selectedLevel;game.nextDifficulty=selectedDifficulty;
-  net.lobbyReady=new Map([[0,true]]);
-  for(const row of o.ready||[]){let id=Math.max(0,Math.round(num(row&&row[0])));net.lobbyReady.set(id,!!(row&&row[1]))}
-  net.localReady=!!net.lobbyReady.get(net.localId);net.lobbyRevision++;syncLevelUI();ui(true);
-}
-function lobbyUiKey(){
-  if(!net)return'';
-  let pending=[...net.pendingSlots.values()].map(slot=>[slot.id,slot.connected?1:0,slot.stateConnected?1:0,slot.retired?1:0].join(':')).join(',');
-  let ready=net.lobbyReady?[...net.lobbyReady.entries()].map(row=>row.join(':')).join(','):'';
-  return[net.lobbyStage,net.lobbyRevision,net.signalMembers.size,pending,ready,net.localReady?1:0,Math.ceil(Math.max(0,num(net.lobbyNoticeUntil)-performance.now())/1000)].join('|');
-}
-function lobbySummary(){
-  if(net.role==='host'){
-    let connected=lobbyConnectedCount(),pending=lobbyPendingCount(),unready=lobbyUnreadyIds();
-    if(pending)return pending+' PLAYER'+(pending===1?' IS':'S ARE')+' CONNECTING';
-    if(unready.length)return'WAITING FOR '+unready.map(id=>'P'+(id+1)).join(', ')+' TO READY UP';
-    if(connected>1)return'EVERYONE READY · START THE GAME';
-    return net.signalReady?'LOBBY OPEN · INVITE PLAYERS OR START ALONE':'ROOM SERVICE RECONNECTING';
-  }
-  if(net.role==='client'){
-    if(net.localId&&connectedClient())return net.localReady?'READY · WAITING FOR HOST TO START':'CONNECTED · SELECT READY WHEN PREPARED';
-    let map={code:'ENTER THE ROOM CODE',locating:'FINDING ROOM',waiting:'HOST NOTIFIED · WAITING FOR RESPONSE',connecting:'HOST RESPONDED · CONNECTING',handshake:'SECURING PLAYER SLOT',error:'CONNECTION FAILED'};
-    return map[net.lobbyStage]||'CONNECTING TO ROOM';
-  }
-  return'';
-}
-function lobbyReadinessLine(){let ids=lobbyConnectedIds(),ready=ids.filter(id=>lobbyReadyFor(id)).length;return ids.length+' CONNECTED  ·  '+ready+' READY'}
-function lobbyRows(){
-  if(net.role==='host'){
-    let rows=[{id:0,label:'P1',detail:'YOU',state:'HOST · READY',tone:'host'}];
-    for(let id=1;id<=ROOM_JOINERS;id++){
-      let member=net.roster.get(id),slot=net.pendingSlots.get(id),connected=!!(member&&member.connected),pending=!!(slot&&!slot.retired&&!slot.connected),ready=lobbyReadyFor(id);
-      if(connected)rows.push({id,label:'P'+(id+1),detail:'PLAYER',state:ready?'READY':'NOT READY',tone:ready?'success':'pending'});
-      else if(pending)rows.push({id,label:'P'+(id+1),detail:'PLAYER',state:'JOINING',tone:'pending'});
-      else if(member)rows.push({id,label:'P'+(id+1),detail:'PLAYER',state:'OFFLINE',tone:'offline'});
-      else rows.push({id,label:'P'+(id+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'});
-    }
-    return rows;
-  }
-  if(net.role==='client'&&net.localId){
-    let players=(game.players||[]).slice().sort((a,b)=>a.id-b.id),map=new Map(players.map(player=>[player.id,player])),rows=[];
-    for(let id=0;id<=ROOM_JOINERS;id++){
-      let player=map.get(id),mine=id===net.localId,ready=lobbyReadyFor(id);
-      if(player)rows.push({id,label:'P'+(id+1),detail:id===0?'HOST':mine?'YOU':'PLAYER',state:player.connected===false?'OFFLINE':id===0?'HOST · READY':ready?'READY':'NOT READY',tone:player.connected===false?'offline':id===0?'host':ready?'success':'pending'});
-      else rows.push({id,label:'P'+(id+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'});
-    }
-    return rows;
-  }
-  return[];
-}
-function closePairing(){
-  if(net.role==='host'||net.role==='client'&&net.localId)pairView='none';
-  else{resetNetwork('solo');pairView='intro';clearPairFields();setSetupStatus('Ready.')}
-  syncSetupUI();ui(true)
-}
-function pairMode(mode,preserve=false){
-  pairView=mode;if(!preserve)uiState.roomCode='';if(mode==='host'&&net.roomCode)uiState.roomCode=net.roomCode;syncSetupUI();ui(true)
-}
-function finishLeaveSession(){
-  pendingStartRequest=null;helpOpen=false;resetNetwork('solo');selectedLevel=savedSelectedLevel();game=makeGame(selectedDifficulty,selectedLevel);menuOpen=false;endMenuDismissed=false;pairView='intro';clearPairFields();
-  uiState.screen='home';
-  setSetupStatus('Ready.');syncSetupUI();ui(true);
-}
-function leaveSession(){
-  if(net.role==='client'){askConfirm('Leave Game','You will disconnect from the room and leave the current game.','Leave Game',finishLeaveSession);return}
-  let hosting=net.role==='host';
-  if(hosting&&(net.roster.size||game.phase!=='menu')){askConfirm('Stop Hosting','Connected players will be disconnected and the current run will end.','Stop Hosting',finishLeaveSession);return}
-  finishLeaveSession();
-}
-async function copyText(textValue,label,target='setup'){
-  let text=String(textValue||'').trim();
-  let report=target==='menu'?setMenuStatus:setSetupStatus;
-  if(!text){report('No code to copy yet.');return}
-  try{
-    await navigator.clipboard.writeText(text);
-    report(label+' copied.');beep('copy',{force:true,bus:'ui'});
-  }catch(e){report('Copy was blocked. The code is still shown on screen.');beep('uiError',{bus:'ui'})}
-}
-function packet(o){return JSON.stringify(o)}
-function sendTo(ch,o){
-  if(!ch||ch.readyState!=='open')return false;
-  try{ch.send(packet(o));return true}
-  catch(e){console.warn('Coin Dash data send failed',e);return false}
-}
-function sendRealtime(ch,o,limit=MAX_CHANNEL_BUFFER){
-  if(!ch||ch.readyState!=='open')return false;
-  let payload;
-  try{payload=packet(o)}catch(e){console.warn('Coin Dash realtime encode failed',e);return false}
-  if(ch.bufferedAmount+payload.length>limit)return false;
-  try{ch.send(payload);return true}
-  catch(e){console.warn('Coin Dash realtime send failed',e);return false}
-}
-function sendState(ch,o){return sendRealtime(ch,o,MAX_CHANNEL_BUFFER)}
-function resetNetwork(role='solo'){closeNet();pendingRemoteDashes.clear();net=netState();net.role=role;if(role==='host'||role==='client')net.clientToken=getClientToken();inputSeq=0;inputSuperSeq=0;inputPacketSeq=0;inputDashDown=false;inputSuperDown=false;touch.super=false;touch.superSlot=-1;inputAim={x:1,y:0};inputDashDir={x:1,y:0};pendingDashPress=false;pendingDashDir={x:1,y:0}}
-function sameSession(session){return net&&net.session===session}
-function getClientToken(){
-  try{let t=sessionStorage.getItem('coinDashClientToken');if(!t){t=newClientToken();sessionStorage.setItem('coinDashClientToken',t)}return t}
-  catch(e){return newClientToken()}
-}
-function setRosterConnected(id,connected,client=''){
-  if(!id||net.role!=='host')return null;
-  let member=net.roster.get(id)||{id,connected:false,client:'',joinedAt:Date.now()};
-  member.connected=!!connected;
-  member.lastSeen=Date.now();
-  if(client)member.client=client;
-  net.roster.set(id,member);
-  let p=game&&Array.isArray(game.players)?game.players.find(x=>x.id===id):null;
-  if(p)p.connected=member.connected;
-  return member;
-}
-function neutralizeRemoteInput(id){
-  let old=remoteInputs.get(id),dashSeq=old&&old.value?remoteDashSeq(id):0,superSeq=old&&old.value?remoteSuperSeq(id):0,seq=old?old.seq:0;
-  remoteInputs.set(id,{value:inputSafe({dashSeq,superSeq}),seq,at:0});
-}
-function markRemoteDisconnected(id,ch=null){
-  if(!id||net.role!=='host')return;pendingRemoteDashes.delete(id);
-  let control=net.channels.get(id),state=net.stateChannels.get(id),slot=net.pendingSlots.get(id);
-  if(ch&&ch!==control&&ch!==state&&(!slot||ch!==slot.ch&&ch!==slot.stateCh))return;
-  if(control&&(!ch||ch===control||control.readyState!=='open'))net.channels.delete(id);
-  if(state&&(!ch||ch===state||state.readyState!=='open'))net.stateChannels.delete(id);
-  let member=net.roster.get(id),wasConnected=!!(member&&member.connected)||!!(slot&&slot.connected);
-  if(slot){slot.connected=false;slot.stateConnected=false}
-  neutralizeRemoteInput(id);
-  if(wasConnected){
-    setRosterConnected(id,false);if(net.lobbyReady)net.lobbyReady.delete(id);
-    setSessionStatus('P'+(id+1)+' disconnected. Player spot kept.');setMenuStatus('P'+(id+1)+' disconnected.');notifyLobby('P'+(id+1)+' DISCONNECTED · SLOT RESERVED','error',5200,false);gameSound('leave',null,{force:true});
-    ensureHostPlayers(false);
-    broadcastGameEvent('roster');broadcastLobbyState();
-    broadcastPulse();
-    ui(true);
-  }
-  if(slot)slot.connected=false;
-}
-function closeUnusedJoinPeers(active){if(net.role!=='client'||!net.joinPeers)return;for(const [slot,peer] of net.joinPeers){if(peer!==active){try{peer.close()}catch(e){}net.joinPeers.delete(slot)}}}
 function cloneGameState(g){return{...g,players:(g.players||[]).map(p=>({...p,superSlots:sanitizeSuperSlots(p.superSlots).map(s=>({...s})),superBuild:{...sanitizeSuperBuild(p.superBuild)},trail:Array.isArray(p.trail)?p.trail.map(t=>({...t})):[]})),enemies:(g.enemies||[]).map(e=>({...e})),coins:(g.coins||[]).map(c=>({...c})),powerups:(g.powerups||[]).map(x=>({...x})),firePatches:(g.firePatches||[]).map(f=>({...f})),inkSplats:(g.inkSplats||[]).map(s=>({...s})),inkSeq:Math.max(0,Math.round(num(g.inkSeq))),superFx:g.superFx?{...g.superFx}:null,exit:{...(g.exit||{})}}}
-function hostSyncTo(ch,id,session=net.session){
-  if(net.role!=='host'||!sameSession(session)||!ch)return;
-  ensureHostPlayers(false);
-  repairGameState();
-  let g=publicGameState();
-  sendTo(ch,{t:'welcome',pv:PROTOCOL_VERSION,epoch:net.stateEpoch,id,eventSeq:net.eventSeq,g,chat:chatHistory.slice(-30)});sendLobbyStateTo(ch);
-  let stateCh=net.stateChannels.get(id);
-  if(stateCh){sendState(stateCh,{t:'snap',pv:PROTOCOL_VERSION,epoch:net.stateEpoch,seq:++net.stateSeq,s:compactGameState()});sendRealtime(stateCh,compactMotionState(),MAX_MOTION_BUFFER)}
-}
-function pulseHostSync(ch,id){hostSyncTo(ch,id,net.session)}
 function applyClientSnapshot(g,hard=false,seq=0,epoch=net.stateEpoch){
   if(!g||typeof g!=='object'||!acceptClientEpoch(epoch,true))return false;
   if(seq&&seq<=net.lastStateSeq)return false;
   if(seq)net.lastStateSeq=seq;
   let target=cloneGameState(g);
   repairGameState(target);
-  if(net.role==='client'){
+  if(onlineSession()){
     selectedDifficulty=normalizeDifficulty(target.nextDifficulty||target.difficulty);
     net.clientFireIds=new Set((target.firePatches||[]).map(f=>Math.max(0,Math.round(num(f.id)))).filter(Boolean));
   }
@@ -4342,157 +3822,6 @@ function advanceClientView(dt){
     return e;
   });
 }
-
-function maybeTransportClosed(id,session,client=false){
-  setTimeout(()=>{
-    if(!sameSession(session))return;
-    if(client){let c=net.dc,s=net.stateDc;if((!c||c.readyState==='closed')&&(!s||s.readyState==='closed'))setSessionStatus('Disconnected. Rejoin the room.');syncSetupUI();return}
-    let c=net.channels.get(id),s=net.stateChannels.get(id);if((!c||c.readyState==='closed')&&(!s||s.readyState==='closed'))markRemoteDisconnected(id);
-  },700);
-}
-function openControlChannel(ch,id,peer=null){let session=net.session,opened=false,handleOpen=()=>{
-  if(opened||!sameSession(session))return;opened=true;
-  if(net.role==='host'){
-    let slot=net.pendingSlots.get(id);if(slot&&slot.ch!==ch)return;
-    net.channels.set(id,ch);if(slot){slot.done=true;slot.accepted=true;slot.connected=false}
-    if(!remoteInputs.has(id))neutralizeRemoteInput(id);
-    refreshHostInvite();ui(true);
-  }else{
-    if(peer){net.pc=peer;closeUnusedJoinPeers(peer)}net.dc=ch;
-    setLobbyStage('handshake');setSetupStatus('Connection open. Securing player slot…');sendTo(ch,{t:'join',pv:PROTOCOL_VERSION,client:net.clientToken});
-  }};
-  ch.onopen=handleOpen;ch.onmessage=e=>{if(!sameSession(session))return;try{msgNet(unpack(e.data),ch,id,'control')}catch(err){console.warn('Bad control packet',err)}};
-  ch.onerror=e=>console.warn('Coin Dash control channel error',{id,state:ch.readyState,error:e});
-  ch.onclose=()=>{if(sameSession(session))maybeTransportClosed(id,session,net.role==='client')};
-  if(ch.readyState==='open')queueMicrotask(handleOpen);
-}
-function openStateChannel(ch,id,peer=null){let session=net.session,opened=false,handleOpen=()=>{
-  if(opened||!sameSession(session))return;opened=true;
-  ch.bufferedAmountLowThreshold=MAX_CHANNEL_BUFFER/4;
-  if(net.role==='host'){
-    let slot=net.pendingSlots.get(id);if(slot&&slot.stateCh!==ch)return;
-    net.stateChannels.set(id,ch);if(slot)slot.stateConnected=true;
-    if(slot&&slot.connected){setRosterConnected(id,true,slot.clientToken||'');ensureHostPlayers(false);broadcastNow()}
-  }else{if(peer){net.pc=peer;closeUnusedJoinPeers(peer)}net.stateDc=ch}
-};
-  ch.onopen=handleOpen;ch.onmessage=e=>{if(!sameSession(session))return;try{msgNet(unpack(e.data),ch,id,'state')}catch(err){console.warn('Bad realtime packet',err)}};
-  ch.onerror=e=>console.warn('Coin Dash state channel error',{id,state:ch.readyState,bufferedAmount:ch.bufferedAmount,error:e});
-  ch.onclose=()=>{if(sameSession(session))maybeTransportClosed(id,session,net.role==='client')};
-  if(ch.readyState==='open')queueMicrotask(handleOpen);
-}
-function open(ch,id,peer=null){if(ch.label==='state')openStateChannel(ch,id,peer);else openControlChannel(ch,id,peer)}
-async function safePair(fn,target='setup'){
-  try{await fn();beep('uiConfirm',{force:true,bus:'ui'})}
-  catch(e){
-    beep('uiError',{bus:'ui'});let msg='Could not connect to the room.';
-    if(e&&e.message==='Missing code')msg='Enter the six-character room code.';
-    else if(e&&e.message==='TURN unavailable')msg='Online connection service is unavailable.';
-    else if(e&&e.message==='Room unavailable')msg='Room not found or no longer available.';
-    if(net.role==='client'||net.role==='host')setLobbyStage('error',msg,'error',6200);
-    (target==='menu'?setMenuStatus:setSetupStatus)(msg);console.error(e)
-  }
-}
-function refreshHostInvite(){if(net.role!=='host')return;uiState.roomCode=net.roomCode||'';ui(true)}
-async function invite(){return safePair(async()=>{
-  resetNetwork('host');pairMode('host');setLobbyStage('creating');setSetupStatus('Creating online room…');
-  await Promise.all([ensureRtcCertificate(),loadIceServers()]);
-  net.roomCode=await createRoomCode();uiState.roomCode=net.roomCode;refreshHostInvite();
-  await openRoomSocket('host',net.roomCode);
-  setLobbyStage('waiting','ROOM READY · SHARE THE CODE','success',4200);setSetupStatus('Waiting for players.');syncSetupUI();ui(true);
-})}
-async function join(){resetNetwork('client');pairMode('join');setLobbyStage('code');setSetupStatus('Enter the room code.')}
-async function useInvite(){return safePair(async()=>{
-  let code=normalizeRoomCode(uiState.roomCode);if(code.length!==6)throw Error('Missing code');
-  uiState.roomCode=code;setLobbyStage('locating');setSetupStatus('Finding room…');
-  await Promise.all([ensureRtcCertificate(),loadIceServers()]);
-  net.roomCode=code;await openRoomSocket('player',code);
-  setLobbyStage('waiting');setSetupStatus('Host notified. Waiting for response…');syncSetupUI();ui(true);
-})}
-function closeNet(){try{
-  clearSignalReconnect();
-  if(net.signal)try{net.signal.onclose=null;net.signal.close()}catch(e){}
-  if(net.signalPeers)for(const record of net.signalPeers.values())closeSignalRecord(record);
-  if(net.dc)try{net.dc.close()}catch(e){}if(net.stateDc)try{net.stateDc.close()}catch(e){}if(net.pc)try{net.pc.close()}catch(e){}
-  if(net.channels)for(const c of net.channels.values())try{c.close()}catch(e){}
-  if(net.stateChannels)for(const c of net.stateChannels.values())try{c.close()}catch(e){}
-  if(net.pendingSlots)for(const s of net.pendingSlots.values()){s.retired=true;try{s.ch&&s.ch.close();s.stateCh&&s.stateCh.close();s.pc&&s.pc.close()}catch(e){}}
-  if(net.joinPeers)for(const p of net.joinPeers.values())try{p.close()}catch(e){}
-}catch(e){}
-  remoteInputs.clear();pendingRemoteDashes.clear();if(net.channels)net.channels.clear();if(net.stateChannels)net.stateChannels.clear();if(net.roster)net.roster.clear();if(net.pendingSlots)net.pendingSlots.clear();if(net.joinPeers)net.joinPeers.clear();if(net.clientSlots)net.clientSlots.clear();if(net.signalPeers)net.signalPeers.clear();if(net.signalMembers)net.signalMembers.clear();if(net.signalRetries)net.signalRetries.clear();if(net.clientFireIds)net.clientFireIds.clear();if(net.pendingFireEvents)net.pendingFireEvents.length=0;if(net.lobbyReady)net.lobbyReady.clear();
-  net.signal=null;net.signalReady=false;net.signalRole='';net.signalReconnectTimer=0;net.signalReconnectAttempt=0;net.dc=null;net.stateDc=null;net.pc=null;net.localId=0;net.timer=0;net.snapshotTimer=0;net.motionTimer=0;net.motionFrames=[];net.motionClockOffset=NaN;net.clientTarget=null;net.pendingEpoch=0;
-  resetChatSession();
-}
-function msgNet(o,ch,id,kind='control'){if(!o||typeof o!=='object')return;
-    if(o.t==='versionError'&&net.role==='client'){let text='Game versions do not match. Refresh both devices and try again.';setSetupStatus(text);setSessionStatus(text);setMenuStatus(text);return}
-  if(o.t==='lobbyState'&&net.role==='client'){applyLobbyState(o);return}
-  if(o.t==='lobbyReady'&&net.role==='host'){
-    let valid=kind==='control'?net.channels.get(id)===ch:kind==='state'&&net.stateChannels.get(id)===ch;if(!valid||o.pv!==PROTOCOL_VERSION)return;
-    let ready=!!o.ready;if(!net.lobbyReady)net.lobbyReady=new Map([[0,true]]);net.lobbyReady.set(id,ready);net.lobbyRevision++;
-    notifyLobby('P'+(id+1)+(ready?' IS READY':' IS NOT READY'),ready?'success':'pending',3000,false);broadcastLobbyState();ui(true);return;
-  }
-  if(o.t==='chatSend'&&net.role==='host'){
-    let valid=kind==='control'?net.channels.get(id)===ch:kind==='state'&&net.stateChannels.get(id)===ch;
-    if(!valid)return;
-    if(!allowChatFrom(id)){sendTo(ch,{t:'chatNotice',text:'Please wait before sending more messages.'});return}
-    publishHostChat(id,o.text);return;
-  }
-  if(o.t==='chat'&&net.role==='client'){appendChatMessage(o);return}
-  if(o.t==='chatNotice'&&net.role==='client'){appendChatNotice(sanitizeChatText(o.text)||'Message not sent.');return}
-  if(o.t==='sfx'&&net.role==='client'){
-    let target=Number.isInteger(o.target)?o.target:null,skip=Number.isInteger(o.skip)?o.skip:null;if(target!==null&&target!==net.localId||skip!==null&&skip===net.localId)return;
-    beep(String(o.k||''),{x:o.x===null?null:num(o.x)/10,y:o.y===null?null:num(o.y)/10});return;
-  }
-  if(o.t==='action'&&net.role==='host'){
-    let active=net.channels.get(id);if(active!==ch||o.pv!==PROTOCOL_VERSION||normalizeEpoch(o.epoch)!==net.stateEpoch)return;
-    if(o.kind==='dash')acceptRemoteDash(id,o.seq,o.x,o.y);
-    return;
-  }
-  if(o.t==='input'&&net.role==='host'){
-    let active=net.stateChannels.get(id)||net.channels.get(id);if(active!==ch||o.pv!==PROTOCOL_VERSION||normalizeEpoch(o.epoch)!==net.stateEpoch)return;
-    let seq=Math.max(0,Math.round(num(o.seq,0))),old=remoteInputs.get(id);if(old&&seq&&seq<=old.seq)return;
-    let value=inputSafe(o.v);remoteInputs.set(id,{value,seq,at:performance.now()});setRosterConnected(id,true);
-    if(value.dashSeq)acceptRemoteDash(id,value.dashSeq,value.dashX,value.dashY);
-    return;
-  }
-  if(o.t==='motion'&&net.role==='client')receiveMotionState(o);
-  if(o.t==='snap'&&net.role==='client')applyCompactSnapshot(o.s,o.seq,o.epoch,o.pv);
-  if(o.t==='welcome'&&net.role==='client'){if(o.pv!==PROTOCOL_VERSION||!acceptClientEpoch(o.epoch,true)){msgNet({t:'versionError'},ch,id,kind);return}net.lastEventSeq=Math.max(net.lastEventSeq,Math.round(num(o.eventSeq,0)));markClientJoined(o.id,o.g,o.epoch);receiveChatHistory(o.chat)}
-  if(o.t==='event'&&net.role==='client'){
-    if(o.pv!==PROTOCOL_VERSION)return msgNet({t:'versionError'},ch,id,kind);
-    let epoch=normalizeEpoch(o.epoch);if(epoch<net.stateEpoch)return;
-    let seq=Math.max(0,Math.round(num(o.seq,0)));if(epoch===net.stateEpoch&&seq&&seq<=net.lastEventSeq)return;
-    if(!applyClientSnapshot(o.g,true,0,epoch))return;net.lastEventSeq=seq;
-    if(o.kind==='run'||o.kind==='resume'||o.kind==='go'||o.kind==='setup'){menuOpen=false;endMenuDismissed=false;if(o.kind==='resume')beep('resume',{bus:'ui'})}
-    else if(o.kind==='pause'){menuOpen=true;beep('pause',{bus:'ui'})}
-    else if(o.kind==='end'){menuOpen=true;endMenuDismissed=false}
-    if(o.kind==='run'){playLevelIntroMusic(o.g&&o.g.level);beep('start')}
-    else if(o.kind==='level'){playLevelIntroMusic(o.g&&o.g.level);beep('level')}
-    else if(o.kind==='go')beep('go');
-    else if(o.kind==='end')beep(o.g&&o.g.won?'win':'lose');
-  }
-  if(o.t==='join'&&net.role==='host'){
-    let active=net.channels.get(id);if(active&&active!==ch)return;let slot=net.pendingSlots.get(id);if(slot&&slot.ch!==ch)return;
-    if(o.pv!==PROTOCOL_VERSION){sendTo(ch,{t:'versionError',expected:PROTOCOL_VERSION,received:num(o.pv)});setTimeout(()=>{try{ch.close()}catch(e){}},120);return}
-    net.channels.set(id,ch);if(slot){slot.done=true;slot.accepted=true;slot.connected=true;if(o.client)slot.clientToken=o.client}
-    if(o.client)net.clientSlots.set(o.client,id);setRosterConnected(id,true,o.client||'');if(!net.lobbyReady)net.lobbyReady=new Map([[0,true]]);net.lobbyReady.set(id,false);if(slot&&slot.clientToken)net.signalRetries.set(slot.clientToken,0);ensureHostPlayers(game.phase==='menu'||game.over);
-    setLobbyStage('waiting');setSessionStatus('P'+(id+1)+' connected. Waiting for ready.');setMenuStatus('P'+(id+1)+' connected.');notifyLobby('P'+(id+1)+' CONNECTED · NOT READY','success',6500,false);gameSound('join',null,{force:true,skipId:id});
-    pulseHostSync(ch,id);broadcastGameEvent('roster');broadcastLobbyState();broadcastPulse();ui(true);
-  }
-}
-
-function recentFireRows(){
-  let now=performance.now();
-  net.pendingFireEvents=net.pendingFireEvents.filter(item=>item&&num(item.expires,now+1)>now);
-  return net.pendingFireEvents.map(item=>Array.isArray(item)?item:item.row).filter(Array.isArray);
-}
-function compactMotionState(){
-  return{
-    t:'motion',pv:PROTOCOL_VERSION,epoch:net.stateEpoch,seq:++net.motionSeq,ts:Math.round(performance.now()),
-    p:game.players.map(p=>[p.id,quantize(p.x),quantize(p.y),quantize(p.vx),quantize(p.vy),quantize(p.dt,100),quantize(p.dx,100),quantize(p.dy,100),quantize(p.faceX,100),quantize(p.faceY,100),quantize(p.bob,100),quantize(p.inv,100),quantize(p.dashHit,100),Math.max(0,Math.round(num(p.lastDashSeq,0))),quantize(p.hitTime,100)]),
-    e:game.enemies.map(e=>[quantize(e.x),quantize(e.y),quantize(e.vx),quantize(e.vy),quantize(e.phase,100),valueIndex(ENEMY_MODE_KEYS,e.mode),quantize(e.aimX,100),quantize(e.aimY,100),quantize(e.pulseRadius),quantize(e.burn,100),quantize(e.stun,100),quantize(e.armProgress,100),quantize(e.armLength),quantize(e.armTargetX),quantize(e.armTargetY),quantize(e.inkCharge,100)]),
-    a:recentFireRows()
-  };
-}
 function syncMotionClock(hostTime,received){
   let sample=received-hostTime;
   if(!Number.isFinite(net.motionClockOffset))net.motionClockOffset=sample;
@@ -4512,7 +3841,7 @@ function decodeMotionFrame(packet){
   return{seq:Math.max(0,Math.round(num(packet.seq))),received,timeline,players,enemies};
 }
 function receiveMotionState(packet){
-  if(!packet||net.role!=='client'||packet.pv!==PROTOCOL_VERSION||!acceptClientEpoch(packet.epoch,false))return;
+  if(!packet||!onlineSession()||packet.pv!==PROTOCOL_VERSION||!acceptClientEpoch(packet.epoch,false))return;
   let seq=Math.max(0,Math.round(num(packet.seq)));
   if(seq&&seq<=net.lastMotionSeq)return;
   if(seq)net.lastMotionSeq=seq;
@@ -4557,6 +3886,7 @@ function sampleMotionFrame(now=performance.now()){
   for(let i=0;i<count;i++)enemies[i]=extrapolation>0?extrapolateMotionEntity(b.enemies[i]||a.enemies[i],extrapolation,false):interpolateMotionEntity(a.enemies[i],b.enemies[i],t,false);
   return{players,enemies};
 }
+function decodeFireEvent(row){return{id:Math.max(0,Math.round(num(row&&row[0]))),x:num(row&&row[1])/10,y:num(row&&row[2])/10,r:num(row&&row[3])/10,life:num(row&&row[4])/100,maxLife:num(row&&row[4])/100,owner:Math.round(num(row&&row[5],-1)),dangerous:!!(row&&row[6]),phase:num(row&&row[7])/100}}
 function applyFireRows(rows){
   if(!Array.isArray(game.firePatches))game.firePatches=[];
   for(const row of rows||[]){
@@ -4582,65 +3912,6 @@ function advanceClientTargetVisuals(dt){
     if(target.superFx){target.superFx.time=Math.max(0,num(target.superFx.time)-dt);if(!target.superFx.time)target.superFx=null}
   }
 }
-const ENEMY_TYPE_KEYS=['hunter','scout','charger','sentinel','brute','warden'];
-const ENEMY_MODE_KEYS=['chase','windup','charge','orbit','dart','return','beamWindup','beam','slamWindup','slam','bossChase','bossChargeWindup','bossCharge','bossSlamWindup','bossSlam','bossRingWindup','bossArmWindup','bossArmStrike','bossInkWindup','bossInkBurst','bossRecover','bossDefeated'];
-const SUPER_TYPE_KEYS=['','nova','phase','timestop'];
-function valueIndex(list,value){let i=list.indexOf(value);return i<0?0:i}
-function quantize(value,scale=10){return Math.round(num(value)*scale)}
-function publicPlayerState(p){
-  return{id:p.id,x:p.x,y:p.y,vx:p.vx,vy:p.vy,r:p.r,maxHp:5,hp:p.hp,score:p.score,alive:p.alive,connected:p.id===0?true:(net.roster.get(p.id)?.connected!==false),cd:p.cd,dt:p.dt,dx:p.dx,dy:p.dy,faceX:p.faceX,faceY:p.faceY,inv:p.inv,shield:p.shield,magnet:p.magnet,boost:p.boost,phase:p.phase,freezeAura:p.freezeAura,timeStopAura:p.timeStopAura,fireTrailCd:p.fireTrailCd,superSlots:sanitizeSuperSlots(p.superSlots),superMeter:p.superMeter,superPassive:p.superPassive,bob:p.bob,dashHit:p.dashHit,hitTime:p.hitTime,hitVX:p.hitVX,hitVY:p.hitVY,lastDashSeq:p.lastDashSeq,lastSuperSeq:p.lastSuperSeq,superBuild:sanitizeSuperBuild(p.superBuild),trail:[]};
-}
-function publicEnemyState(e){return{x:e.x,y:e.y,vx:e.vx,vy:e.vy,r:e.r,type:e.type,stun:e.stun,cryo:e.cryo,phase:e.phase,cooldown:e.cooldown,aiTimer:e.aiTimer,mode:e.mode,aimX:e.aimX,aimY:e.aimY,pulseRadius:e.pulseRadius,armor:e.armor,armorTimer:e.armorTimer,burn:e.burn,maxHp:e.maxHp,hp:e.hp,hitInvuln:e.hitInvuln,bossStage:e.bossStage,attackCycle:e.attackCycle,defeated:e.defeated,deathTimer:e.deathTimer,armTargetX:e.armTargetX,armTargetY:e.armTargetY,armProgress:e.armProgress,armLength:e.armLength,inkCharge:e.inkCharge}}
-function publicGameState(){
-  return{difficulty:game.difficulty,nextDifficulty:game.nextDifficulty,level:game.level,startLevel:game.startLevel,nextLevel:game.nextLevel,maxLevel:game.maxLevel,levelName:game.levelName,levelHint:game.levelHint,phase:game.phase,count:game.count,time:game.time,hazardTime:game.hazardTime,over:game.over,won:game.won,paused:game.paused,exit:{...game.exit},shake:game.shake,timeStop:game.timeStop,superFx:game.superFx?{...game.superFx}:null,total:game.total,players:game.players.map(publicPlayerState),enemies:game.enemies.map(publicEnemyState),coins:game.coins.map(c=>({...c})),powerups:game.powerups.map(x=>({...x})),firePatches:(game.firePatches||[]).map(f=>({...f})),inkSplats:(game.inkSplats||[]).map(s=>({...s})),inkSeq:Math.max(0,Math.round(num(game.inkSeq)))};
-}
-function compactPlayerRow(p){
-  let slots=sanitizeSuperSlots(p.superSlots);
-  return[p.id,quantize(p.x),quantize(p.y),quantize(p.vx),quantize(p.vy),p.hp,p.score,p.alive?1:0,(p.id===0||net.roster.get(p.id)?.connected!==false)?1:0,quantize(p.cd,100),quantize(p.dt,100),quantize(p.inv,100),p.shield,quantize(p.magnet),quantize(p.boost),quantize(p.phase),quantize(p.freezeAura),quantize(p.timeStopAura),quantize(p.superMeter),quantize(p.superPassive),valueIndex(SUPER_TYPE_KEYS,slots[0].type),quantize(slots[0].cooldown,100),valueIndex(SUPER_TYPE_KEYS,slots[1].type),quantize(slots[1].cooldown,100),quantize(p.dx,100),quantize(p.dy,100),quantize(p.faceX,100),quantize(p.faceY,100),quantize(p.dashHit,100),p.lastDashSeq,p.lastSuperSeq,quantize(p.hitTime,100),quantize(p.hitVX),quantize(p.hitVY)];
-}
-function compactEnemyRow(e){
-  return[quantize(e.x),quantize(e.y),quantize(e.vx),quantize(e.vy),valueIndex(ENEMY_TYPE_KEYS,e.type),quantize(e.stun,100),quantize(e.phase,100),valueIndex(ENEMY_MODE_KEYS,e.mode),quantize(e.aimX,100),quantize(e.aimY,100),quantize(e.pulseRadius),e.armor,quantize(e.armorTimer,100),quantize(e.burn,100),quantize(e.cooldown,100),quantize(e.aiTimer,100),quantize(e.cryo,100),e.maxHp,e.hp,quantize(e.hitInvuln,100),e.bossStage,e.attackCycle,e.defeated?1:0,quantize(e.deathTimer,100),quantize(e.armTargetX),quantize(e.armTargetY),quantize(e.armProgress,100),quantize(e.armLength),quantize(e.inkCharge,100)];
-}
-function applyCompactPlayerRow(p,row){
-  p.x=num(row[1])/10;p.y=num(row[2])/10;p.vx=num(row[3])/10;p.vy=num(row[4])/10;p.maxHp=5;p.hp=clamp(Math.round(num(row[5])),0,5);p.score=Math.max(0,Math.round(num(row[6])));p.alive=!!row[7];p.connected=!!row[8];p.cd=Math.max(0,num(row[9])/100);p.dt=Math.max(0,num(row[10])/100);p.inv=Math.max(0,num(row[11])/100);p.shield=clamp(Math.round(num(row[12])),0,1);p.magnet=Math.max(0,num(row[13])/10);p.boost=Math.max(0,num(row[14])/10);p.phase=Math.max(0,num(row[15])/10);p.freezeAura=Math.max(0,num(row[16])/10);p.timeStopAura=Math.max(0,num(row[17])/10);p.superMeter=clamp(num(row[18])/10,0,100);p.superPassive=Math.max(0,num(row[19])/10);p.superSlots=sanitizeSuperSlots([{type:SUPER_TYPE_KEYS[Math.round(num(row[20]))]||'',cooldown:Math.max(0,num(row[21])/100)},{type:SUPER_TYPE_KEYS[Math.round(num(row[22]))]||'',cooldown:Math.max(0,num(row[23])/100)}]);p.dx=num(row[24])/100;p.dy=num(row[25])/100;p.faceX=num(row[26])/100;p.faceY=num(row[27])/100;p.dashHit=Math.max(0,num(row[28])/100);p.lastDashSeq=Math.max(0,Math.round(num(row[29])));p.lastSuperSeq=Math.max(0,Math.round(num(row[30])));p.hitTime=Math.max(0,num(row[31])/100);p.hitVX=num(row[32])/10;p.hitVY=num(row[33])/10;p.r=15;p.superBuild=p.superBuild||sanitizeSuperBuild({});return p;
-}
-function applyCompactEnemyRow(e,row){
-  let type=ENEMY_TYPE_KEYS[Math.round(num(row[4]))]||'hunter',def=ENEMY_DEFS[type];
-  e.x=num(row[0])/10;e.y=num(row[1])/10;e.vx=num(row[2])/10;e.vy=num(row[3])/10;e.type=type;e.r=def.radius;e.stun=Math.max(0,num(row[5])/100);e.phase=num(row[6])/100;e.mode=ENEMY_MODE_KEYS[Math.round(num(row[7]))]||'chase';e.aimX=num(row[8])/100;e.aimY=num(row[9])/100;e.pulseRadius=Math.max(0,num(row[10])/10);e.armor=clamp(Math.round(num(row[11])),0,1);e.armorTimer=Math.max(0,num(row[12])/100);e.burn=Math.max(0,num(row[13])/100);e.cooldown=Math.max(0,num(row[14])/100);e.aiTimer=Math.max(0,num(row[15])/100);e.cryo=Math.max(0,num(row[16])/100);e.maxHp=Math.max(1,Math.round(num(row[17],type==='warden'?14:1)));e.hp=clamp(Math.round(num(row[18],e.maxHp)),0,e.maxHp);e.hitInvuln=Math.max(0,num(row[19])/100);e.bossStage=clamp(Math.round(num(row[20],1)),1,3);e.attackCycle=Math.max(0,Math.round(num(row[21])));e.defeated=!!row[22];e.deathTimer=Math.max(0,num(row[23])/100);e.armTargetX=num(row[24],e.x*10)/10;e.armTargetY=num(row[25],e.y*10)/10;e.armProgress=clamp(num(row[26])/100,0,1);e.armLength=Math.max(0,num(row[27])/10);e.inkCharge=clamp(num(row[28])/100,0,1);return e;
-}
-function compactGameState(){
-  let additions=recentFireRows();
-  return{
-    m:[quantize(game.time,100),quantize(game.hazardTime,100),quantize(game.count,100),quantize(game.timeStop,100),quantize(game.shake,100),game.phase,game.over?1:0,game.won?1:0,game.paused?1:0],
-    p:game.players.map(compactPlayerRow),
-    e:game.enemies.map(compactEnemyRow),
-    c:game.coins.map(c=>[quantize(c.x),quantize(c.y),c.taken?1:0]),
-    u:game.powerups.reduce((mask,item,index)=>item.taken?mask|(1<<index):mask,0),
-    f:game.superFx?[valueIndex(SUPER_TYPE_KEYS,game.superFx.type),quantize(game.superFx.x),quantize(game.superFx.y),quantize(game.superFx.time,100)]:null,
-    i:(game.inkSplats||[]).map(s=>[Math.max(0,Math.round(num(s.id))),quantize(s.x),quantize(s.y),quantize(s.r),quantize(s.life,100),quantize(s.maxLife,100),quantize(s.phase,100),Math.round(num(s.tone))]),
-    q:Math.max(0,Math.round(num(game.inkSeq))),
-    a:additions
-  };
-}
-function decodeFireEvent(row){return{id:Math.max(0,Math.round(num(row&&row[0]))),x:num(row&&row[1])/10,y:num(row&&row[2])/10,r:num(row&&row[3])/10,life:num(row&&row[4])/100,maxLife:num(row&&row[4])/100,owner:Math.round(num(row&&row[5],-1)),dangerous:!!(row&&row[6]),phase:num(row&&row[7])/100}}
-function applyCompactSnapshot(s,seq=0,epoch=net.stateEpoch,version=PROTOCOL_VERSION){
-  if(version!==PROTOCOL_VERSION||!s||!net.clientTarget||!acceptClientEpoch(epoch,false)||seq&&seq<=net.lastStateSeq)return;if(seq)net.lastStateSeq=seq;
-  let target=net.clientTarget,m=Array.isArray(s.m)?s.m:[];
-  target.time=num(m[0])/100;target.hazardTime=num(m[1])/100;target.count=Math.max(0,num(m[2])/100);target.timeStop=Math.max(0,num(m[3])/100);target.shake=Math.max(0,num(m[4])/100);target.phase=String(m[5]||target.phase);target.over=!!m[6];target.won=!!m[7];target.paused=!!m[8];
-  let previousPlayers=new Map((target.players||[]).map(p=>[p.id,p]));target.players=(s.p||[]).map(row=>{
-    let id=Math.max(0,Math.round(num(row[0]))),p=previousPlayers.get(id)||player(id,num(row[1])/10,num(row[2])/10,id===net.localId?'local':'remote',!!row[8]);
-    return applyCompactPlayerRow(p,row);
-  });
-  let previousEnemies=target.enemies||[];target.enemies=(s.e||[]).map((row,index)=>{
-    let type=ENEMY_TYPE_KEYS[Math.round(num(row[4]))]||'hunter',e=previousEnemies[index]||enemy(num(row[0])/10,num(row[1])/10,0,type);
-    return applyCompactEnemyRow(e,row);
-  });
-  if(Array.isArray(s.c)){for(let i=0;i<s.c.length;i++){let row=s.c[i],coin=target.coins&&target.coins[i];if(!coin)continue;coin.x=num(row[0])/10;coin.y=num(row[1])/10;coin.taken=!!row[2]}}
-  if(Array.isArray(target.powerups)){let mask=Math.max(0,Math.round(num(s.u)));for(let i=0;i<target.powerups.length;i++)target.powerups[i].taken=!!(mask&(1<<i))}
-  target.superFx=s.f?{type:SUPER_TYPE_KEYS[Math.round(num(s.f[0]))]||'nova',x:num(s.f[1])/10,y:num(s.f[2])/10,time:Math.max(0,num(s.f[3])/100)}:null;
-  target.inkSplats=Array.isArray(s.i)?s.i.map(row=>({id:Math.max(0,Math.round(num(row[0]))),x:num(row[1])/10,y:num(row[2])/10,r:Math.max(24,num(row[3])/10),life:Math.max(0,num(row[4])/100),maxLife:Math.max(.5,num(row[5])/100),phase:num(row[6])/100,tone:clamp(Math.round(num(row[7])),0,2)})).filter(x=>x.life>0):[];target.inkSeq=Math.max(0,Math.round(num(s.q)));
-  applyFireRows(s.a);
-}
 function syncCollectibleView(current,target){
   if(!Array.isArray(current)||current.length!==target.length)return target.map(x=>({...x}));
   for(let i=0;i<target.length;i++)Object.assign(current[i],target[i]);return current;
@@ -4649,46 +3920,100 @@ function updateClientFirePatches(dt){
   if(!Array.isArray(game.firePatches))game.firePatches=[];
   for(let i=game.firePatches.length-1;i>=0;i--){let f=game.firePatches[i];f.life-=dt;if(f.life<=0){game.firePatches.splice(i,1);if(f.id)net.clientFireIds.delete(f.id)}}
 }
-function broadcastGameEvent(kind){if(net.role!=='host')return;ensureHostPlayers(false);repairGameState();let event={t:'event',pv:PROTOCOL_VERSION,epoch:net.stateEpoch,seq:++net.eventSeq,kind,g:publicGameState()};for(const c of net.channels.values())sendTo(c,event)}
-function broadcastMotionNow(){
-  if(net.role!=='host')return;
-  net.motionTimer=0;let motion=compactMotionState();
-  for(const channel of net.stateChannels.values())sendRealtime(channel,motion,MAX_MOTION_BUFFER);
+const ENEMY_TYPE_KEYS=['hunter','scout','charger','sentinel','brute','warden'];
+const ENEMY_MODE_KEYS=['chase','windup','charge','orbit','dart','return','beamWindup','beam','slamWindup','slam','bossChase','bossChargeWindup','bossCharge','bossSlamWindup','bossSlam','bossRingWindup','bossArmWindup','bossArmStrike','bossInkWindup','bossInkBurst','bossRecover','bossDefeated'];
+const SUPER_TYPE_KEYS=['','nova','phase','timestop'];
+
+function setSetupStatus(s){uiState.status=String(s||'')}
+function setMenuStatus(s){s=String(s||'');if(s)setDisplayNotice(s,2800)}
+function setSessionStatus(s){s=String(s||'');if(s)setDisplayNotice(s,3200)}
+function setLobbyStage(stage,message='',tone='info',duration=0){net.lobbyStage=String(stage||'idle');net.lobbyRevision++;if(message)notifyLobby(message,tone,duration||4800,false);ui(true)}
+function notifyLobby(message,tone='info',duration=5200,sound=true){net.lobbyNotice=String(message||'');net.lobbyNoticeTone=String(tone||'info');net.lobbyNoticeUntil=performance.now()+Math.max(900,num(duration,5200));net.lobbyRevision++;if(sound)beep(tone==='success'?'join':tone==='error'?'uiError':'uiConfirm',{force:true,bus:'ui'})}
+function activeLobbyNotice(){return net.lobbyNotice&&performance.now()<num(net.lobbyNoticeUntil)?net.lobbyNotice:''}
+
+function socketUrl(code,role){return ONLINE_API.replace(/^http/,'ws')+'/rooms/'+encodeURIComponent(code)+'/socket?role='+encodeURIComponent(role)+'&client='+encodeURIComponent(net.clientToken)}
+function sendServer(payload){let ws=net.socket;if(!ws||ws.readyState!==WebSocket.OPEN)return false;try{ws.send(JSON.stringify(payload));return true}catch(e){return false}}
+function clearReconnect(){if(net.reconnectTimer)clearTimeout(net.reconnectTimer);net.reconnectTimer=0}
+function reconnectDelay(attempt){return Math.min(10000,500*Math.pow(2,Math.min(5,Math.max(0,attempt))))}
+function scheduleReconnect(session=net.session){
+  if(!onlineSession()||net.manualClose||!net.roomCode||net.reconnectTimer)return;
+  let delay=reconnectDelay(net.reconnectAttempt++);net.reconnectTimer=setTimeout(()=>{net.reconnectTimer=0;if(net.session!==session||net.manualClose)return;openServerSocket(net.role==='host'?'host':'player',net.roomCode,true).catch(()=>scheduleReconnect(session))},delay);ui(true);
 }
-function broadcastNow(){
-  if(net.role!=='host')return;
-  net.snapshotTimer=0;ensureHostPlayers(false);let snap={t:'snap',pv:PROTOCOL_VERSION,epoch:net.stateEpoch,seq:++net.stateSeq,s:compactGameState()};
-  for(const channel of net.stateChannels.values())sendState(channel,snap);
+function createRoomCode(){return fetch(ONLINE_API+'/rooms',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store'}).then(async response=>{if(!response.ok)throw Error('Room unavailable');let data=await response.json(),code=normalizeRoomCode(data&&data.code);if(code.length!==6)throw Error('Room unavailable');return code})}
+function applyLobbyState(o){
+  if(!o||o.pv!==PROTOCOL_VERSION)return;
+  selectedLevel=normalizeLevel(o.level||selectedLevel);selectedDifficulty=normalizeDifficulty(o.difficulty||selectedDifficulty);game.nextLevel=selectedLevel;game.nextDifficulty=selectedDifficulty;
+  net.lobbyReady=new Map([[0,true]]);for(const row of o.ready||[])net.lobbyReady.set(Math.max(0,Math.round(num(row&&row[0]))),!!(row&&row[1]));
+  net.members=Array.isArray(o.members)?o.members.map(member=>({id:Math.max(0,Math.round(num(member.id))),connected:!!member.connected,reserved:!!member.reserved,ready:!!member.ready,owner:!!member.owner})):[];
+  net.roster=new Map(net.members.filter(member=>member.connected||member.reserved).map(member=>[member.id,{id:member.id,connected:member.connected,reserved:member.reserved}]));
+  net.localReady=net.localId===0||!!net.lobbyReady.get(net.localId);net.lobbyRevision++;syncLevelUI();ui(true);
 }
-function broadcastPulse(){broadcastMotionNow();broadcastNow()}
-function broadcast(dt=1,allowSend=true){
-  if(net.role!=='host')return;
-  net.motionTimer+=dt;net.snapshotTimer+=dt;if(!allowSend)return;
-  if(!dt||net.motionTimer>=MOTION_INTERVAL)broadcastMotionNow();
-  if(!dt||net.snapshotTimer>=SNAPSHOT_INTERVAL)broadcastNow();
+function handleServerMessage(message){
+  if(!message||typeof message!=='object')return;
+  if(message.t==='versionError'){let text='Game versions do not match. Deploy both v1.4.0 files.';setLobbyStage('error',text,'error',8000);return}
+  if(message.t==='welcome'){if(message.pv!==PROTOCOL_VERSION)return handleServerMessage({t:'versionError'});net.connected=true;net.reconnectAttempt=0;clearReconnect();net.localId=Math.max(0,Math.round(num(message.id)));resetClientEpochState(message.epoch);if(message.lobby)applyLobbyState(message.lobby);markClientJoined(net.localId,message.g,message.epoch);receiveChatHistory(message.chat);return}
+  if(message.t==='lobbyState')return applyLobbyState(message);
+  if(message.t==='notice'){notifyLobby(String(message.text||''),String(message.tone||'info'),5200,true);return}
+  if(message.t==='roomClosed'){let reason=String(message.reason||'Room closed.');finishLeaveSession();setSetupStatus(reason);notifyLobby(reason,'error',6500,true);return}
+  if(message.t==='state'){if(message.pv!==PROTOCOL_VERSION)return;applyClientSnapshot(message.g,false,message.seq,message.epoch);return}
+  if(message.t==='motion'){receiveMotionState(message);return}
+  if(message.t==='event'){
+    if(message.pv!==PROTOCOL_VERSION)return;let seq=Math.max(0,Math.round(num(message.seq)));if(seq&&seq<=net.lastEventSeq)return;if(!applyClientSnapshot(message.g,true,0,message.epoch))return;net.lastEventSeq=seq;
+    if(['run','resume','go','setup','level'].includes(message.kind)){menuOpen=false;endMenuDismissed=false}else if(message.kind==='pause')menuOpen=true;else if(message.kind==='end'){menuOpen=true;endMenuDismissed=false}
+    if(message.kind==='run'){playLevelIntroMusic(message.g&&message.g.level);beep('start')}else if(message.kind==='level'){playLevelIntroMusic(message.g&&message.g.level);beep('level')}else if(message.kind==='go')beep('go');else if(message.kind==='pause')beep('pause',{bus:'ui'});else if(message.kind==='resume')beep('resume',{bus:'ui'});else if(message.kind==='end')beep(message.g&&message.g.won?'win':'lose');ui(true);return;
+  }
+  if(message.t==='sfx'){let target=Number.isInteger(message.target)?message.target:null,skip=Number.isInteger(message.skip)?message.skip:null;if(target!==null&&target!==net.localId||skip!==null&&skip===net.localId)return;beep(String(message.k||''),{x:message.x===null?null:num(message.x)/10,y:message.y===null?null:num(message.y)/10});return}
+  if(message.t==='chat'){appendChatMessage(message);return}
+  if(message.t==='pong'){net.pingMs=Math.max(0,Math.round(performance.now()-num(message.at,performance.now())));net.lastPongAt=performance.now();return}
+  if(message.t==='error'){notifyLobby(String(message.error||'Server error.'),'error',5000,true)}
 }
+function openServerSocket(role,code,reconnecting=false){return new Promise((resolve,reject)=>{
+  let session=net.session,settled=false,ready=false,ws=new WebSocket(socketUrl(code,role));net.socket=ws;net.connected=false;if(!reconnecting){net.reconnectAttempt=0;net.manualClose=false;clearReconnect()}
+  let timeout=setTimeout(()=>{if(!settled){settled=true;try{ws.close()}catch(e){}reject(Error('Room unavailable'))}},12000);
+  ws.onopen=()=>{ready=true;clearTimeout(timeout);if(!settled){settled=true;resolve(true)}};
+  ws.onmessage=e=>{if(net.session!==session||net.socket!==ws)return;let message;try{message=JSON.parse(e.data)}catch(err){return}handleServerMessage(message)};
+  ws.onerror=()=>{clearTimeout(timeout);if(!settled){settled=true;reject(Error('Room unavailable'))}};
+  ws.onclose=()=>{clearTimeout(timeout);if(net.session!==session)return;if(net.socket===ws)net.socket=null;net.connected=false;if(!settled){settled=true;reject(Error('Room unavailable'))}if(!net.manualClose){setSessionStatus('Connection interrupted. Reconnecting…');scheduleReconnect(session)}ui(true)};
+})}
+function safePair(work,target='setup'){return Promise.resolve().then(work).catch(e=>{let msg=e&&e.message==='Missing code'?'Enter the six-character room code.':'Could not connect to the room.';setLobbyStage('error',msg,'error',6200);(target==='menu'?setMenuStatus:setSetupStatus)(msg);console.error(e)})}
+function invite(){return safePair(async()=>{resetNetwork('host');pairMode('host');setLobbyStage('creating');setSetupStatus('Creating online room…');net.roomCode=await createRoomCode();uiState.roomCode=net.roomCode;await openServerSocket('host',net.roomCode);setLobbyStage('waiting','ROOM READY · SHARE THE CODE','success',4200);setSetupStatus('Waiting for players.');ui(true)})}
+function join(){resetNetwork('client');pairMode('join');setLobbyStage('code');setSetupStatus('Enter the room code.')}
+function useInvite(){return safePair(async()=>{let code=normalizeRoomCode(uiState.roomCode);if(code.length!==6)throw Error('Missing code');uiState.roomCode=code;setLobbyStage('locating');setSetupStatus('Finding room…');net.roomCode=code;await openServerSocket('player',code);setLobbyStage('connecting');setSetupStatus('Connecting to the game server…');ui(true)})}
+function closeNet(){net.manualClose=true;clearReconnect();if(net.socket)try{net.socket.onclose=null;net.socket.close()}catch(e){}net.socket=null;net.connected=false;net.motionFrames=[];net.clientTarget=null;net.clientFireIds.clear();resetChatSession()}
+function resetNetwork(role='solo'){closeNet();net=netState();net.role=role;net.clientToken=getClientToken();net.manualClose=false;resetClientEpochState(1);ui(true)}
+function getClientToken(){try{let t=sessionStorage.getItem('coinDashClientToken');if(!t){t=newClientToken();sessionStorage.setItem('coinDashClientToken',t)}return t}catch(e){return newClientToken()}}
+function closePairing(){if(onlineSession()&&net.localId>=0)pairView='none';else{resetNetwork('solo');pairView='intro';uiState.roomCode='';setSetupStatus('Ready.')}ui(true)}
+function pairMode(mode,preserve=false){pairView=mode;if(!preserve)uiState.roomCode='';if(mode==='host'&&net.roomCode)uiState.roomCode=net.roomCode;ui(true)}
+function finishLeaveSession(){pendingStartRequest=null;helpOpen=false;resetNetwork('solo');selectedLevel=savedSelectedLevel();game=makeGame(selectedDifficulty,selectedLevel);menuOpen=false;endMenuDismissed=false;pairView='intro';uiState.screen='home';setSetupStatus('Ready.');ui(true)}
+function leaveSession(){
+  let hosting=isLobbyOwner();let action=()=>{if(dedicatedSession())sendServer({t:hosting?'closeRoom':'leave',pv:PROTOCOL_VERSION});finishLeaveSession()};
+  askConfirm(hosting?'Close Online Room':'Leave Game',hosting?'This closes the room for every player.':'You will disconnect from the current room.',hosting?'Close Room':'Leave Game',action);
+}
+function copyText(value,label='Text',target='setup'){let text=String(value||'').trim();if(!text)return;let success=()=>{(target==='menu'?setMenuStatus:setSetupStatus)(label+' copied.');beep('uiConfirm',{bus:'ui'})};if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(text).then(success).catch(()=>{});else{try{let area=document.createElement('textarea');area.value=text;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();success()}catch(e){}}}
+function lobbyPendingCount(){return 0}
+function lobbyConnectedCount(){let count=net.members.filter(member=>member.connected).length;return Math.max(onlineSession()?1:0,count)}
+function lobbyReadyFor(id){return id===0||!!net.lobbyReady.get(id)}
+function lobbyConnectedIds(){return net.members.filter(member=>member.connected).map(member=>member.id).sort((a,b)=>a-b)}
+function lobbyUnreadyIds(){return lobbyConnectedIds().filter(id=>id>0&&!lobbyReadyFor(id))}
+function allLobbyPlayersReady(){return isLobbyOwner()&&lobbyUnreadyIds().length===0}
+function setLocalReady(ready){if(net.role!=='client'||!connectedClient())return;net.localReady=!!ready;net.lobbyReady.set(net.localId,net.localReady);sendServer({t:'ready',pv:PROTOCOL_VERSION,ready:net.localReady});notifyLobby(net.localReady?'YOU ARE READY':'READY CANCELED',net.localReady?'success':'info',2800,false);ui(true)}
+function lobbyUiKey(){return[net.lobbyStage,net.lobbyRevision,net.connected?1:0,net.members.map(m=>[m.id,m.connected?1:0,m.ready?1:0,m.reserved?1:0].join(':')).join(','),Math.ceil(Math.max(0,num(net.lobbyNoticeUntil)-performance.now())/1000)].join('|')}
+function lobbySummary(){if(isLobbyOwner()){let unready=lobbyUnreadyIds();if(unready.length)return'WAITING FOR '+unready.map(id=>'P'+(id+1)).join(', ')+' TO READY UP';if(lobbyConnectedCount()>1)return'EVERYONE READY · START THE GAME';return net.connected?'LOBBY OPEN · INVITE PLAYERS OR START ALONE':'RECONNECTING TO SERVER'}if(net.role==='client'){if(connectedClient())return net.localReady?'READY · WAITING FOR OWNER':'CONNECTED · READY UP WHEN PREPARED';return'CONNECTING TO SERVER'}return''}
+function lobbyReadinessLine(){let ids=lobbyConnectedIds(),ready=ids.filter(id=>lobbyReadyFor(id)).length;return ids.length+' CONNECTED  ·  '+ready+' READY'}
+function lobbyRows(){let byId=new Map(net.members.map(member=>[member.id,member])),rows=[];for(let id=0;id<=ROOM_JOINERS;id++){let member=byId.get(id),mine=id===net.localId;if(member&&member.connected)rows.push({id,label:'P'+(id+1),detail:id===0?'OWNER':mine?'YOU':'PLAYER',state:id===0?'OWNER · READY':member.ready?'READY':'NOT READY',tone:id===0?'host':member.ready?'success':'pending'});else if(member&&member.reserved)rows.push({id,label:'P'+(id+1),detail:'RESERVED',state:'OFFLINE',tone:'offline'});else rows.push({id,label:'P'+(id+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'})}return rows}
 function sendInput(dt,allowSend=true){
-  net.timer+=dt;if(!allowSend||net.timer<INPUT_INTERVAL)return;net.timer=0;
-  let v=control({control:'local'}),l=hypot(v.x,v.y);if(l>.001)inputAim={x:v.x/l,y:v.y/l};
-  let dashPressed=pendingDashPress||(v.dash&&!inputDashDown);
-  if(dashPressed){
-    let direction=pendingDashPress?pendingDashDir:inputAim,dl=hypot(direction.x,direction.y);pendingDashPress=false;
-    if(dl>.001)inputDashDir={x:direction.x/dl,y:direction.y/dl};
-    inputSeq++;v.dashSeq=inputSeq;v.dashX=inputDashDir.x;v.dashY=inputDashDir.y;
-    let p=game.players.find(x=>x.id===net.localId),canPredict=!!(p&&p.alive&&game.phase==='play'&&!game.paused&&!game.over&&p.dt<=.015&&Math.max(num(p.cd),num(net.clientDashCooldown))<=.015);
-    if(canPredict){
-      let dashTime=p.boost>0?.25:.2;net.clientDashTime=dashTime;net.clientDashCooldown=playerDashCooldown(p);net.clientDashPendingSeq=inputSeq;net.clientDashDir={...inputDashDir};
-      p.cd=net.clientDashCooldown;p.dt=dashTime;p.dx=inputDashDir.x;p.dy=inputDashDir.y;p._visualDashActive=true;p._visualDashSeq=inputSeq;p._lastTrailAt=performance.now();p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:p._lastTrailAt,life:420,ring:true});beep('dash');
-    }
-    sendTo(net.dc,{t:'action',pv:PROTOCOL_VERSION,epoch:net.stateEpoch,kind:'dash',seq:inputSeq,x:inputDashDir.x,y:inputDashDir.y});
-  }else{v.dashSeq=inputSeq;v.dashX=inputDashDir.x;v.dashY=inputDashDir.y}
-  if(v.super&&!inputSuperDown){inputSuperSeq++;v.superSeq=inputSuperSeq;beep('superTap')}else v.superSeq=inputSuperSeq;
-  inputDashDown=v.dash;inputSuperDown=v.super;v.dash=false;v.super=false;
-  let ch=net.stateDc&&net.stateDc.readyState==='open'?net.stateDc:net.dc;sendRealtime(ch,{t:'input',pv:PROTOCOL_VERSION,epoch:net.stateEpoch,seq:++inputPacketSeq,v},MAX_INPUT_BUFFER);
+  net.timer+=dt;if(!dedicatedSession()||!allowSend||net.timer<1/20)return;net.timer=0;
+  let v=control({control:'local'}),l=hypot(v.x,v.y);if(l>.001)inputAim={x:v.x/l,y:v.y/l};let dashPressed=pendingDashPress||(v.dash&&!inputDashDown);
+  if(dashPressed){let direction=pendingDashPress?pendingDashDir:inputAim,dl=hypot(direction.x,direction.y);pendingDashPress=false;if(dl>.001){inputDashDir={x:direction.x/dl,y:direction.y/dl};inputSeq++;let p=(game.players||[]).find(player=>player.id===net.localId);if(p&&p.alive&&p.cd<=0){let dashTime=p.boost>0?.25:.2;net.clientDashTime=dashTime;net.clientDashCooldown=playerDashCooldown(p);net.clientDashPendingSeq=inputSeq;net.clientDashDir={...inputDashDir};p.cd=net.clientDashCooldown;p.dt=dashTime;p.dx=inputDashDir.x;p.dy=inputDashDir.y;p._visualDashActive=true;p._visualDashSeq=inputSeq;p._lastTrailAt=performance.now();p.trail.push({x:p.x,y:p.y,dx:p.dx,dy:p.dy,at:p._lastTrailAt,life:420,ring:true});beep('dash')}}}
+  v.dashSeq=inputSeq;v.dashX=inputDashDir.x;v.dashY=inputDashDir.y;if(v.super&&!inputSuperDown){inputSuperSeq++;v.superSeq=inputSuperSeq;beep('superTap')}else v.superSeq=inputSuperSeq;inputDashDown=v.dash;inputSuperDown=v.super;v.dash=false;v.super=false;sendServer({t:'input',pv:PROTOCOL_VERSION,seq:++inputPacketSeq,v});
 }
+
+
+
+
 let simulationLast=performance.now(),simulationAccumulator=0,simulationTimer=0,simulationPumping=false,simulationFaults=0,renderFaults=0;
 function recoverSimulation(error){
-  simulationFaults++;simulationAccumulator=0;pendingRemoteDashes.clear();
+  simulationFaults++;simulationAccumulator=0;
   console.error('Coin Dash simulation recovered from an error',error);
   try{repairGameState();for(const p of game.players||[]){p.dt=clamp(num(p.dt),0,.25);p.cd=clamp(num(p.cd),0,1);if(!Array.isArray(p.trail))p.trail=[]}}catch(repairError){console.error('Simulation state repair failed',repairError)}
 }
@@ -4823,7 +4148,7 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.3.7';
+const CANVAS_APP_VERSION='1.4.0';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
@@ -5119,7 +4444,7 @@ function drawCanvasApplication(now){
 function canvasGameplayPointerDown(e,p){if(portraitMode()||gameplayInputBlocked()||!gameplayScreenVisible()||game.phase!=='play'||game.paused||game.over)return false;let id=e.pointerId;if(canvasTouchDevice&&hypot(p.x-65,p.y-330)<64){canvasPointers.set(id,{type:'joy',anchor:{x:65,y:330}});touch.on=true;touch.id=id;touch.anchorX=65;touch.anchorY=330;touch.engaged=true;touch.x=touch.y=0;return true}if(canvasTouchDevice&&hypot(p.x-(W-65),p.y-386)<46){canvasPointers.set(id,{type:'dash'});touch.dash=true;queueDashPress();return true}for(let i=0;i<2;i++){let x=W-65,y=245-i*62;if(canvasTouchDevice&&Math.abs(p.x-x)<32&&Math.abs(p.y-y)<32){canvasPointers.set(id,{type:'super',slot:i});touch.super=true;touch.superSlot=i;return true}}return false}
 function canvasGameplayPointerMove(e,p){let rec=canvasPointers.get(e.pointerId);if(!rec||rec.type!=='joy')return;let dx=p.x-rec.anchor.x,dy=p.y-rec.anchor.y,d=hypot(dx,dy),m=Math.min(1,d/62);touch.x=d?dx/d*m:0;touch.y=d?dy/d*m:0}
 function canvasGameplayPointerEnd(e){let rec=canvasPointers.get(e.pointerId);if(!rec)return;if(rec.type==='joy'){touch.on=false;touch.id=null;touch.x=touch.y=0;touch.engaged=false}else if(rec.type==='dash')touch.dash=false;else if(rec.type==='super'){touch.super=false;touch.superSlot=-1}canvasPointers.delete(e.pointerId)}
-window.__coinDashTest={state:()=>({phase:game.phase,won:game.won,time:game.time,level:game.level,selectedLevel,bonus:isBonusLevel(),remaining:bonusTimeRemaining(),coins:game.coins.length,availableCoins:game.coins.filter(c=>!c.taken).length,enemies:game.enemies.length,score:bonusCoinsCollected(),play:gameplayScreenVisible(),simulationFaults,renderFaults,pendingRemoteDashes:pendingRemoteDashes.size,player0:game.players&&game.players[0]?{x:game.players[0].x,y:game.players[0].y,dt:game.players[0].dt,cd:game.players[0].cd}:null,levelSelect:levelSelectVisible(),setup:uiState.screen==='home',hits:canvasHits.length,pairView,menuOpen,chatOpen,inputMode:canvasInputMode,helpOpen,pendingStart:!!pendingStartRequest,levelCategory:levelSelectCategory,screen:activeBaseScreen(),overlay:activeOverlay(),bodyChildren:document.body.children.length}),click:id=>{let h=canvasHits.find(x=>x.id===id);if(h&&h.enabled){h.action();return true}return false},render:()=>{syncFrameBuffers();let previous=cx;cx=appFrameCx;try{applyCanvasContextDefaults();setWorldTransform();drawCanvasApplication(performance.now())}finally{cx=previous}presentCanvasFrame()},setTime:value=>{game.time=Math.max(0,num(value));return game.time},tick:dt=>{update(Math.max(0,num(dt)),true);return game.phase},collectFirst:()=>{let p=game.players[0],coin=game.coins.find(c=>!c.taken);if(!p||!coin)return false;collectCoin(p,coin);return true}};
+window.__coinDashTest={state:()=>({phase:game.phase,won:game.won,time:game.time,level:game.level,selectedLevel,bonus:isBonusLevel(),remaining:bonusTimeRemaining(),coins:game.coins.length,availableCoins:game.coins.filter(c=>!c.taken).length,enemies:game.enemies.length,score:bonusCoinsCollected(),play:gameplayScreenVisible(),simulationFaults,renderFaults,player0:game.players&&game.players[0]?{x:game.players[0].x,y:game.players[0].y,dt:game.players[0].dt,cd:game.players[0].cd}:null,levelSelect:levelSelectVisible(),setup:uiState.screen==='home',hits:canvasHits.length,pairView,menuOpen,chatOpen,inputMode:canvasInputMode,helpOpen,pendingStart:!!pendingStartRequest,levelCategory:levelSelectCategory,screen:activeBaseScreen(),overlay:activeOverlay(),bodyChildren:document.body.children.length}),click:id=>{let h=canvasHits.find(x=>x.id===id);if(h&&h.enabled){h.action();return true}return false},render:()=>{syncFrameBuffers();let previous=cx;cx=appFrameCx;try{applyCanvasContextDefaults();setWorldTransform();drawCanvasApplication(performance.now())}finally{cx=previous}presentCanvasFrame()},setTime:value=>{game.time=Math.max(0,num(value));return game.time},tick:dt=>{update(Math.max(0,num(dt)),true);return game.phase},collectFirst:()=>{let p=game.players[0],coin=game.coins.find(c=>!c.taken);if(!p||!coin)return false;collectCoin(p,coin);return true}};
 cv.addEventListener('pointerdown',e=>{e.preventDefault();let p=canvasEventPoint(e);if(canvasGameplayPointerDown(e,p))return;let hit=[...canvasHits].reverse().find(h=>h.enabled&&canvasPointIn(h,p.x,p.y));canvasPressedHit=hit||null;if(hit)canvasFocusId=hit.id;if(hit&&hit.id.startsWith('key-')){hit.action();canvasPressedHit=null}});
 cv.addEventListener('pointermove',e=>{let p=canvasEventPoint(e);canvasGameplayPointerMove(e,p);let hit=[...canvasHits].reverse().find(h=>h.enabled&&canvasPointIn(h,p.x,p.y));canvasHoverId=hit?hit.id:'';if(!canvasTouchDevice)cv.style.cursor=hit?'pointer':'default'});
 cv.addEventListener('pointerup',e=>{let p=canvasEventPoint(e);canvasGameplayPointerEnd(e);let hit=canvasPressedHit;canvasPressedHit=null;if(hit&&hit.enabled&&canvasPointIn(hit,p.x,p.y))hit.action()});
@@ -5134,13 +4459,13 @@ function syncOrientationMode(){
     resetGameplayInput();
     if(net.role!=='client'&&!game.over&&!game.paused&&game.phase!=='menu'){
       orientationPaused=true;game.paused=true;
-      if(net.role==='host'){broadcastGameEvent('pause');broadcastNow()}
+      if(isLobbyOwner()&&dedicatedSession())sendServer({t:'pause',pv:PROTOCOL_VERSION})
     }
   }else if(!gameplayLocked&&orientationWasLocked&&orientationPaused){
     orientationPaused=false;
     if(gameplayScreenVisible()&&!game.over&&net.role!=='client'){
       game.paused=false;
-      if(net.role==='host'){broadcastGameEvent('resume');broadcastPulse()}
+      if(isLobbyOwner()&&dedicatedSession())sendServer({t:'resume',pv:PROTOCOL_VERSION})
     }
   }
   orientationWasLocked=gameplayLocked;return locked;
