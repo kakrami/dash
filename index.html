@@ -468,11 +468,11 @@ const renderPerf={frameMs:16.7,drawMs:0,samples:0,lastChange:performance.now(),g
 const FIELD_CACHE={level:0,pixelRatio:1,background:effectCanvas(W,H)};
 function renderQuality(){return RENDER_QUALITY_LEVELS[renderQualityIndex]}
 function qualityCount(high,balanced,performance){return renderQualityIndex===2?high:renderQualityIndex===1?balanced:performance}
-function applyRenderQuality(force=false){
+function applyRenderQuality(resizeCanvas=false){
   let name=renderQuality().name;
   document.body.classList.toggle('render-balanced',name==='balanced');
   document.body.classList.toggle('render-performance',name==='performance');
-  if(force||cv.isConnected)fitCanvas();
+  if(resizeCanvas)fitCanvas();
 }
 function sampleRenderPerformance(frameMs,drawMs,now){
   let weight=renderPerf.samples<45?.12:.045;
@@ -484,10 +484,10 @@ function sampleRenderPerformance(frameMs,drawMs,now){
   let comfortable=renderPerf.drawMs<6.2&&renderPerf.frameMs<18.5;
   if(overloaded){
     renderPerf.goodSince=0;if(!renderPerf.badSince)renderPerf.badSince=now;
-    if(now-renderPerf.badSince>900&&renderQualityIndex>0){renderQualityIndex--;renderPerf.lastChange=now;renderPerf.badSince=0;renderPerf.samples=0;applyRenderQuality(true)}
+    if(now-renderPerf.badSince>900&&renderQualityIndex>0){renderQualityIndex--;renderPerf.lastChange=now;renderPerf.badSince=0;renderPerf.samples=0;applyRenderQuality(false)}
   }else if(comfortable){
     renderPerf.badSince=0;if(!renderPerf.goodSince)renderPerf.goodSince=now;
-    if(now-renderPerf.goodSince>5000&&renderQualityIndex<2){renderQualityIndex++;renderPerf.lastChange=now;renderPerf.goodSince=0;renderPerf.samples=0;applyRenderQuality(true)}
+    if(now-renderPerf.goodSince>5000&&renderQualityIndex<2){renderQualityIndex++;renderPerf.lastChange=now;renderPerf.goodSince=0;renderPerf.samples=0;applyRenderQuality(false)}
   }else{renderPerf.goodSince=0;renderPerf.badSince=0}
 }
 function visualNowMs(){
@@ -526,7 +526,7 @@ function configureCanvasResolution(displayScale=1){
   applyCanvasContextDefaults(screenCx);
   setWorldTransform(screenCx);
   configureFieldCacheResolution();
-  syncFrameBuffers();
+  syncFrameBuffers();presentCanvasFrame();
 }
 let audioMaster=null,audioCompressor=null,audioSfx=null,audioUi=null,audioMusic=null,audioLevel=null,audioPower=null,audioMovement=null,audioAmbience=null,audioNoise=null,audioReverb=null,audioReverbIn=null,audioReverbOut=null;
 let audioUnlocked=false,audioPageActive=!document.hidden&&document.hasFocus(),introMusicPlaying=false,introMusicTimer=0,introMusicGeneration=0,introMusicNextStart=0,introVoices=[],levelIntroVoices=[],levelIntroTimer=0,levelIntroGeneration=0,pendingLevelIntro=0,activePowerAudio=new Map();
@@ -535,7 +535,6 @@ let inputSeq=0,inputSuperSeq=0,inputPacketSeq=0,inputDashDown=false,inputSuperDo
 let menuOpen=false,menuPairOpen=false,endMenuDismissed=false,pairView='intro',pendingConfirm=null,levelSelectOrigin='home';
 let levelSelectOriginalLevel=selectedLevel,levelSelectOriginalDifficulty=selectedDifficulty,levelSelectCommitted=false,levelSelectCategory=isBonusLevel(selectedLevel)?'bonus':'campaign';
 let lastCampaignLevel=isBonusLevel(selectedLevel)?1:selectedLevel,lastBonusLevel=isBonusLevel(selectedLevel)?selectedLevel:CAMPAIGN_LEVEL_COUNT+1,pendingStartRequest=null,helpOpen=false;
-let chatPausedHost=false;
 let chatOpen=false,chatUnread=0,chatLocalSeq=0,chatHistory=[],chatSeen=new Set(),canvasKeyboardShift=false;
 const CHAT_QUICK_MESSAGES=['READY','GO!','WAIT','NEED HELP'];
 const uiCache={setup:''};
@@ -598,19 +597,16 @@ function gameplayScreenVisible(){return uiState.screen==='game'}
 function openChat(){
   if(!chatAvailable())return;
   helpOpen=false;closeConfirm(false);if(canvasInputMode)canvasCloseInput();
-  chatPausedHost=false;
-  if(isLobbyOwner()&&gameplayScreenVisible()&&!menuOpen&&!game.over&&!game.paused&&game.phase!=='menu'){chatPausedHost=true;sendServer({t:'pause',pv:PROTOCOL_VERSION})}
   chatOpen=true;chatUnread=0;resetGameplayInput();ui(true);
 }
 function clearTransientUiForServerState(){
-  chatPausedHost=false;chatOpen=false;helpOpen=false;pendingConfirm=null;
+  chatOpen=false;helpOpen=false;pendingConfirm=null;
   if(canvasInputMode){canvasInputMode='';canvasInputBuffer='';canvasInputOriginal=''}
   canvasPointers.clear();canvasPressedHit=null;resetGameplayInput();
 }
 function closeChat(){
   if(!chatOpen)return;
-  let shouldResume=chatPausedHost&&isLobbyOwner()&&!game.over&&!menuOpen;
-  chatPausedHost=false;chatOpen=false;if(shouldResume)sendServer({t:'resume',pv:PROTOCOL_VERSION});ui(true);
+  chatOpen=false;ui(true);
 }
 function openHelp(){closeConfirm(false);if(chatOpen)closeChat();if(canvasInputMode)canvasCloseInput();helpOpen=true;resetGameplayInput();ui(true)}
 function closeHelp(){if(!helpOpen)return;helpOpen=false;ui(true)}
@@ -1069,7 +1065,7 @@ function openLevelSelect(origin='home'){
 function closeLevelSelect(commit=false){
   if(commit)commitLevelSelection();else cancelLevelSelection();
   if(levelSelectOrigin==='menu'){
-    uiState.screen='game';menuOpen=true;game.paused=true;
+    uiState.screen='game';menuOpen=true;if(!onlineSession())game.paused=true;
   }else{
     uiState.screen='home';syncSetupUI();
   }
@@ -1113,15 +1109,12 @@ function playSelectedLevel(){
 function openGameMenu(){
   if(game.phase==='menu'||menuOpen)return;
   resetGameplayInput();menuOpen=true;menuPairOpen=false;
-  if(isLobbyOwner()&&dedicatedSession()&&!game.over)sendServer({t:'pause',pv:PROTOCOL_VERSION});
-  else if(!onlineSession()&&!game.over)game.paused=true;
+  if(!onlineSession()&&!game.over)game.paused=true;
   ui(true);
 }
 function resumeGame(){
-  if(net.role==='client'){if(game.over)endMenuDismissed=true;menuOpen=false;ui(true);return}
-  if(game.over)return;menuOpen=false;
-  if(isLobbyOwner()&&dedicatedSession())sendServer({t:'resume',pv:PROTOCOL_VERSION});else game.paused=false;
-  ui(true);
+  if(game.over){if(net.role==='client')endMenuDismissed=true;menuOpen=false;ui(true);return}
+  menuOpen=false;if(!onlineSession())game.paused=false;ui(true);
 }
 function restartCurrentLevel(){
   if(isLobbyOwner()&&dedicatedSession()){sendServer({t:'restart',pv:PROTOCOL_VERSION});return}
@@ -3745,6 +3738,7 @@ function applyClientSnapshot(g,hard=false,seq=0,epoch=net.stateEpoch){
   if(seq)net.lastStateSeq=seq;
   let target=cloneGameState(g);
   repairGameState(target);
+  if(onlineSession()&&target.phase!=='menu'&&!target.over)target.paused=false;
   if(onlineSession()){
     selectedDifficulty=normalizeDifficulty(target.nextDifficulty||target.difficulty);
     net.clientFireIds=new Set((target.firePatches||[]).map(f=>Math.max(0,Math.round(num(f.id)))).filter(Boolean));
@@ -3764,7 +3758,7 @@ function markClientJoined(id,g,epoch=net.stateEpoch){
   pairView='none';
   let label='P'+(id+1);
   setLobbyStage('connected','CONNECTED AS '+label,'success',5200);setSetupStatus('Connected as '+label+'.');setSessionStatus(g&&g.phase!=='menu'?'Game starting.':'Connected · ready up when prepared.');
-  if(g){menuOpen=!!g.paused;applyClientSnapshot(g,true,0,epoch)}
+  if(g){menuOpen=!!g.over;applyClientSnapshot(g,true,0,epoch)}
   else{syncSetupUI();ui(true)}
   beep('join',{force:true,bus:'ui'});
 }
@@ -3967,10 +3961,10 @@ function handleServerMessage(message){
   if(message.t==='motion'){receiveMotionState(message);return}
   if(message.t==='event'){
     if(message.pv!==PROTOCOL_VERSION)return;let seq=Math.max(0,Math.round(num(message.seq)));if(seq&&seq<=net.lastEventSeq)return;
-    if(['run','resume','go','setup','level','clear'].includes(message.kind))clearTransientUiForServerState();
+    if(['run','go','setup','level','clear'].includes(message.kind))clearTransientUiForServerState();
     if(!applyClientSnapshot(message.g,true,0,message.epoch))return;net.lastEventSeq=seq;
-    if(['run','resume','go','setup','level','clear'].includes(message.kind)){menuOpen=false;endMenuDismissed=false}else if(message.kind==='pause')menuOpen=true;else if(message.kind==='end'){menuOpen=true;endMenuDismissed=false}
-    if(message.kind==='run'){playLevelIntroMusic(message.g&&message.g.level);beep('start')}else if(message.kind==='clear'){stopGameplayMusic(.05);beep('win')}else if(message.kind==='level'){playLevelIntroMusic(message.g&&message.g.level);beep('level')}else if(message.kind==='go')beep('go');else if(message.kind==='pause')beep('pause',{bus:'ui'});else if(message.kind==='resume')beep('resume',{bus:'ui'});else if(message.kind==='end')beep(message.g&&message.g.won?'win':'lose');ui(true);return;
+    if(['run','go','setup','level','clear'].includes(message.kind)){menuOpen=false;endMenuDismissed=false}else if(message.kind==='end'){menuOpen=true;endMenuDismissed=false}
+    if(message.kind==='run'){playLevelIntroMusic(message.g&&message.g.level);beep('start')}else if(message.kind==='clear'){stopGameplayMusic(.05);beep('win')}else if(message.kind==='level'){playLevelIntroMusic(message.g&&message.g.level);beep('level')}else if(message.kind==='go')beep('go');else if(message.kind==='end')beep(message.g&&message.g.won?'win':'lose');ui(true);return;
   }
   if(message.t==='sfx'){let target=Number.isInteger(message.target)?message.target:null,skip=Number.isInteger(message.skip)?message.skip:null;if(target!==null&&target!==net.localId||skip!==null&&skip===net.localId)return;beep(String(message.k||''),{x:message.x===null?null:num(message.x)/10,y:message.y===null?null:num(message.y)/10});return}
   if(message.t==='chat'){appendChatMessage(message);return}
@@ -4065,10 +4059,10 @@ function renderLoop(now){
       let previous=cx;cx=appFrameCx;
       try{applyCanvasContextDefaults();setWorldTransform();drawCanvasApplication(now)}
       finally{cx=previous}
-      presentCanvasFrame();
+      commitCanvasFrame();presentCanvasFrame();
       let drawMs=performance.now()-drawStart;sampleRenderPerformance(frameMs,drawMs,now);
     }
-  }catch(error){renderFaults++;console.error('Coin Dash renderer recovered from an error',error);try{resetFrameCanvas()}catch(_){} }
+  }catch(error){renderFaults++;console.error('Coin Dash renderer retained the previous complete frame after an error',error);try{presentCanvasFrame()}catch(_){} }
   finally{requestAnimationFrame(renderLoop)}
 }
 window.addEventListener('keydown',e=>{
@@ -4164,19 +4158,30 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.4.2';
+const CANVAS_APP_VERSION='1.4.3';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
 const appFrame=document.createElement('canvas');
 const appFrameCx=appFrame.getContext('2d',{alpha:false});
-/* Render every complete frame offscreen, then present it to the visible canvas in one atomic blit. */
+const stableFrame=document.createElement('canvas');
+const stableFrameCx=stableFrame.getContext('2d',{alpha:false});
+/* Render into a back buffer and only replace the displayed frame after a complete successful draw. */
+function resizeFrameBuffer(buffer,width,height,preserve=false){
+  if(buffer.width===width&&buffer.height===height)return;
+  let snapshot=null;if(preserve&&buffer.width&&buffer.height){snapshot=document.createElement('canvas');snapshot.width=buffer.width;snapshot.height=buffer.height;snapshot.getContext('2d',{alpha:false}).drawImage(buffer,0,0)}
+  buffer.width=width;buffer.height=height;let context=buffer.getContext('2d',{alpha:false});context.fillStyle='#030201';context.fillRect(0,0,width,height);if(snapshot)context.drawImage(snapshot,0,0,snapshot.width,snapshot.height,0,0,width,height);
+}
 function syncFrameBuffers(){
-  for(const buffer of [sceneFrame,appFrame]){
-    if(buffer.width!==cv.width||buffer.height!==cv.height){buffer.width=cv.width;buffer.height=cv.height}
-  }
+  resizeFrameBuffer(sceneFrame,cv.width,cv.height);
+  resizeFrameBuffer(appFrame,cv.width,cv.height);
+  resizeFrameBuffer(stableFrame,cv.width,cv.height,true);
   applyCanvasContextDefaults(sceneFrameCx);
   applyCanvasContextDefaults(appFrameCx);
+  applyCanvasContextDefaults(stableFrameCx);
+}
+function commitCanvasFrame(){
+  stableFrameCx.setTransform(1,0,0,1,0,0);stableFrameCx.globalAlpha=1;stableFrameCx.globalCompositeOperation='copy';stableFrameCx.drawImage(appFrame,0,0);stableFrameCx.globalCompositeOperation='source-over';
 }
 function gameplayViewport(){return canvasTouchDevice?{x:130,y:70,w:700,h:394}:{x:70,y:70,w:820,h:461}}
 function captureWorldFrame(){
@@ -4187,11 +4192,11 @@ function captureWorldFrame(){
 }
 function presentCanvasFrame(){
   screenCx.setTransform(1,0,0,1,0,0);
-  screenCx.globalAlpha=1;screenCx.globalCompositeOperation='source-over';screenCx.shadowBlur=0;screenCx.shadowColor='transparent';
+  screenCx.globalAlpha=1;screenCx.globalCompositeOperation='copy';screenCx.shadowBlur=0;screenCx.shadowColor='transparent';
   if('filter' in screenCx)screenCx.filter='none';
   screenCx.setLineDash([]);
-  screenCx.clearRect(0,0,cv.width,cv.height);
-  screenCx.drawImage(appFrame,0,0);
+  screenCx.drawImage(stableFrame,0,0);
+  screenCx.globalCompositeOperation='source-over';
 }
 function composeWorldFrame(){
   let view=gameplayViewport();clearFrameCanvas();
@@ -4395,7 +4400,7 @@ function startNextLevel(){
 function canvasDrawMenu(){
   let online=net.role==='host'||net.role==='client',client=net.role==='client',over=!!game.over,roomOpen=menuPairOpen&&online,buttons=[],map=levelConfig(game.level),bonus=!!map.bonus;canvasSetFocusScope('menu-'+(over?'results':'pause'),over?(client?'menu-leave':'menu-result-primary'):'menu-resume');
   if(over){if(client){buttons.push({id:'wait',label:'WAITING',disabled:true});buttons.push({id:'leave',label:'LEAVE',action:()=>leaveSession(),danger:true})}else{buttons.push({id:'result-primary',label:resultPrimaryLabel(),action:game.won?()=>startNextLevel():()=>restartCurrentLevel(),primary:true});buttons.push({id:'select-level',label:'LEVEL SELECT',action:()=>chooseLevelFromGameMenu()});buttons.push({id:'controls',label:'CONTROLS',action:()=>openHelp()});buttons.push({id:'main-menu',label:'MAIN MENU',action:()=>requestMainMenu()})}}else{buttons.push({id:'resume',label:'RESUME',action:()=>resumeGame(),primary:true});if(!client){buttons.push({id:'restart',label:bonus?'RESTART BONUS':'RESTART',action:()=>menuSecondaryAction()});buttons.push({id:'select-level',label:'CHANGE LEVEL',action:()=>chooseLevelFromGameMenu()});buttons.push({id:'controls',label:'CONTROLS',action:()=>openHelp()})}if(online)buttons.push({id:'room',label:roomOpen?'HIDE ROOM':'ROOM INFO',action:()=>toggleMenuPlayers()});if(chatAvailable())buttons.push({id:'chat-menu',label:'CHAT',action:()=>openChat()});buttons.push({id:'main-menu',label:client?'LEAVE GAME':'MAIN MENU',action:()=>requestMainMenu(),danger:client})}
-  let columns=buttons.length>5?2:1,rows=Math.ceil(buttons.length/columns),buttonH=46,gap=10,bodyH=rows*buttonH+Math.max(0,rows-1)*gap,roomH=roomOpen?76:0,w=columns===2?700:440,h=Math.min(500,132+bodyH+roomH+58),x=(W-w)/2,y=(H-h)/2;cx.save();cx.fillStyle='#010308e8';cx.fillRect(0,0,W,H);cx.restore();canvasPanel(x,y,w,h,.99);let accent=over?(game.won?UI.green:UI.red):UI.orange;cx.fillStyle=accent;cx.fillRect(x,y+24,6,62);canvasText(over?'RESULTS':'PAUSED',x+34,y+43,30,'left',UI.text,1000,w-68);let subtitle=over?(bonus?bonusCoinsCollected()+' COINS':levelDisplayLabel(game.level)):levelDisplayLabel(game.level);canvasPill(subtitle,x+34,y+76,150,{accent});canvasRule(x+28,y+116,x+w-28,y+116,UI.lineSoft);
+  let columns=buttons.length>5?2:1,rows=Math.ceil(buttons.length/columns),buttonH=46,gap=10,bodyH=rows*buttonH+Math.max(0,rows-1)*gap,roomH=roomOpen?76:0,w=columns===2?700:440,h=Math.min(500,132+bodyH+roomH+58),x=(W-w)/2,y=(H-h)/2;cx.save();cx.fillStyle='#010308e8';cx.fillRect(0,0,W,H);cx.restore();canvasPanel(x,y,w,h,.99);let accent=over?(game.won?UI.green:UI.red):UI.orange;cx.fillStyle=accent;cx.fillRect(x,y+24,6,62);canvasText(over?'RESULTS':online?'GAME MENU':'PAUSED',x+34,y+43,30,'left',UI.text,1000,w-68);let subtitle=over?(bonus?bonusCoinsCollected()+' COINS':levelDisplayLabel(game.level)):levelDisplayLabel(game.level);canvasPill(subtitle,x+34,y+76,150,{accent});canvasRule(x+28,y+116,x+w-28,y+116,UI.lineSoft);
   let by=y+132,colGap=12,side=44,buttonW=(w-side*2-colGap*(columns-1))/columns;buttons.forEach((b,index)=>{let col=Math.floor(index/rows),row=index%rows,bx=x+side+col*(buttonW+colGap),yy=by+row*(buttonH+gap);canvasMenuButton('menu-'+b.id,b.label,menuActionIcon(b.id),bx,yy,buttonW,buttonH,b.action||(()=>{}),{primary:!!b.primary,danger:!!b.danger,disabled:!!b.disabled})});
   if(roomOpen){let py=by+bodyH+12;canvasBox(x+28,py,w-56,58,{fill:UI.surface2,stroke:UI.lineSoft,r:12,line:1});canvasText(net.roomCode||'------',x+44,py+29,21,'left',UI.cyanSoft,1000);canvasText(lobbyConnectedCount()+' ONLINE',x+w-44,py+29,11,'right',UI.text,1000);if(net.role==='host')canvasHit('menu-copy',x+28,py,w-56,58,()=>copyText(net.roomCode,'Room code','menu'))}
   canvasIconButton('menu-sound','sound',x+28,y+h-44,54,32,()=>toggleSound(),{accent:soundEnabled?UI.cyan:UI.dim});canvasIconButton('menu-full','fullscreen',x+w-82,y+h-44,54,32,()=>toggleFull(),{accent:UI.cyan})
@@ -4483,7 +4488,7 @@ function drawCanvasApplication(now){
 function canvasGameplayPointerDown(e,p){if(portraitMode()||gameplayInputBlocked()||!gameplayScreenVisible()||game.phase!=='play'||game.paused||game.over)return false;let id=e.pointerId;if(canvasTouchDevice&&hypot(p.x-65,p.y-330)<64){canvasPointers.set(id,{type:'joy',anchor:{x:65,y:330}});touch.on=true;touch.id=id;touch.anchorX=65;touch.anchorY=330;touch.engaged=true;touch.x=touch.y=0;return true}if(canvasTouchDevice&&hypot(p.x-(W-65),p.y-386)<46){canvasPointers.set(id,{type:'dash'});touch.dash=true;queueDashPress();return true}for(let i=0;i<2;i++){let x=W-65,y=245-i*62;if(canvasTouchDevice&&Math.abs(p.x-x)<32&&Math.abs(p.y-y)<32){canvasPointers.set(id,{type:'super',slot:i});touch.super=true;touch.superSlot=i;return true}}return false}
 function canvasGameplayPointerMove(e,p){let rec=canvasPointers.get(e.pointerId);if(!rec||rec.type!=='joy')return;let dx=p.x-rec.anchor.x,dy=p.y-rec.anchor.y,d=hypot(dx,dy),m=Math.min(1,d/62);touch.x=d?dx/d*m:0;touch.y=d?dy/d*m:0}
 function canvasGameplayPointerEnd(e){let rec=canvasPointers.get(e.pointerId);if(!rec)return;if(rec.type==='joy'){touch.on=false;touch.id=null;touch.x=touch.y=0;touch.engaged=false}else if(rec.type==='dash')touch.dash=false;else if(rec.type==='super'){touch.super=false;touch.superSlot=-1}canvasPointers.delete(e.pointerId)}
-window.__coinDashTest={state:()=>({phase:game.phase,won:game.won,time:game.time,level:game.level,selectedLevel,bonus:isBonusLevel(),remaining:bonusTimeRemaining(),coins:game.coins.length,availableCoins:game.coins.filter(c=>!c.taken).length,enemies:game.enemies.length,score:bonusCoinsCollected(),play:gameplayScreenVisible(),simulationFaults,renderFaults,player0:game.players&&game.players[0]?{x:game.players[0].x,y:game.players[0].y,dt:game.players[0].dt,cd:game.players[0].cd}:null,levelSelect:levelSelectVisible(),setup:uiState.screen==='home',hits:canvasHits.length,pairView,menuOpen,chatOpen,inputMode:canvasInputMode,helpOpen,pendingStart:!!pendingStartRequest,levelCategory:levelSelectCategory,screen:activeBaseScreen(),overlay:activeOverlay(),protocol:PROTOCOL_VERSION,version:CANVAS_APP_VERSION,transitionKey:net.transitionKey,bodyChildren:document.body.children.length}),click:id=>{let h=canvasHits.find(x=>x.id===id);if(h&&h.enabled){h.action();return true}return false},render:()=>{syncFrameBuffers();let previous=cx;cx=appFrameCx;try{applyCanvasContextDefaults();setWorldTransform();drawCanvasApplication(performance.now())}finally{cx=previous}presentCanvasFrame()},setTime:value=>{game.time=Math.max(0,num(value));return game.time},tick:dt=>{update(Math.max(0,num(dt)),true);return game.phase},collectFirst:()=>{let p=game.players[0],coin=game.coins.find(c=>!c.taken);if(!p||!coin)return false;collectCoin(p,coin);return true}};
+window.__coinDashTest={state:()=>({phase:game.phase,won:game.won,time:game.time,level:game.level,selectedLevel,bonus:isBonusLevel(),remaining:bonusTimeRemaining(),coins:game.coins.length,availableCoins:game.coins.filter(c=>!c.taken).length,enemies:game.enemies.length,score:bonusCoinsCollected(),play:gameplayScreenVisible(),simulationFaults,renderFaults,player0:game.players&&game.players[0]?{x:game.players[0].x,y:game.players[0].y,dt:game.players[0].dt,cd:game.players[0].cd}:null,levelSelect:levelSelectVisible(),setup:uiState.screen==='home',hits:canvasHits.length,pairView,menuOpen,chatOpen,inputMode:canvasInputMode,helpOpen,pendingStart:!!pendingStartRequest,levelCategory:levelSelectCategory,screen:activeBaseScreen(),overlay:activeOverlay(),protocol:PROTOCOL_VERSION,version:CANVAS_APP_VERSION,transitionKey:net.transitionKey,bodyChildren:document.body.children.length}),click:id=>{let h=canvasHits.find(x=>x.id===id);if(h&&h.enabled){h.action();return true}return false},render:()=>{syncFrameBuffers();let previous=cx;cx=appFrameCx;try{applyCanvasContextDefaults();setWorldTransform();drawCanvasApplication(performance.now())}finally{cx=previous}commitCanvasFrame();presentCanvasFrame()},setTime:value=>{game.time=Math.max(0,num(value));return game.time},tick:dt=>{update(Math.max(0,num(dt)),true);return game.phase},collectFirst:()=>{let p=game.players[0],coin=game.coins.find(c=>!c.taken);if(!p||!coin)return false;collectCoin(p,coin);return true}};
 cv.addEventListener('pointerdown',e=>{e.preventDefault();let p=canvasEventPoint(e);if(canvasGameplayPointerDown(e,p))return;let hit=[...canvasHits].reverse().find(h=>h.enabled&&canvasPointIn(h,p.x,p.y));canvasPressedHit=hit||null;if(hit)canvasFocusId=hit.id;if(hit&&hit.id.startsWith('key-')){hit.action();canvasPressedHit=null}});
 cv.addEventListener('pointermove',e=>{let p=canvasEventPoint(e);canvasGameplayPointerMove(e,p);let hit=[...canvasHits].reverse().find(h=>h.enabled&&canvasPointIn(h,p.x,p.y));canvasHoverId=hit?hit.id:'';if(!canvasTouchDevice)cv.style.cursor=hit?'pointer':'default'});
 cv.addEventListener('pointerup',e=>{let p=canvasEventPoint(e);canvasGameplayPointerEnd(e);let hit=canvasPressedHit;canvasPressedHit=null;if(hit&&hit.enabled&&canvasPointIn(hit,p.x,p.y))hit.action()});
@@ -4496,16 +4501,10 @@ function syncOrientationMode(){
   let gameplayLocked=locked&&gameplayScreenVisible();
   if(gameplayLocked&&!orientationWasLocked){
     resetGameplayInput();
-    if(net.role!=='client'&&!game.over&&!game.paused&&game.phase!=='menu'){
-      orientationPaused=true;game.paused=true;
-      if(isLobbyOwner()&&dedicatedSession())sendServer({t:'pause',pv:PROTOCOL_VERSION})
-    }
+    if(!onlineSession()&&!game.over&&!game.paused&&game.phase!=='menu'){orientationPaused=true;game.paused=true}
   }else if(!gameplayLocked&&orientationWasLocked&&orientationPaused){
     orientationPaused=false;
-    if(gameplayScreenVisible()&&!game.over&&net.role!=='client'){
-      game.paused=false;
-      if(isLobbyOwner()&&dedicatedSession())sendServer({t:'resume',pv:PROTOCOL_VERSION})
-    }
+    if(gameplayScreenVisible()&&!game.over&&!onlineSession())game.paused=false;
   }
   orientationWasLocked=gameplayLocked;return locked;
 }
