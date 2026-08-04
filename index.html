@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry Canvas Edition</title>
-<meta name="application-version" content="1.4.6">
+<meta name="application-version" content="1.4.7">
 <style>
 html,body{margin:0;width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#010207;touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
 body{display:grid;place-items:center;box-sizing:border-box;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
-#game{display:block;width:min(calc(100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)),calc((100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) * 16 / 9));height:min(calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)),calc((100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)) * 9 / 16));max-width:100dvw;max-height:100dvh;background:#02050b;touch-action:none;outline:none;transform-origin:center}#game.portrait-lock{position:fixed;left:50%;top:50%;width:min(calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)),calc((100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)) * 16 / 9));height:min(calc(100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)),calc((100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) * 9 / 16));max-width:none;max-height:none;transform:translate(-50%,-50%) rotate(90deg)}
+#game{display:block;width:min(calc(100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)),calc((100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) * 16 / 9));height:min(calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)),calc((100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)) * 9 / 16));max-width:100dvw;max-height:100dvh;background:#02050b;touch-action:none;outline:none;transform-origin:center}#game.wide-touch{width:calc(100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));max-width:none;max-height:none}#game.portrait-lock{position:fixed;left:50%;top:50%;width:min(calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)),calc((100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)) * 16 / 9));height:min(calc(100dvw - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)),calc((100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) * 9 / 16));max-width:none;max-height:none;transform:translate(-50%,-50%) rotate(90deg)}
 </style>
 </head>
 <body>
@@ -36,6 +36,7 @@ cx.lineJoin='round';
 cx.lineCap='round';
 
 const W=cv.width,H=cv.height,colors=['#20dcff','#ff365f','#66f23f','#ffd21f','#c95bff','#ff7b16'];
+let surfaceW=W,surfaceOffsetX=0;
 const ROOM_JOINERS=4;
 const ONLINE_API=['localhost','127.0.0.1'].includes(location.hostname)?'http://127.0.0.1:8787':'https://coin-dash-online.kiadesignenterprise.workers.dev';
 const DIFFICULTIES={
@@ -502,7 +503,7 @@ function applyCanvasContextDefaults(ctx=cx){
   ctx.lineJoin='round';
   ctx.lineCap='round';
 }
-function setWorldTransform(ctx=cx){ctx.setTransform(renderPixelRatio,0,0,renderPixelRatio,0,0)}
+function setWorldTransform(ctx=cx,centered=true){ctx.setTransform(renderPixelRatio,0,0,renderPixelRatio,centered?surfaceOffsetX*renderPixelRatio:0,0)}
 function configureFieldCacheResolution(){
   let width=Math.round(W*renderPixelRatio),height=Math.round(H*renderPixelRatio);
   if(FIELD_CACHE.pixelRatio===renderPixelRatio&&FIELD_CACHE.background.width===width&&FIELD_CACHE.background.height===height)return;
@@ -520,10 +521,11 @@ function configureCanvasResolution(displayScale=1){
   let dpr=Math.max(1,num(window.devicePixelRatio,1)),quality=renderQuality();
   let next=clamp(displayScale*dpr,1,quality.dprCap);
   next=Math.round(next*20)/20;
-  if(Math.abs(next-renderPixelRatio)<.025&&cv.width===Math.round(W*next)&&cv.height===Math.round(H*next))return;
+  let pixelW=Math.round(surfaceW*next),pixelH=Math.round(H*next);
+  if(Math.abs(next-renderPixelRatio)<.025&&cv.width===pixelW&&cv.height===pixelH)return;
   renderPixelRatio=next;
-  cv.width=Math.round(W*renderPixelRatio);
-  cv.height=Math.round(H*renderPixelRatio);
+  cv.width=pixelW;
+  cv.height=pixelH;
   applyCanvasContextDefaults(screenCx);
   setWorldTransform(screenCx);
   configureFieldCacheResolution();
@@ -1943,14 +1945,14 @@ function clearFrameCanvas(){
 }
 function captureFieldLayer(target,paint){
   configureFieldCacheResolution();
-  clearFrameCanvas();paint();
+  cx.setTransform(1,0,0,1,0,0);cx.globalAlpha=1;cx.globalCompositeOperation='source-over';cx.shadowBlur=0;cx.shadowColor='transparent';if('filter' in cx)cx.filter='none';cx.setLineDash([]);cx.clearRect(0,0,cx.canvas.width,cx.canvas.height);setWorldTransform(cx,false);paint();
   let targetCx=target.getContext('2d');
   targetCx.setTransform(1,0,0,1,0,0);
   targetCx.globalAlpha=1;
   targetCx.globalCompositeOperation='source-over';
   targetCx.clearRect(0,0,target.width,target.height);
-  let sourceCanvas=cx.canvas;
-  targetCx.drawImage(sourceCanvas,0,0,sourceCanvas.width,sourceCanvas.height,0,0,target.width,target.height);
+  let sourceCanvas=cx.canvas,sourceW=Math.round(W*renderPixelRatio),sourceH=Math.round(H*renderPixelRatio);
+  targetCx.drawImage(sourceCanvas,0,0,sourceW,sourceH,0,0,target.width,target.height);
 }
 function drawStaticFieldBackground(level){
   let map=levelConfig(level),accent=map.accent||'#ff7a24',boss=!!map.boss,bossMeta=map.boss?bossMetaForLevel(level):null;
@@ -4214,7 +4216,7 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.4.6';
+const CANVAS_APP_VERSION='1.4.7';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
@@ -4229,7 +4231,7 @@ function resizeFrameBuffer(buffer,width,height,preserve=false){
   buffer.width=width;buffer.height=height;let context=buffer.getContext('2d',{alpha:false});context.fillStyle='#030201';context.fillRect(0,0,width,height);if(snapshot)context.drawImage(snapshot,0,0,snapshot.width,snapshot.height,0,0,width,height);
 }
 function syncFrameBuffers(){
-  resizeFrameBuffer(sceneFrame,cv.width,cv.height);
+  resizeFrameBuffer(sceneFrame,Math.round(W*renderPixelRatio),Math.round(H*renderPixelRatio));
   resizeFrameBuffer(appFrame,cv.width,cv.height);
   resizeFrameBuffer(stableFrame,cv.width,cv.height,true);
   applyCanvasContextDefaults(sceneFrameCx);
@@ -4243,7 +4245,7 @@ function gameplayViewport(){return canvasTouchDevice?{x:130,y:70,w:700,h:394}:{x
 function captureWorldFrame(){
   syncFrameBuffers();
   let previous=cx;cx=sceneFrameCx;
-  try{applyCanvasContextDefaults();setWorldTransform();draw()}
+  try{applyCanvasContextDefaults();setWorldTransform(cx,false);draw()}
   finally{cx=previous}
 }
 function presentCanvasFrame(){
@@ -4298,7 +4300,7 @@ function canvasMoveFocus(step=1){let hits=canvasFocusHits();if(!hits.length)retu
 function canvasActivateFocus(){let hit=canvasHits.find(item=>item.enabled&&item.id===canvasFocusId);if(!hit)return false;hit.action();beep('uiConfirm',{bus:'ui'});return true}
 function canvasIsFocused(id){return canvasFocusId===id}
 function canvasIsHovered(id){return canvasHoverId===id}
-function canvasEventPoint(e){let b=cv.getBoundingClientRect(),dx=e.clientX-b.left,dy=e.clientY-b.top;if(cv.classList.contains('portrait-lock'))return{x:dy*W/Math.max(1,b.height),y:(b.width-dx)*H/Math.max(1,b.width)};return{x:dx*W/Math.max(1,b.width),y:dy*H/Math.max(1,b.height)}}
+function canvasEventPoint(e){let b=cv.getBoundingClientRect(),dx=e.clientX-b.left,dy=e.clientY-b.top;if(cv.classList.contains('portrait-lock'))return{x:dy*W/Math.max(1,b.height),y:(b.width-dx)*H/Math.max(1,b.width),sx:dy*W/Math.max(1,b.height)};let sx=dx*surfaceW/Math.max(1,b.width),y=dy*H/Math.max(1,b.height);return{x:sx-surfaceOffsetX,y,sx}}
 const UI={
   bg:'#050403',surface:'#15191d',surface2:'#20262b',surface3:'#2a3339',line:'#58666f',lineSoft:'#313c43',cyan:'#62e9ff',cyanSoft:'#c7f8ff',orange:'#ff6a18',orangeDark:'#6f1e0c',red:'#ff4967',green:'#63f0a1',yellow:'#ffd34d',purple:'#b27cff',text:'#fff7e9',muted:'#c2c9cc',dim:'#7f8b91',steel:'#89979e',soot:'#090a0b',molten:'#ff8a24'
 };
@@ -4401,22 +4403,33 @@ function canvasDrawHud(){
   let boss=(game.enemies||[]).find(e=>e.type==='warden'),bx=586,bw=238;if(boss&&map.boss){let ratio=clamp(boss.hp/Math.max(1,boss.maxHp),0,1);canvasBox(bx,8,bw,48,{fill:UI.surface,stroke:UI.lineSoft,r:10,line:1});canvasText(bossMetaForLevel(game.level).name,bx+12,20,11,'left','#ffe7bc',1000,bw-24);canvasBox(bx+12,34,bw-24,11,{fill:'#250703',stroke:'#5e1b12',r:6,line:1});cx.fillStyle=UI.orange;cx.beginPath();cx.roundRect(bx+12,34,(bw-24)*ratio,11,6);cx.fill()}else{canvasBox(bx,8,bw,48,{fill:UI.surface,stroke:bonus?map.accent:UI.lineSoft,r:10,line:1});canvasText(bonus?'BONUS RUN':game.levelName||map.name,bx+12,24,13,'left',bonus?map.accent:UI.text,1000,bw-24);if(bonus)canvasPill('SCORE',bx+bw-88,30,76,{accent:map.accent})}
   if(chatAvailable())canvasIconButton('chat','chat',832,13,54,40,()=>openChat(),{accent:UI.cyan,badge:chatUnread});canvasIconButton('pause','menu',894,13,58,40,()=>openGameMenu(),{accent:UI.orange})
 }
+function landscapeTouchLayout(){
+  let view=gameplayViewport(),leftSpace=surfaceOffsetX+view.x,rightStart=surfaceOffsetX+view.x+view.w,rightSpace=surfaceW-rightStart,panelGap=7,panelW=Math.max(114,Math.min(226,leftSpace-panelGap*2,rightSpace-panelGap*2)),leftPanelX=panelGap,rightPanelX=surfaceW-panelGap-panelW,leftX=leftPanelX+panelW/2,rightX=rightPanelX+panelW/2,scale=clamp(panelW/122,1,1.55);
+  return{
+    panelY:76,panelH:H-84,panelW,leftPanelX,rightPanelX,leftX,rightX,labelY:104,scale,
+    joy:{x:leftX,y:H-145,outerR:Math.min(84,(panelW-8)/2),faceR:Math.min(77,56*scale),knobR:Math.min(34,25*scale),knobTravel:Math.min(54,38*scale),dragR:Math.min(84,62*scale),hitR:Math.min(94,69*scale)},
+    dash:{x:rightX,y:H-132,outerR:Math.min(72,50*scale),faceR:Math.min(61,41*scale),hitR:Math.min(82,57*scale)},
+    supers:[{x:rightX,y:166},{x:rightX,y:276}],superOuterR:Math.min(57,40*scale),superFaceR:Math.min(49,34*scale),superHitR:Math.min(65,46*scale)
+  }
+}
 function canvasDrawTouchControls(){
   if(!canvasTouchDevice)return;
-  canvasBox(8,82,114,H-94,{fill:'#060e19',stroke:UI.lineSoft,r:14,line:1});canvasBox(W-122,82,114,H-94,{fill:'#060e19',stroke:UI.lineSoft,r:14,line:1});
-  cx.save();cx.translate(65,102);drawUiGlyph(cx,'move',.58,UI.muted);cx.restore();cx.save();cx.translate(W-65,102);drawUiGlyph(cx,'actions',.58,UI.muted);cx.restore();
-  let joyX=65,joyY=330,joyR=53;canvasBox(joyX-61,joyY-61,122,122,{fill:'#091625',stroke:UI.line,r:61,line:1.5});cx.save();cx.fillStyle='#0e2035';cx.strokeStyle=UI.cyan;cx.lineWidth=2;cx.beginPath();cx.arc(joyX,joyY,joyR,0,Math.PI*2);cx.fill();cx.stroke();canvasRule(joyX-34,joyY,joyX+34,joyY,'#2d4a62');canvasRule(joyX,joyY-34,joyX,joyY+34,'#2d4a62');let sx=joyX+touch.x*32,sy=joyY+touch.y*32;cx.fillStyle=touch.on?UI.cyanSoft:UI.cyan;cx.beginPath();cx.arc(sx,sy,20,0,Math.PI*2);cx.fill();cx.restore();
-  let p=(game.players||[]).find(x=>x.id===(onlineSession()?net.localId:0))||game.players[0],dashX=W-65,dashY=386,dashReady=!p||p.cd<=0;
-  canvasBox(dashX-43,dashY-43,86,86,{fill:'#091625',stroke:UI.line,r:43,line:1});cx.fillStyle=touch.dash?'#fff':dashReady?UI.orange:'#70301f';cx.strokeStyle=dashReady?'#ffd39a':'#704537';cx.lineWidth=2;cx.beginPath();cx.arc(dashX,dashY,34,0,Math.PI*2);cx.fill();cx.stroke();cx.save();cx.translate(dashX-2,dashY);drawUiGlyph(cx,'dash',.82,touch.dash?UI.orangeDark:'#17100a');cx.restore();
-  if(p&&p.cd>0){let ratio=clamp(1-p.cd/Math.max(.01,playerDashCooldown(p)),0,1);cx.strokeStyle=UI.cyan;cx.lineWidth=4;cx.beginPath();cx.arc(dashX,dashY,39,-Math.PI/2,-Math.PI/2+Math.PI*2*ratio);cx.stroke()}
+  let layout=landscapeTouchLayout(),joy=layout.joy,dash=layout.dash;cx.save();cx.translate(-surfaceOffsetX,0);
+  canvasBox(layout.leftPanelX,layout.panelY,layout.panelW,layout.panelH,{fill:'#060e19',stroke:UI.lineSoft,r:15,line:1});canvasBox(layout.rightPanelX,layout.panelY,layout.panelW,layout.panelH,{fill:'#060e19',stroke:UI.lineSoft,r:15,line:1});
+  cx.save();cx.translate(layout.leftX,layout.labelY);drawUiGlyph(cx,'move',.7,UI.muted);cx.restore();cx.save();cx.translate(layout.rightX,layout.labelY);drawUiGlyph(cx,'actions',.7,UI.muted);cx.restore();
+  canvasBox(joy.x-joy.outerR,joy.y-joy.outerR,joy.outerR*2,joy.outerR*2,{fill:'#091625',stroke:UI.line,r:joy.outerR,line:1.8});cx.save();cx.fillStyle='#0e2035';cx.strokeStyle=UI.cyan;cx.lineWidth=2.5;cx.beginPath();cx.arc(joy.x,joy.y,joy.faceR,0,Math.PI*2);cx.fill();cx.stroke();canvasRule(joy.x-39,joy.y,joy.x+39,joy.y,'#2d4a62',1.4);canvasRule(joy.x,joy.y-39,joy.x,joy.y+39,'#2d4a62',1.4);let sx=joy.x+touch.x*joy.knobTravel,sy=joy.y+touch.y*joy.knobTravel;cx.fillStyle=touch.on?UI.cyanSoft:UI.cyan;cx.strokeStyle='#d9fbff';cx.lineWidth=1.5;cx.beginPath();cx.arc(sx,sy,joy.knobR,0,Math.PI*2);cx.fill();cx.stroke();cx.restore();
+  let p=(game.players||[]).find(x=>x.id===(onlineSession()?net.localId:0))||game.players[0],dashReady=!p||p.cd<=0;
+  canvasBox(dash.x-dash.outerR,dash.y-dash.outerR,dash.outerR*2,dash.outerR*2,{fill:'#091625',stroke:UI.line,r:dash.outerR,line:1.4});cx.fillStyle=touch.dash?'#fff':dashReady?UI.orange:'#70301f';cx.strokeStyle=dashReady?'#ffd39a':'#704537';cx.lineWidth=2.5;cx.beginPath();cx.arc(dash.x,dash.y,dash.faceR,0,Math.PI*2);cx.fill();cx.stroke();cx.save();cx.translate(dash.x-2,dash.y);drawUiGlyph(cx,'dash',1,touch.dash?UI.orangeDark:'#17100a');cx.restore();
+  if(p&&p.cd>0){let ratio=clamp(1-p.cd/Math.max(.01,playerDashCooldown(p)),0,1);cx.strokeStyle=UI.cyan;cx.lineWidth=4.5;cx.beginPath();cx.arc(dash.x,dash.y,dash.faceR+5,-Math.PI/2,-Math.PI/2+Math.PI*2*ratio);cx.stroke()}
   let slots=sanitizeSuperSlots(p&&p.superSlots);
   for(let i=0;i<2;i++){
-    let x=W-65,y=245-i*62,slot=slots[i],def=slot.type?SUPER_DEFS[slot.type]:null,ready=!!def&&slot.cooldown<=0;
-    canvasBox(x-29,y-29,58,58,{fill:'#091625',stroke:UI.line,r:12,line:1});canvasBox(x-24,y-24,48,48,{fill:ready?'#25375a':'#172233',stroke:ready?def.color:UI.line,r:9,line:1.5});
-    cx.save();cx.translate(x,y);if(def)drawToolModule(cx,slot.type,ready,visualNowMs()/1000+i);else drawUiGlyph(cx,'empty',.72,UI.dim);cx.restore();
-    if(def&&slot.cooldown>0){let ratio=clamp(1-slot.cooldown/def.cooldown,0,1);cx.strokeStyle=def.color;cx.lineWidth=3;cx.beginPath();cx.arc(x,y,26,-Math.PI/2,-Math.PI/2+Math.PI*2*ratio);cx.stroke()}
-    else if(ready){cx.save();cx.translate(x+19,y-19);cx.fillStyle=UI.green;cx.beginPath();cx.arc(0,0,7,0,Math.PI*2);cx.fill();drawUiGlyph(cx,'check',.3,'#07120d');cx.restore()}
+    let pos=layout.supers[i],x=pos.x,y=pos.y,slot=slots[i],def=slot.type?SUPER_DEFS[slot.type]:null,ready=!!def&&slot.cooldown<=0;
+    canvasBox(x-layout.superOuterR,y-layout.superOuterR,layout.superOuterR*2,layout.superOuterR*2,{fill:'#091625',stroke:UI.line,r:16,line:1.2});canvasBox(x-layout.superFaceR,y-layout.superFaceR,layout.superFaceR*2,layout.superFaceR*2,{fill:ready?'#25375a':'#172233',stroke:ready?def.color:UI.line,r:13,line:1.8});
+    cx.save();cx.translate(x,y);if(def)drawToolModule(cx,slot.type,ready,visualNowMs()/1000+i);else drawUiGlyph(cx,'empty',.9,UI.dim);cx.restore();
+    if(def&&slot.cooldown>0){let ratio=clamp(1-slot.cooldown/def.cooldown,0,1);cx.strokeStyle=def.color;cx.lineWidth=4;cx.beginPath();cx.arc(x,y,layout.superFaceR+3,-Math.PI/2,-Math.PI/2+Math.PI*2*ratio);cx.stroke()}
+    else if(ready){cx.save();cx.translate(x+layout.superFaceR*.79,y-layout.superFaceR*.79);cx.fillStyle=UI.green;cx.beginPath();cx.arc(0,0,8,0,Math.PI*2);cx.fill();drawUiGlyph(cx,'check',.34,'#07120d');cx.restore()}
   }
+  cx.restore()
 }
 function canvasDrawGame(){
   canvasSetFocusScope('game','');captureWorldFrame();let view=composeWorldFrame();canvasDrawHud();
@@ -4541,10 +4554,10 @@ function drawCanvasApplication(now){
   }
   canvasNormalizeFocus()
 }
-function canvasGameplayPointerDown(e,p){if(portraitMode()||gameplayInputBlocked()||!gameplayScreenVisible()||game.phase!=='play'||game.paused||game.over)return false;let id=e.pointerId;if(canvasTouchDevice&&hypot(p.x-65,p.y-330)<64){canvasPointers.set(id,{type:'joy',anchor:{x:65,y:330}});touch.on=true;touch.id=id;touch.anchorX=65;touch.anchorY=330;touch.engaged=true;touch.x=touch.y=0;return true}if(canvasTouchDevice&&hypot(p.x-(W-65),p.y-386)<46){canvasPointers.set(id,{type:'dash'});touch.dash=true;queueDashPress();return true}for(let i=0;i<2;i++){let x=W-65,y=245-i*62;if(canvasTouchDevice&&Math.abs(p.x-x)<32&&Math.abs(p.y-y)<32){canvasPointers.set(id,{type:'super',slot:i});touch.super=true;touch.superSlot=i;return true}}return false}
-function canvasGameplayPointerMove(e,p){let rec=canvasPointers.get(e.pointerId);if(!rec||rec.type!=='joy')return;let dx=p.x-rec.anchor.x,dy=p.y-rec.anchor.y,d=hypot(dx,dy),m=Math.min(1,d/62);touch.x=d?dx/d*m:0;touch.y=d?dy/d*m:0}
+function canvasGameplayPointerDown(e,p){if(portraitMode()||gameplayInputBlocked()||!gameplayScreenVisible()||game.phase!=='play'||game.paused||game.over)return false;let id=e.pointerId,layout=landscapeTouchLayout(),joy=layout.joy,dash=layout.dash,px=Number.isFinite(p.sx)?p.sx:p.x+surfaceOffsetX;if(canvasTouchDevice&&hypot(px-joy.x,p.y-joy.y)<joy.hitR){canvasPointers.set(id,{type:'joy',anchor:{x:joy.x,y:joy.y},dragR:joy.dragR});touch.on=true;touch.id=id;touch.anchorX=joy.x;touch.anchorY=joy.y;touch.engaged=true;touch.x=touch.y=0;return true}if(canvasTouchDevice&&hypot(px-dash.x,p.y-dash.y)<dash.hitR){canvasPointers.set(id,{type:'dash'});touch.dash=true;queueDashPress();return true}for(let i=0;i<layout.supers.length;i++){let pos=layout.supers[i];if(canvasTouchDevice&&hypot(px-pos.x,p.y-pos.y)<layout.superHitR){canvasPointers.set(id,{type:'super',slot:i});touch.super=true;touch.superSlot=i;return true}}return false}
+function canvasGameplayPointerMove(e,p){let rec=canvasPointers.get(e.pointerId);if(!rec||rec.type!=='joy')return;let px=Number.isFinite(p.sx)?p.sx:p.x+surfaceOffsetX,dx=px-rec.anchor.x,dy=p.y-rec.anchor.y,d=hypot(dx,dy),m=Math.min(1,d/Math.max(1,rec.dragR||62));touch.x=d?dx/d*m:0;touch.y=d?dy/d*m:0}
 function canvasGameplayPointerEnd(e){let rec=canvasPointers.get(e.pointerId);if(!rec)return;if(rec.type==='joy'){touch.on=false;touch.id=null;touch.x=touch.y=0;touch.engaged=false}else if(rec.type==='dash')touch.dash=false;else if(rec.type==='super'){touch.super=false;touch.superSlot=-1}canvasPointers.delete(e.pointerId)}
-window.__coinDashTest={state:()=>({phase:game.phase,won:game.won,time:game.time,level:game.level,selectedLevel,bonus:isBonusLevel(),remaining:bonusTimeRemaining(),coins:game.coins.length,availableCoins:game.coins.filter(c=>!c.taken).length,enemies:game.enemies.length,score:bonusCoinsCollected(),play:gameplayScreenVisible(),simulationFaults,renderFaults,player0:game.players&&game.players[0]?{x:game.players[0].x,y:game.players[0].y,dt:game.players[0].dt,cd:game.players[0].cd}:null,levelSelect:levelSelectVisible(),setup:uiState.screen==='home',hits:canvasHits.length,pairView,menuOpen,chatOpen,inputMode:canvasInputMode,helpOpen,pendingStart:!!pendingStartRequest,levelCategory:levelSelectCategory,screen:activeBaseScreen(),overlay:activeOverlay(),protocol:PROTOCOL_VERSION,version:CANVAS_APP_VERSION,transitionKey:net.transitionKey,bodyChildren:document.body.children.length}),click:id=>{let h=canvasHits.find(x=>x.id===id);if(h&&h.enabled){h.action();return true}return false},render:()=>{syncFrameBuffers();let previous=cx;cx=appFrameCx;try{applyCanvasContextDefaults();setWorldTransform();drawCanvasApplication(performance.now())}finally{cx=previous}commitCanvasFrame();presentCanvasFrame()},setTime:value=>{game.time=Math.max(0,num(value));return game.time},tick:dt=>{update(Math.max(0,num(dt)),true);return game.phase},collectFirst:()=>{let p=game.players[0],coin=game.coins.find(c=>!c.taken);if(!p||!coin)return false;collectCoin(p,coin);return true}};
+window.__coinDashTest={state:()=>({phase:game.phase,won:game.won,time:game.time,level:game.level,selectedLevel,bonus:isBonusLevel(),remaining:bonusTimeRemaining(),coins:game.coins.length,availableCoins:game.coins.filter(c=>!c.taken).length,enemies:game.enemies.length,score:bonusCoinsCollected(),play:gameplayScreenVisible(),simulationFaults,renderFaults,player0:game.players&&game.players[0]?{x:game.players[0].x,y:game.players[0].y,dt:game.players[0].dt,cd:game.players[0].cd}:null,levelSelect:levelSelectVisible(),setup:uiState.screen==='home',hits:canvasHits.length,pairView,menuOpen,chatOpen,inputMode:canvasInputMode,helpOpen,pendingStart:!!pendingStartRequest,levelCategory:levelSelectCategory,screen:activeBaseScreen(),overlay:activeOverlay(),protocol:PROTOCOL_VERSION,version:CANVAS_APP_VERSION,transitionKey:net.transitionKey,bodyChildren:document.body.children.length,surfaceW,surfaceOffsetX,touchLayout:canvasTouchDevice?landscapeTouchLayout():null}),click:id=>{let h=canvasHits.find(x=>x.id===id);if(h&&h.enabled){h.action();return true}return false},render:()=>{syncFrameBuffers();let previous=cx;cx=appFrameCx;try{applyCanvasContextDefaults();setWorldTransform();drawCanvasApplication(performance.now())}finally{cx=previous}commitCanvasFrame();presentCanvasFrame()},setTime:value=>{game.time=Math.max(0,num(value));return game.time},tick:dt=>{update(Math.max(0,num(dt)),true);return game.phase},collectFirst:()=>{let p=game.players[0],coin=game.coins.find(c=>!c.taken);if(!p||!coin)return false;collectCoin(p,coin);return true}};
 cv.addEventListener('pointerdown',e=>{e.preventDefault();let p=canvasEventPoint(e);if(canvasGameplayPointerDown(e,p))return;let hit=[...canvasHits].reverse().find(h=>h.enabled&&canvasPointIn(h,p.x,p.y));canvasPressedHit=hit||null;if(hit)canvasFocusId=hit.id;if(hit&&hit.id.startsWith('key-')){hit.action();canvasPressedHit=null}});
 cv.addEventListener('pointermove',e=>{let p=canvasEventPoint(e);canvasGameplayPointerMove(e,p);let hit=[...canvasHits].reverse().find(h=>h.enabled&&canvasPointIn(h,p.x,p.y));canvasHoverId=hit?hit.id:'';if(!canvasTouchDevice)cv.style.cursor=hit?'pointer':'default'});
 cv.addEventListener('pointerup',e=>{let p=canvasEventPoint(e);canvasGameplayPointerEnd(e);let hit=canvasPressedHit;canvasPressedHit=null;if(hit&&hit.enabled&&canvasPointIn(hit,p.x,p.y))hit.action()});
@@ -4553,7 +4566,7 @@ cv.addEventListener('pointerleave',()=>{canvasHoverId='';canvasPressedHit=null;i
 window.addEventListener('keydown',e=>{if(!canvasInputMode)return;let key=e.key;if(key==='Escape'){canvasCloseInput()}else if(key==='Backspace'){canvasInputBack()}else if(key==='Enter'){canvasSubmitInput()}else if(key.length===1&&(!e.ctrlKey&&!e.metaKey&&!e.altKey)){let ch=canvasInputMode==='code'?key.toUpperCase():key;if(canvasInputMode!=='code'||/[A-Z0-9]/.test(ch))canvasInputChar(ch)}e.preventDefault();e.stopImmediatePropagation()},{capture:true});
 
 function syncOrientationMode(){
-  let locked=portraitMode();cv.classList.toggle('portrait-lock',locked);
+  let locked=portraitMode();cv.classList.toggle('portrait-lock',locked);cv.classList.toggle('wide-touch',canvasTouchDevice&&!locked);
   let gameplayLocked=locked&&gameplayScreenVisible();
   if(gameplayLocked&&!orientationWasLocked){
     resetGameplayInput();
@@ -4565,7 +4578,7 @@ function syncOrientationMode(){
   orientationWasLocked=gameplayLocked;return locked;
 }
 function fitCanvas(){
-  syncOrientationMode();let rect=cv.getBoundingClientRect(),scale=cv.classList.contains('portrait-lock')?Math.max(.05,Math.min(rect.height/W,rect.width/H)):Math.max(.05,Math.min(rect.width/W,rect.height/H));configureCanvasResolution(scale);
+  syncOrientationMode();let rect=cv.getBoundingClientRect(),wide=cv.classList.contains('wide-touch');surfaceW=wide?Math.max(W,H*rect.width/Math.max(1,rect.height)):W;surfaceOffsetX=(surfaceW-W)/2;let scale=cv.classList.contains('portrait-lock')?Math.max(.05,Math.min(rect.height/W,rect.width/H)):Math.max(.05,Math.min(rect.width/surfaceW,rect.height/H));configureCanvasResolution(scale);
 }
 function refreshLayout(){fitCanvas();if(pendingStartRequest&&!portraitMode())setTimeout(continuePendingStart,0);ui(true)}
 window.addEventListener('resize',refreshLayout);
