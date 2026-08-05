@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry Canvas Edition</title>
-<meta name="application-version" content="1.5.9">
+<meta name="application-version" content="1.6.0">
 <style>
 html,body{margin:0;width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#010207;touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
 body{display:grid;place-items:center;box-sizing:border-box;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
@@ -4079,7 +4079,8 @@ function createRoomCode(ownerToken){return fetch(ONLINE_API+'/rooms',{method:'PO
 function stopRoomBrowserRefresh(){if(roomBrowser.timer)clearTimeout(roomBrowser.timer);roomBrowser.timer=0}
 function scheduleRoomBrowserRefresh(){stopRoomBrowserRefresh();if(pairView!=='browser')return;roomBrowser.timer=setTimeout(()=>refreshRoomBrowser(),12000)}
 function normalizeRoomListing(value){if(!value||typeof value!=='object')return null;let code=normalizeRoomCode(value.code),players=Math.max(0,Math.min(ROOM_JOINERS+1,Math.round(num(value.players))));if(code.length!==ROOM_CODE_LENGTH||players<1)return null;let phase=['lobby','playing','results'].includes(value.phase)?value.phase:'lobby';return{code,players,capacity:Math.max(players,Math.round(num(value.capacity,ROOM_JOINERS+1))),phase,level:Math.max(1,Math.round(num(value.level,1))),difficulty:['easy','normal','hard'].includes(value.difficulty)?value.difficulty:'normal',joinable:value.joinable!==false&&players<ROOM_JOINERS+1,updatedAt:num(value.updatedAt)}}
-function refreshRoomBrowser(){let requestId=++roomBrowser.requestId;roomBrowser.loading=true;roomBrowser.error='';ui(true);return fetch(ONLINE_API+'/rooms',{method:'GET',cache:'no-store'}).then(async response=>{if(!response.ok)throw Error('Server list unavailable');let data=await response.json();if(requestId!==roomBrowser.requestId)return;roomBrowser.rooms=(Array.isArray(data&&data.rooms)?data.rooms:[]).map(normalizeRoomListing).filter(Boolean);roomBrowser.updatedAt=Date.now()}).catch(error=>{if(requestId!==roomBrowser.requestId)return;roomBrowser.error='Could not load active servers.';console.error(error)}).finally(()=>{if(requestId!==roomBrowser.requestId)return;roomBrowser.loading=false;scheduleRoomBrowserRefresh();ui(true)})}
+async function fetchRoomDirectory(attempts=3){let error=Error('Server list unavailable');for(let attempt=0;attempt<attempts;attempt++){let controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),6500);try{let response=await fetch(ONLINE_API+'/rooms',{method:'GET',cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('Server list unavailable');let data=await response.json();if(data&&data.temporary)throw Error('Directory temporarily unavailable');return data}catch(e){error=e instanceof Error?e:error;if(attempt<attempts-1)await new Promise(resolve=>setTimeout(resolve,350+attempt*500))}finally{clearTimeout(timeout)}}throw error}
+function refreshRoomBrowser(){let requestId=++roomBrowser.requestId;roomBrowser.loading=true;roomBrowser.error='';ui(true);return fetchRoomDirectory().then(data=>{if(requestId!==roomBrowser.requestId)return;roomBrowser.rooms=(Array.isArray(data&&data.rooms)?data.rooms:[]).map(normalizeRoomListing).filter(Boolean);roomBrowser.updatedAt=Date.now()}).catch(error=>{if(requestId!==roomBrowser.requestId)return;roomBrowser.error=roomBrowser.rooms.length?'Refresh failed · showing last known servers.':'Could not reach the multiplayer server. Tap refresh to retry.';console.error(error)}).finally(()=>{if(requestId!==roomBrowser.requestId)return;roomBrowser.loading=false;scheduleRoomBrowserRefresh();ui(true)})}
 function openMultiplayer(){stopRoomBrowserRefresh();clearInviteCodeFromUrl();pairView='browser';if(onlineSession())resetNetwork('solo');uiState.roomCode='';setSetupStatus('Choose an active server or create your own.');refreshRoomBrowser();ui(true)}
 function closeMultiplayer(){stopRoomBrowserRefresh();roomBrowser.requestId++;roomBrowser.loading=false;pairView='intro';ui(true)}
 function beginPairFlow(role,view){stopRoomBrowserRefresh();pairView=view;resetNetwork(role);uiState.roomCode='';ui(true);return net.session}
@@ -4313,12 +4314,18 @@ function resumeAudioForForeground(){
   if(ctx&&ctx.state==='suspended')ctx.resume().then(ready).catch(()=>{});
   else ready();
 }
+function recoverNetworkForForeground(){
+  if(pairView==='browser')refreshRoomBrowser();
+  if(!onlineSession()||net.manualClose||!net.roomCode)return;
+  if(net.socket&&net.socket.readyState===WebSocket.OPEN){net.heartbeatTimer=0;sendServer({t:'ping',pv:PROTOCOL_VERSION,at:performance.now()});sendServer({t:'sync',pv:PROTOCOL_VERSION});return}
+  clearReconnect();net.reconnectAttempt=0;scheduleReconnect(net.session)
+}
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden)suspendAudioForBackground();
-  else resumeAudioForForeground();
+  else{resumeAudioForForeground();recoverNetworkForForeground()}
 });
 window.addEventListener('blur',suspendAudioForBackground);
-window.addEventListener('focus',resumeAudioForForeground);
+window.addEventListener('focus',()=>{resumeAudioForForeground();recoverNetworkForForeground()});
 window.addEventListener('pagehide',suspendAudioForBackground);
 window.addEventListener('pageshow',resumeAudioForForeground);
 let displayNotice='',displayNoticeUntil=0;
@@ -4349,7 +4356,7 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.5.9';
+const CANVAS_APP_VERSION='1.6.0';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
