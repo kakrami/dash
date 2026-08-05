@@ -237,8 +237,8 @@ addFoundryHazard(9,{type:'flame',x:235,y:270,angle:0,length:135,width:32,period:
 addFoundryHazard(9,{type:'flame',x:725,y:270,angle:Math.PI,length:135,width:32,period:3.7,on:1.4,phase:2.05,color:'#9b4df2',fuel:'potassium'});
 addFoundryHazard(10,{type:'flame',x:30,y:150,angle:0,length:175,width:36,period:3.3,on:1.35,phase:.1,color:'#ed2b10',fuel:'inferno'});
 addFoundryHazard(10,{type:'flame',x:930,y:390,angle:Math.PI,length:175,width:36,period:3.3,on:1.35,phase:1.75,color:'#168cff',fuel:'acetylene'});
-const CAMPAIGN_LEVEL_COUNT=LEVELS.length;
-LEVELS.push(
+const REGULAR_LEVELS=LEVELS.slice();
+const SPECIAL_LEVELS=[
   {
     name:'Coin Cyclone',gimmick:'Chase three rotating coin rings',accent:'#ffd45d',depth:10,floorA:'#201807',floorB:'#574314',glow:'#ffd45d1d',speed:1,enemyBonus:0,bonus:true,bonusKind:'orbit',bonusTime:45,bonusRespawn:.8,
     walls:[r(438,228,84,84),r(175,100,72,30),r(713,100,72,30),r(175,410,72,30),r(713,410,72,30)],
@@ -264,12 +264,16 @@ LEVELS.push(
       {type:'gravity',x:650,y:270,radius:150,strength:-72,color:'#61e8ff'}
     ],exit:[480,270]
   }
+];
+LEVELS.splice(0,LEVELS.length,
+  ...REGULAR_LEVELS.slice(0,4),SPECIAL_LEVELS[0],
+  ...REGULAR_LEVELS.slice(4,8),SPECIAL_LEVELS[1],
+  ...REGULAR_LEVELS.slice(8),SPECIAL_LEVELS[2]
 );
-const BONUS_LEVEL_COUNT=LEVELS.length-CAMPAIGN_LEVEL_COUNT;
+const FINAL_LEVEL=LEVELS.length;
 function isBonusLevel(level=game&&game.level){return!!levelConfig(level).bonus}
-function bonusLevelNumber(level=game&&game.level){return Math.max(1,normalizeLevel(level)-CAMPAIGN_LEVEL_COUNT)}
-function levelDisplayCode(level){level=normalizeLevel(level);return isBonusLevel(level)?'B'+bonusLevelNumber(level):String(level)}
-function levelDisplayLabel(level){return isBonusLevel(level)?'BONUS '+bonusLevelNumber(level):'LEVEL '+normalizeLevel(level)}
+function levelDisplayCode(level){return String(normalizeLevel(level))}
+function levelDisplayLabel(level){return'LEVEL '+normalizeLevel(level)}
 function normalizeLevel(v){return clamp(Math.round(num(v,1)),1,LEVELS.length)}
 function levelConfig(v){let map=LEVELS[normalizeLevel(v)-1];if(!map.hazards)map.hazards=[];return map}
 function levelWalls(v=game&&game.level){return BORDER_WALLS.concat(levelConfig(v).walls)}
@@ -279,8 +283,8 @@ const CLIENT_UI_INTERVAL=1/20;
 const MOTION_BUFFER_DELAY=50;
 const MOTION_EXTRAPOLATION_LIMIT=.08;
 const LOCAL_DASH_SOFT_ERROR=42;
-const PROTOCOL_VERSION=14;
-const ENGINE_REVISION='foundry-2026-08-04-r5';
+const PROTOCOL_VERSION=15;
+const ENGINE_REVISION='foundry-2026-08-04-r6';
 const SIMULATION_STEP=1/60;
 const MAX_SIMULATION_STEPS=6;
 const MAX_SIMULATION_BACKLOG=.18;
@@ -786,9 +790,7 @@ function saveLevelProgress(){
 }
 function completeLevel(){
   for(const p of game.players)if(p.connected!==false)gainSuperEnergy(p,24,'survival');
-  let map=levelConfig(game.level);
-  if(map.bonus)end(true);
-  else if(game.level<CAMPAIGN_LEVEL_COUNT)loadLevel(game.level+1);
+  if(game.level<FINAL_LEVEL)loadLevel(game.level+1);
   else end(true)
 }
 function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',socket:null,roomCode:'',clientToken:'',connectionId:'',localId:0,ownerId:-1,connected:false,reconnectTimer:0,reconnectAttempt:0,manualClose:false,roster:new Map(),members:[],timer:0,uiTimer:0,heartbeatTimer:0,staleSyncAt:0,stateEpoch:1,pendingEpoch:0,lastStateSeq:0,lastMotionSeq:0,lastEventSeq:0,lastFireSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashCooldown:0,clientDashPendingSeq:0,clientDashDir:{x:1,y:0},clientFireIds:new Set(),fireSeq:0,lobbyStage:'idle',lobbyNotice:'',lobbyNoticeTone:'info',lobbyNoticeUntil:0,lobbyRevision:0,lobbyReady:new Map(),localReady:false,pingMs:0,lastPongAt:0,transitionKey:'',transitionAt:0,transitionSyncAt:0,lastServerAt:0}}
@@ -1869,7 +1871,7 @@ for(const e of game.enemies){
 }
 let taken=game.coins.filter(c=>c.taken).length,boss=game.enemies.find(e=>e.type==='warden');
 if(!game.players.some(p=>p.alive)){end(false)}
-else if(map.bonus){if(game.time>=num(map.bonusTime,45))end(true)}
+else if(map.bonus){if(game.time>=num(map.bonusTime,45))completeLevel()}
 else if(map.boss){if(boss&&boss.defeated&&boss.deathTimer<=0)completeLevel()}
 else if(taken===game.total&&game.players.some(p=>p.alive&&hypot(p.x-game.exit.x,p.y-game.exit.y)<p.r+game.exit.r)){completeLevel()}
 game.shake=Math.max(0,game.shake-dt);
@@ -4217,7 +4219,7 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.4.9';
+const CANVAS_APP_VERSION='1.5.0';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
@@ -4404,9 +4406,9 @@ function canvasDrawLevelSelect(){
 }
 function canvasDrawHud(){
   let map=levelConfig(game.level),bonus=!!map.bonus,got=bonus?bonusCoinsCollected():(game.coins||[]).filter(c=>c.taken).length,remaining=bonus?bonusTimeRemaining():0,displayTime=bonus?remaining:game.time,m=Math.floor(displayTime/60),sec=String(Math.floor(displayTime%60)).padStart(2,'0'),clockAccent=bonus&&remaining<=10?UI.red:UI.cyan;cx.fillStyle='#030811';cx.fillRect(0,0,W,64);canvasRule(0,63,W,63,bonus?map.accent:UI.cyan,2);
-  canvasMetricIcon(8,8,82,'coin',bonus?String(got):got+'/'+game.total,{accent:UI.yellow,valueColor:UI.yellow});canvasMetricIcon(96,8,76,'clock',m+':'+sec,{accent:clockAccent,valueColor:clockAccent});canvasMetricIcon(178,8,72,'level',bonus?'B'+bonusLevelNumber():String(game.level),{accent:bonus?map.accent:UI.orange});
+  canvasMetricIcon(8,8,82,'coin',bonus?String(got):got+'/'+game.total,{accent:UI.yellow,valueColor:UI.yellow});canvasMetricIcon(96,8,76,'clock',m+':'+sec,{accent:clockAccent,valueColor:clockAccent});canvasMetricIcon(178,8,72,'level',String(game.level),{accent:bonus?map.accent:UI.orange});
   let px=258;for(const p of (game.players||[]).slice().sort((a,b)=>a.id-b.id).slice(0,5)){let pw=61,color=colors[p.id%colors.length];canvasBox(px,8,pw,48,{fill:UI.surface,stroke:UI.lineSoft,r:10,line:1});cx.fillStyle=color;cx.fillRect(px,14,4,36);canvasText('P'+(p.id+1),px+10,20,10,'left',color,1000,28);canvasText(p.score,px+pw-7,20,10,'right',UI.yellow,1000,26);for(let i=0;i<p.maxHp;i++){cx.save();cx.translate(px+10+i*8.6,42);drawUiGlyph(cx,'heart',.27,i<p.hp?UI.red:UI.dim);cx.restore()}px+=65}
-  let boss=(game.enemies||[]).find(e=>e.type==='warden'),bx=586,bw=238;if(boss&&map.boss){let ratio=clamp(boss.hp/Math.max(1,boss.maxHp),0,1);canvasBox(bx,8,bw,48,{fill:UI.surface,stroke:UI.lineSoft,r:10,line:1});canvasText(bossMetaForLevel(game.level).name,bx+12,20,11,'left','#ffe7bc',1000,bw-24);canvasBox(bx+12,34,bw-24,11,{fill:'#250703',stroke:'#5e1b12',r:6,line:1});cx.fillStyle=UI.orange;cx.beginPath();cx.roundRect(bx+12,34,(bw-24)*ratio,11,6);cx.fill()}else{canvasBox(bx,8,bw,48,{fill:UI.surface,stroke:bonus?map.accent:UI.lineSoft,r:10,line:1});canvasText(bonus?'BONUS RUN':game.levelName||map.name,bx+12,24,13,'left',bonus?map.accent:UI.text,1000,bw-24);if(bonus)canvasPill('SCORE',bx+bw-88,30,76,{accent:map.accent})}
+  let boss=(game.enemies||[]).find(e=>e.type==='warden'),bx=586,bw=238;if(boss&&map.boss){let ratio=clamp(boss.hp/Math.max(1,boss.maxHp),0,1);canvasBox(bx,8,bw,48,{fill:UI.surface,stroke:UI.lineSoft,r:10,line:1});canvasText(bossMetaForLevel(game.level).name,bx+12,20,11,'left','#ffe7bc',1000,bw-24);canvasBox(bx+12,34,bw-24,11,{fill:'#250703',stroke:'#5e1b12',r:6,line:1});cx.fillStyle=UI.orange;cx.beginPath();cx.roundRect(bx+12,34,(bw-24)*ratio,11,6);cx.fill()}else{canvasBox(bx,8,bw,48,{fill:UI.surface,stroke:bonus?map.accent:UI.lineSoft,r:10,line:1});canvasText(game.levelName||map.name,bx+12,24,13,'left',bonus?map.accent:UI.text,1000,bw-24);if(bonus)canvasPill('SCORE',bx+bw-88,30,76,{accent:map.accent})}
   if(chatAvailable())canvasIconButton('chat','chat',832,13,54,40,()=>openChat(),{accent:UI.cyan,badge:chatUnread});canvasIconButton('pause','menu',894,13,58,40,()=>openGameMenu(),{accent:UI.orange})
 }
 function landscapeTouchLayout(){
@@ -4459,22 +4461,15 @@ function canvasDrawGame(){
   else if(overlay==='chat')canvasDrawChat();
   else if(overlay==='input'&&canvasTouchDevice)canvasDrawKeyboard();
 }
-function nextResultLevel(){
-  if(isBonusLevel())return game.level<LEVELS.length?game.level+1:CAMPAIGN_LEVEL_COUNT+1;
-  return game.level>=CAMPAIGN_LEVEL_COUNT?1:game.level+1;
-}
-function resultPrimaryLabel(){
-  if(!game.won)return'RETRY LEVEL';
-  if(isBonusLevel())return game.level<LEVELS.length?'NEXT BONUS':'PLAY AGAIN';
-  return game.level>=CAMPAIGN_LEVEL_COUNT?'PLAY AGAIN':'NEXT LEVEL';
-}
+function nextResultLevel(){return game.level>=FINAL_LEVEL?1:game.level+1}
+function resultPrimaryLabel(){if(!game.won)return'RETRY LEVEL';return game.level>=FINAL_LEVEL?'PLAY AGAIN':'NEXT LEVEL'}
 function startNextLevel(){
   if(onlineSession()&&!isLobbyOwner())return;let next=nextResultLevel();selectedLevel=next;selectedDifficulty=normalizeDifficulty(game.difficulty);saveLevelProgress();beginRun(selectedDifficulty,next);
 }
 function canvasDrawMenu(){
   let online=onlineSession(),client=online&&!isLobbyOwner(),over=!!game.over,roomOpen=menuPairOpen&&online,buttons=[],map=levelConfig(game.level),bonus=!!map.bonus;canvasSetFocusScope('menu-'+(over?'results':'pause'),over?(client?'menu-leave':'menu-result-primary'):'menu-resume');
-  if(over){if(client){buttons.push({id:'wait',label:'WAITING',disabled:true});buttons.push({id:'leave',label:'LEAVE',action:()=>leaveSession(),danger:true})}else{buttons.push({id:'result-primary',label:resultPrimaryLabel(),action:game.won?()=>startNextLevel():()=>restartCurrentLevel(),primary:true});buttons.push({id:'select-level',label:'LEVEL SELECT',action:()=>chooseLevelFromGameMenu()});buttons.push({id:'controls',label:'CONTROLS',action:()=>openHelp()});buttons.push({id:'main-menu',label:'MAIN MENU',action:()=>requestMainMenu()})}}else{buttons.push({id:'resume',label:'RESUME',action:()=>resumeGame(),primary:true});if(!client){buttons.push({id:'restart',label:bonus?'RESTART BONUS':'RESTART',action:()=>menuSecondaryAction()});buttons.push({id:'select-level',label:'CHANGE LEVEL',action:()=>chooseLevelFromGameMenu()});buttons.push({id:'controls',label:'CONTROLS',action:()=>openHelp()})}if(online)buttons.push({id:'room',label:roomOpen?'HIDE ROOM':'ROOM INFO',action:()=>toggleMenuPlayers()});if(chatAvailable())buttons.push({id:'chat-menu',label:'CHAT',action:()=>openChat()});buttons.push({id:'main-menu',label:client?'LEAVE GAME':'MAIN MENU',action:()=>requestMainMenu(),danger:client})}
-  let columns=buttons.length>5?2:1,rows=Math.ceil(buttons.length/columns),buttonH=46,gap=10,bodyH=rows*buttonH+Math.max(0,rows-1)*gap,roomH=roomOpen?76:0,w=columns===2?700:440,h=Math.min(500,132+bodyH+roomH+58),x=(W-w)/2,y=(H-h)/2;cx.save();cx.fillStyle='#010308e8';cx.fillRect(0,0,W,H);cx.restore();canvasPanel(x,y,w,h,.99);let accent=over?(game.won?UI.green:UI.red):UI.orange;cx.fillStyle=accent;cx.fillRect(x,y+24,6,62);canvasText(over?'RESULTS':online?'GAME MENU':'PAUSED',x+34,y+43,30,'left',UI.text,1000,w-68);let subtitle=over?(bonus?bonusCoinsCollected()+' COINS':levelDisplayLabel(game.level)):levelDisplayLabel(game.level);canvasPill(subtitle,x+34,y+76,150,{accent});canvasRule(x+28,y+116,x+w-28,y+116,UI.lineSoft);
+  if(over){if(client){buttons.push({id:'wait',label:'WAITING',disabled:true});buttons.push({id:'leave',label:'LEAVE',action:()=>leaveSession(),danger:true})}else{buttons.push({id:'result-primary',label:resultPrimaryLabel(),action:game.won?()=>startNextLevel():()=>restartCurrentLevel(),primary:true});buttons.push({id:'select-level',label:'LEVEL SELECT',action:()=>chooseLevelFromGameMenu()});buttons.push({id:'controls',label:'CONTROLS',action:()=>openHelp()});buttons.push({id:'main-menu',label:'MAIN MENU',action:()=>requestMainMenu()})}}else{buttons.push({id:'resume',label:'RESUME',action:()=>resumeGame(),primary:true});if(!client){buttons.push({id:'restart',label:'RESTART',action:()=>menuSecondaryAction()});buttons.push({id:'select-level',label:'CHANGE LEVEL',action:()=>chooseLevelFromGameMenu()});buttons.push({id:'controls',label:'CONTROLS',action:()=>openHelp()})}if(online)buttons.push({id:'room',label:roomOpen?'HIDE ROOM':'ROOM INFO',action:()=>toggleMenuPlayers()});if(chatAvailable())buttons.push({id:'chat-menu',label:'CHAT',action:()=>openChat()});buttons.push({id:'main-menu',label:client?'LEAVE GAME':'MAIN MENU',action:()=>requestMainMenu(),danger:client})}
+  let columns=buttons.length>5?2:1,rows=Math.ceil(buttons.length/columns),buttonH=46,gap=10,bodyH=rows*buttonH+Math.max(0,rows-1)*gap,roomH=roomOpen?76:0,w=columns===2?700:440,h=Math.min(500,132+bodyH+roomH+58),x=(W-w)/2,y=(H-h)/2;cx.save();cx.fillStyle='#010308e8';cx.fillRect(0,0,W,H);cx.restore();canvasPanel(x,y,w,h,.99);let accent=over?(game.won?UI.green:UI.red):UI.orange;cx.fillStyle=accent;cx.fillRect(x,y+24,6,62);canvasText(over?'RESULTS':online?'GAME MENU':'PAUSED',x+34,y+43,30,'left',UI.text,1000,w-68);let subtitle=levelDisplayLabel(game.level);canvasPill(subtitle,x+34,y+76,150,{accent});canvasRule(x+28,y+116,x+w-28,y+116,UI.lineSoft);
   let by=y+132,colGap=12,side=44,buttonW=(w-side*2-colGap*(columns-1))/columns;buttons.forEach((b,index)=>{let col=Math.floor(index/rows),row=index%rows,bx=x+side+col*(buttonW+colGap),yy=by+row*(buttonH+gap);canvasMenuButton('menu-'+b.id,b.label,menuActionIcon(b.id),bx,yy,buttonW,buttonH,b.action||(()=>{}),{primary:!!b.primary,danger:!!b.danger,disabled:!!b.disabled})});
   if(roomOpen){let py=by+bodyH+12;canvasBox(x+28,py,w-56,58,{fill:UI.surface2,stroke:UI.lineSoft,r:12,line:1});canvasText(net.roomCode||'------',x+44,py+29,21,'left',UI.cyanSoft,1000);canvasText(lobbyConnectedCount()+' ONLINE',x+w-44,py+29,11,'right',UI.text,1000);if(isLobbyOwner())canvasHit('menu-copy',x+28,py,w-56,58,()=>copyText(net.roomCode,'Room code','menu'))}
   canvasIconButton('menu-sound','sound',x+28,y+h-44,54,32,()=>toggleSound(),{accent:soundEnabled?UI.cyan:UI.dim});canvasIconButton('menu-full','fullscreen',x+w-82,y+h-44,54,32,()=>toggleFull(),{accent:UI.cyan})
