@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Coin Dash: Inferno Foundry Canvas Edition</title>
-<meta name="application-version" content="1.5.6">
+<meta name="application-version" content="1.5.7">
 <style>
 html,body{margin:0;width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#010207;touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
 body{display:grid;place-items:center;box-sizing:border-box;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
@@ -36,6 +36,7 @@ cx.lineJoin='round';
 cx.lineCap='round';
 
 const W=cv.width,H=cv.height,colors=['#20dcff','#ff365f','#66f23f','#ffd21f','#c95bff','#ff7b16'];
+const STAR_FLASH_COLORS=['#fff45c','#ff5fa2','#69f8ff','#8dff63','#ff9a42','#d78cff'];
 const ROOM_JOINERS=4;
 const ONLINE_API=['localhost','127.0.0.1'].includes(location.hostname)?'http://127.0.0.1:8787':'https://coin-dash-online.kiadesignenterprise.workers.dev';
 const DIFFICULTIES={
@@ -432,6 +433,29 @@ function drawJetFlame(ctx,x,y,length,width,phase,styleName='forge',alpha=1,angle
   ctx.globalAlpha=alpha*.28;ctx.strokeStyle=style.core;ctx.shadowColor=style.glow;ctx.shadowBlur=12;ctx.lineWidth=Math.max(2,width*.14);
   ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(angle)*length*.62,y+Math.sin(angle)*length*.62);ctx.stroke();
   ctx.restore();
+}
+function drawContinuousFireRibbon(ctx,x,y,length,width,phase,styleName='drive',alpha=1,angle=Math.PI){
+  let style=fireStyle(styleName),steps=Math.max(6,Math.ceil(length/11)),points=[];
+  for(let i=0;i<=steps;i++){
+    let p=i/steps,distance=p*length,wobble=Math.sin(phase*4.2+i*.88)*width*(.018+.075*p);
+    points.push({
+      x:x+Math.cos(angle)*distance-Math.sin(angle)*wobble,
+      y:y+Math.sin(angle)*distance+Math.cos(angle)*wobble,
+      p
+    });
+  }
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.globalCompositeOperation='lighter';
+  const pass=(color,mult,opacity)=>{
+    ctx.strokeStyle=color;
+    for(let i=1;i<points.length;i++){
+      let a=points[i-1],b=points[i],fade=1-b.p*.58;
+      ctx.globalAlpha=alpha*opacity*fade;
+      ctx.lineWidth=Math.max(1.2,width*mult*(1-b.p*.72));
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+    }
+  };
+  pass(style.glow,1.25,.24);pass(style.outer,.86,.7);pass(style.mid,.52,.9);pass(style.core,.19,.95);
+  ctx.globalCompositeOperation='source-over';ctx.restore();
 }
 function drawHealthPips(p){
   let total=clamp(Math.round(num(p.maxHp,5)),5,8),size=7,gap=3,fullW=total*size+(total-1)*gap,x=p.x-fullW/2,y=p.y+p.r+11;
@@ -2057,9 +2081,41 @@ function field(){
   }
   cx.globalAlpha=1;
 }
+function drawPlayerFireRibbon(patches,now){
+  if(!patches.length)return;
+  let style=fireStyle('drive'),chains=[],chain=[];
+  for(const patch of patches){
+    if(chain.length&&hypot(patch.x-chain[chain.length-1].x,patch.y-chain[chain.length-1].y)>72){chains.push(chain);chain=[]}
+    chain.push(patch);
+  }
+  if(chain.length)chains.push(chain);
+  const trace=points=>{
+    cx.beginPath();cx.moveTo(points[0].x,points[0].y);
+    if(points.length===1){cx.lineTo(points[0].x+1,points[0].y);return}
+    if(points.length===2){cx.lineTo(points[1].x,points[1].y);return}
+    for(let i=1;i<points.length-1;i++){
+      let current=points[i],next=points[i+1],mx=(current.x+next.x)/2,my=(current.y+next.y)/2;
+      cx.quadraticCurveTo(current.x,current.y,mx,my);
+    }
+    cx.lineTo(points[points.length-1].x,points[points.length-1].y);
+  };
+  cx.save();cx.lineCap='round';cx.lineJoin='round';cx.globalCompositeOperation='lighter';
+  for(const points of chains){
+    let ratio=points.reduce((sum,f)=>sum+clamp(f.life/f.maxLife,0,1),0)/points.length;
+    let radius=points.reduce((sum,f)=>sum+f.r,0)/points.length;
+    const pass=(color,mult,opacity)=>{cx.strokeStyle=color;cx.globalAlpha=ratio*opacity;cx.lineWidth=Math.max(1.4,radius*mult);trace(points);cx.stroke()};
+    pass(style.glow,1.9,.18);pass(style.outer,1.25,.56);pass(style.mid,.74,.82);pass(style.core,.24,.88);
+  }
+  cx.globalCompositeOperation='source-over';cx.restore();
+}
 function drawFirePatches(){
-  let now=visualNowMs()/1000;
+  let now=visualNowMs()/1000,playerTrails=new Map(),hostile=[];
   for(const f of game.firePatches||[]){
+    if(!f.dangerous&&f.owner>=0){if(!playerTrails.has(f.owner))playerTrails.set(f.owner,[]);playerTrails.get(f.owner).push(f)}
+    else hostile.push(f);
+  }
+  for(const patches of playerTrails.values())drawPlayerFireRibbon(patches,now);
+  for(const f of hostile){
     let ratio=clamp(f.life/f.maxLife,0,1),flicker=.8+.2*Math.sin(now*8+f.phase),styleName=f.dangerous?'slag':'drive',style=fireStyle(styleName);
     cx.save();cx.globalAlpha=ratio;
     drawFireGlow(cx,f.x,f.y,f.r,styleName,ratio);
@@ -2274,11 +2330,17 @@ function drawPowerGlyph(ctx,type,scale=1){
     ctx.fillStyle='#eaffff';ctx.strokeStyle=d.color;ctx.lineWidth=3;
     ctx.beginPath();ctx.roundRect(-11,-11,22,22,4);ctx.fill();ctx.stroke();
     ctx.strokeStyle='#8beeff';ctx.lineWidth=1.7;ctx.beginPath();ctx.moveTo(-5,-11);ctx.lineTo(3,-3);ctx.lineTo(11,-3);ctx.moveTo(-11,4);ctx.lineTo(-4,11);ctx.moveTo(-2,-11);ctx.lineTo(11,2);ctx.stroke();
+  }else if(type==='repair'){
+    ctx.fillStyle=d.color;ctx.strokeStyle='#effff5';ctx.lineWidth=2.6;
+    ctx.beginPath();ctx.moveTo(0,13);
+    ctx.bezierCurveTo(-17,2,-13,-13,-5,-13);
+    ctx.bezierCurveTo(-1,-13,0,-9,0,-6);
+    ctx.bezierCurveTo(0,-9,1,-13,5,-13);
+    ctx.bezierCurveTo(13,-13,17,2,0,13);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.globalAlpha=.62;ctx.fillStyle='#ffffff';ctx.beginPath();ctx.ellipse(-4,-7,3.2,1.8,-.45,0,Math.PI*2);ctx.fill();
   }else{
     ctx.fillStyle='#effff5';ctx.strokeStyle=d.color;ctx.lineWidth=3;
     ctx.beginPath();ctx.roundRect(-11,-11,22,22,5);ctx.fill();ctx.stroke();
-    ctx.fillStyle=d.color;ctx.fillRect(-3.5,-9,7,18);ctx.fillRect(-9,-3.5,18,7);
-    ctx.strokeStyle='#ffffff';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(0,8);ctx.moveTo(-8,0);ctx.lineTo(8,0);ctx.stroke();
   }
   ctx.restore();
 }
@@ -2449,8 +2511,46 @@ function drawToolModule(ctx,type,ready=true,phase=0){
   }
   ctx.restore();
 }
+function drawCryoDiameterIndicator(p,bodyY,now){
+  if(num(p.freezeAura)<=0)return;
+  let remaining=clamp(p.freezeAura/POWER_TIMERS.freeze,0,1),elapsed=1-remaining;
+  let reveal=1-Math.pow(1-clamp(elapsed*8,0,1),3),radius=CRYO_RADIUS*reveal;
+  if(radius<2)return;
+  let alpha=clamp(remaining*1.35,0,1),pulse=.86+.14*Math.sin(now*.018);
+  cx.save();
+  let fill=cx.createRadialGradient(p.x,bodyY,0,p.x,bodyY,radius);
+  fill.addColorStop(0,'#6af4ff22');fill.addColorStop(.72,'#6af4ff14');fill.addColorStop(1,'#6af4ff05');
+  cx.globalAlpha=alpha;cx.fillStyle=fill;cx.beginPath();cx.arc(p.x,bodyY,radius,0,Math.PI*2);cx.fill();
+  cx.strokeStyle=POWER_DEFS.freeze.color;cx.shadowColor=POWER_DEFS.freeze.color;cx.shadowBlur=18;cx.lineWidth=4*pulse;
+  cx.beginPath();cx.arc(p.x,bodyY,radius,0,Math.PI*2);cx.stroke();
+  cx.shadowBlur=0;cx.globalAlpha=alpha*.7;cx.strokeStyle='#efffff';cx.lineWidth=1.4;cx.setLineDash([10,8]);
+  cx.beginPath();cx.arc(p.x,bodyY,radius-5,0,Math.PI*2);cx.stroke();cx.setLineDash([]);
+  cx.globalAlpha=alpha*.24;cx.lineWidth=1.2;cx.beginPath();cx.moveTo(p.x-radius,bodyY);cx.lineTo(p.x+radius,bodyY);cx.moveTo(p.x,bodyY-radius);cx.lineTo(p.x,bodyY+radius);cx.stroke();
+  cx.globalAlpha=alpha;
+  for(let i=0;i<8;i++){
+    let a=i*Math.PI/4+now*.0008,x=p.x+Math.cos(a)*radius,y=bodyY+Math.sin(a)*radius;
+    cx.save();cx.translate(x,y);cx.rotate(a);cx.fillStyle='#eaffff';cx.strokeStyle=POWER_DEFS.freeze.color;cx.lineWidth=1.5;
+    cx.beginPath();cx.moveTo(8,0);cx.lineTo(-5,-4);cx.lineTo(-2,0);cx.lineTo(-5,4);cx.closePath();cx.fill();cx.stroke();cx.restore();
+  }
+  cx.restore();
+}
+function drawStarSurgeAura(p,bodyY,now,color,nextColor){
+  let pulse=.82+.18*Math.sin(now*.028),spin=now*.0048+p.id;
+  cx.save();cx.globalCompositeOperation='lighter';cx.globalAlpha=.2+.12*pulse;cx.fillStyle=color;
+  cx.beginPath();cx.arc(p.x,bodyY,30+4*pulse,0,Math.PI*2);cx.fill();
+  cx.globalAlpha=.75;cx.strokeStyle=nextColor;cx.lineWidth=2.5;cx.beginPath();cx.arc(p.x,bodyY,27+3*pulse,0,Math.PI*2);cx.stroke();
+  for(let i=0;i<4;i++){
+    let a=spin+i*Math.PI/2,r=31+(i%2)*7,x=p.x+Math.cos(a)*r,y=bodyY+Math.sin(a)*r;
+    cx.save();cx.translate(x,y);cx.rotate(-spin*1.7+i);cx.scale(.35+.08*Math.sin(now*.015+i),.35+.08*Math.sin(now*.015+i));
+    cx.fillStyle=STAR_FLASH_COLORS[(i+Math.floor(now/90))%STAR_FLASH_COLORS.length];cx.beginPath();
+    for(let k=0;k<10;k++){let q=-Math.PI/2+k*Math.PI/5,rr=k%2?6:14;k?cx.lineTo(Math.cos(q)*rr,Math.sin(q)*rr):cx.moveTo(Math.cos(q)*rr,Math.sin(q)*rr)}
+    cx.closePath();cx.fill();cx.restore();
+  }
+  cx.restore();
+}
 function drawPlayer(p){
-  let col=colors[p.id%colors.length],now=visualNowMs(),speed=hypot(num(p.vx),num(p.vy));
+  let now=visualNowMs(),baseCol=colors[p.id%colors.length],starVisualActive=num(p.phase)>0,starIndex=Math.floor((now+p.id*53)/78)%STAR_FLASH_COLORS.length;
+  let col=starVisualActive?STAR_FLASH_COLORS[starIndex]:baseCol,starNext=starVisualActive?STAR_FLASH_COLORS[(starIndex+1)%STAR_FLASH_COLORS.length]:col,speed=hypot(num(p.vx),num(p.vy));
   let move=clamp(speed/220,0,1),dashVisualActive=num(p.dt)>0.015,cycle=now*.0105+p.id*1.73;
   let faceX=num(p.faceX,1),faceY=num(p.faceY,0),faceLength=hypot(faceX,faceY)||1;
   faceX/=faceLength;faceY/=faceLength;
@@ -2465,24 +2565,15 @@ function drawPlayer(p){
   let trailStart=Math.max(0,p.trail.length-qualityCount(16,10,7));
   for(let i=trailStart;i<p.trail.length;i++)drawDashFx(p,p.trail[i],col,now);
 
+  if(starVisualActive)drawStarSurgeAura(p,bodyY,now,col,starNext);
+
   if(p.shield>0){
     cx.save();cx.strokeStyle=POWER_DEFS.shield.color;cx.lineWidth=4;cx.shadowColor=POWER_DEFS.shield.color;cx.shadowBlur=22;
     cx.beginPath();cx.arc(p.x,bodyY,25+Math.sin(now/150),0,7);cx.stroke();
     cx.globalAlpha=.16;cx.fillStyle=POWER_DEFS.shield.color;cx.beginPath();cx.arc(p.x,bodyY,23,0,7);cx.fill();cx.restore();
   }
 
-  if(p.freezeAura>0){
-    let ratio=clamp(p.freezeAura/POWER_TIMERS.freeze,0,1),spin=now*.008;
-    drawEntityGlow(cx,p.x,bodyY,34+(1-ratio)*CRYO_RADIUS*.68,34+(1-ratio)*CRYO_RADIUS*.68,POWER_DEFS.freeze.color,.24*ratio);
-    cx.save();cx.translate(p.x,bodyY);cx.strokeStyle='#dfffff';cx.fillStyle=POWER_DEFS.freeze.color;cx.shadowColor='transparent';cx.shadowBlur=0;
-    let shardCount=qualityCount(10,8,6);
-    for(let i=0;i<shardCount;i++){
-      let a=i*Math.PI*2/shardCount+spin,r=24+(1-ratio)*CRYO_RADIUS*.68,x=Math.cos(a)*r,y=Math.sin(a)*r;
-      cx.save();cx.translate(x,y);cx.rotate(a);cx.globalAlpha=ratio;
-      cx.beginPath();cx.moveTo(9,0);cx.lineTo(-5,-4);cx.lineTo(-2,0);cx.lineTo(-5,4);cx.closePath();cx.fill();cx.stroke();cx.restore();
-    }
-    cx.restore();
-  }
+  drawCryoDiameterIndicator(p,bodyY,now);
 
   let readyTools=sanitizeSuperSlots(p.superSlots).filter(slot=>slot.type&&slot.cooldown<=0);
   readyTools.forEach((slot,i)=>{
@@ -2500,7 +2591,7 @@ function drawPlayer(p){
     cx.save();cx.translate(p.x,bodyY);cx.rotate(ang+bank*.35);
     let length=(dashVisualActive?66:34)*thrustBeat,width=(dashVisualActive?25:17)*(1+.06*Math.sin(cycle*2)),alpha=dashVisualActive?.9:.55,phase=now*.009+p.id;
     drawFireGlow(cx,-17,0,width*1.15,'drive',alpha*.65);
-    drawJetFlame(cx,-16,0,length,width,phase,'drive',alpha,Math.PI);
+    drawContinuousFireRibbon(cx,-16,0,length,width,phase,'drive',alpha,Math.PI);
     if(dashVisualActive){
       drawHeatWisp(cx,-28,-4,length*.72,width,phase*.5,.12);
       drawHeatWisp(cx,-25,5,length*.62,width,phase*.5+2,.09);
@@ -2513,14 +2604,14 @@ function drawPlayer(p){
   cx.save();cx.translate(p.x,bodyY);cx.rotate(ang+bank);cx.scale(bodyStretch,bodySquash);
 
   /* Articulated rear stabilizers flex as the pod accelerates and banks. */
-  cx.fillStyle='#08101d';cx.strokeStyle=col;cx.lineWidth=2;cx.shadowColor='transparent';cx.shadowBlur=0;
+  cx.fillStyle=starVisualActive?col:'#08101d';cx.strokeStyle=starVisualActive?starNext:col;cx.lineWidth=2;cx.shadowColor='transparent';cx.shadowBlur=0;
   cx.beginPath();cx.moveTo(-9,-8);cx.lineTo(-23-finFlex*.35,-15-finFlex);cx.lineTo(-19,-3);cx.closePath();cx.fill();cx.stroke();
   cx.beginPath();cx.moveTo(-9,8);cx.lineTo(-23+finFlex*.35,15-finFlex);cx.lineTo(-19,3);cx.closePath();cx.fill();cx.stroke();
 
-  cx.shadowBlur=0;cx.fillStyle=lg(-15,-12,17,12,'#eefcff',col);cx.strokeStyle='#ffffff9e';cx.lineWidth=2;
+  cx.shadowBlur=0;cx.fillStyle=lg(-15,-12,17,12,starVisualActive?starNext:'#eefcff',col);cx.strokeStyle='#ffffffd8';cx.lineWidth=2;
   cx.beginPath();cx.moveTo(18,0);cx.quadraticCurveTo(10,-15,-5,-14);cx.lineTo(-15,-8);cx.lineTo(-18,0);cx.lineTo(-15,8);cx.lineTo(-5,14);cx.quadraticCurveTo(10,15,18,0);cx.closePath();cx.fill();cx.stroke();
 
-  cx.shadowBlur=0;cx.fillStyle='#07101d';cx.strokeStyle='#ffffff30';cx.lineWidth=1.3;
+  cx.shadowBlur=0;cx.fillStyle=starVisualActive?lg(-10,-8,10,8,col,starNext):'#07101d';cx.strokeStyle=starVisualActive?'#ffffffb8':'#ffffff30';cx.lineWidth=1.3;
   cx.beginPath();cx.moveTo(10,0);cx.quadraticCurveTo(5,-9,-5,-8);cx.lineTo(-10,0);cx.lineTo(-5,8);cx.quadraticCurveTo(5,9,10,0);cx.closePath();cx.fill();cx.stroke();
 
   /* Animated hover vents make idle and motion feel mechanically alive. */
@@ -2528,7 +2619,7 @@ function drawPlayer(p){
   for(const y of [-7,7]){cx.beginPath();cx.moveTo(-13,y);cx.lineTo(-8-finFlex*.15,y);cx.stroke()}
   cx.globalAlpha=1;
 
-  cx.fillStyle=lg(0,-8,12,8,'#eaffff','#17334d');cx.strokeStyle='#8ff2ff';cx.lineWidth=1.4;
+  cx.fillStyle=starVisualActive?lg(0,-8,12,8,'#ffffff',starNext):lg(0,-8,12,8,'#eaffff','#17334d');cx.strokeStyle=starVisualActive?col:'#8ff2ff';cx.lineWidth=1.4;
   cx.beginPath();cx.ellipse(5,0,7,5,0,0,7);cx.fill();cx.stroke();
   cx.fillStyle='#fff';cx.shadowColor='#6ee7ff';cx.shadowBlur=10;cx.beginPath();cx.ellipse(8,-1,1.8,1.8*eyeScale,0,0,7);cx.fill();
 
@@ -2545,7 +2636,7 @@ function drawDashFx(p,t,col,now){let age=now-t.at,life=t.life||280,a=Math.max(0,
 	cx.save();cx.translate(t.x,t.y);cx.rotate(ang);cx.globalAlpha=a;
 	if(t.ring){cx.strokeStyle=col;cx.lineWidth=3*a;cx.shadowColor=col;cx.shadowBlur=18;cx.beginPath();cx.ellipse(0,0,36*(1-a)+10,18*(1-a)+6,0,0,7);cx.stroke()}
 	else if(t.hit){cx.strokeStyle='#fff';cx.lineWidth=3;cx.shadowColor=col;cx.shadowBlur=18;for(let i=-2;i<=2;i++){cx.beginPath();cx.moveTo(-18,i*7);cx.lineTo(24,i*3);cx.stroke()}}
-	else if(t.flame){drawJetFlame(cx,-4,0,34*a+8,14*a+5,now*.01+t.x*.02,'drive',a*.78,Math.PI)}
+	else if(t.flame){drawContinuousFireRibbon(cx,-4,0,34*a+8,14*a+5,now*.01+t.x*.02,'drive',a*.78,Math.PI)}
 	else{shadow(0,15,18,5,.35*a);cx.shadowColor=col;cx.shadowBlur=14;cx.fillStyle=col;cx.beginPath();cx.ellipse(-8,0,24*a,9*a,0,0,7);cx.fill();cx.fillStyle='#ffffffaa';cx.beginPath();cx.ellipse(4,-2,10*a,3*a,0,0,7);cx.fill()}
 	cx.restore();cx.globalAlpha=1}
 function drawEnemyTelegraph(e){
@@ -4221,7 +4312,7 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.5.6';
+const CANVAS_APP_VERSION='1.5.7';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
