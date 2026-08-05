@@ -49,7 +49,7 @@ const POWER_DEFS={
   magnet:{label:'Flux Orb',short:'Magnet',color:'#d86cff',shape:'magnet'},
   boost:{label:'Inferno Core',short:'Boost',color:'#ff6a1f',shape:'bolt'},
   freeze:{label:'Cryo Shard',short:'Freeze',color:'#6af4ff',shape:'cube'},
-  repair:{label:'Nanite Bloom',short:'Repair',color:'#61ff88',shape:'cross'}
+  repair:{label:'Heart Pack',short:'Heal',color:'#ff4d67',shape:'heart'}
 };
 const NOVA_RADIUS=300;
 const STARTING_SUPER_TYPES=['phase'];
@@ -58,8 +58,8 @@ const SUPER_DEFS={
   phase:{label:'Star Surge',color:'#ffd84d',cooldown:18,style:'survival',tool:'star'},
   timestop:{label:'Cryo Freeze',color:'#6af4ff',cooldown:20,style:'collect',tool:'ice'}
 };
-const POWER_TIMERS={magnet:8,boost:7,phase:6,freeze:1.35,timestop:7};
-const CRYO_RADIUS=225,CRYO_LOCK=4.4,WARDEN_CRYO_LOCK=1.9,QUENCH_SLOW=.58,DASH_ENEMY_GRACE=.14,SHIELD_BREAK_GRACE=1.05;
+const POWER_TIMERS={magnet:8,boost:7,phase:6,freeze:5.5,timestop:7};
+const CRYO_RADIUS=225,CRYO_AURA_LOCK=.34,WARDEN_CRYO_AURA_LOCK=.2,QUENCH_SLOW=.58,DASH_ENEMY_GRACE=.14,SHIELD_BREAK_GRACE=1.05;
 const ENEMY_DEFS={
   hunter:{label:'Ember Hound',color:'#ff3e24',light:'#ffbe75',dark:'#351008',radius:14,speed:1,accel:1},
   scout:{label:'Spark Wasp',color:'#29dcff',light:'#d5fbff',dark:'#06333c',radius:10,speed:1.34,accel:1.12},
@@ -285,8 +285,8 @@ const MOTION_BUFFER_DELAY=50;
 const MOTION_EXTRAPOLATION_LIMIT=.08;
 const LOCAL_DASH_SOFT_ERROR=42;
 const ROOM_CODE_LENGTH=4;
-const PROTOCOL_VERSION=18;
-const ENGINE_REVISION='foundry-2026-08-05-r9';
+const PROTOCOL_VERSION=19;
+const ENGINE_REVISION='foundry-2026-08-05-r10';
 const SIMULATION_STEP=1/60;
 const MAX_SIMULATION_STEPS=6;
 const MAX_SIMULATION_BACKLOG=.18;
@@ -612,8 +612,9 @@ function confirmOpen(){return typeof pendingConfirm==='function'}
 function activeBaseScreen(){
   if(gameplayScreenVisible())return'game';
   if(levelSelectVisible())return'levels';
-  if(pairView==='browser'&&!onlineSession())return'browser';
-  if(pairView==='join'&&net.role==='client'&&!net.connected)return'join';
+  if(pairView==='browser')return'browser';
+  if(pairView==='join')return'join';
+  if(pairView==='host'&&net.role==='host')return'lobby';
   if(onlineSession()&&net.connected)return'lobby';
   return'home';
 }
@@ -701,7 +702,7 @@ function repairGameState(target=game){
   for(const e of target.enemies){
     e.type=ENEMY_DEFS[e.type]?e.type:'hunter';let def=ENEMY_DEFS[e.type];
     e.x=clamp(num(e.x,480),24+def.radius,W-24-def.radius);e.y=clamp(num(e.y,270),24+def.radius,H-24-def.radius);
-    e.vx=num(e.vx);e.vy=num(e.vy);e.r=clamp(num(e.r,def.radius),8,50);e.stun=clamp(num(e.stun),0,3);e.cryo=clamp(num(e.cryo),0,CRYO_LOCK);
+    e.vx=num(e.vx);e.vy=num(e.vy);e.r=clamp(num(e.r,def.radius),8,50);e.stun=clamp(num(e.stun),0,3);e.cryo=clamp(num(e.cryo),0,POWER_TIMERS.freeze);
     e.homeX=num(e.homeX,e.x);e.homeY=num(e.homeY,e.y);e.phase=num(e.phase);e.cooldown=clamp(num(e.cooldown),0,8);e.aiTimer=clamp(num(e.aiTimer),0,3);
     e.aimX=num(e.aimX,1);e.aimY=num(e.aimY);let al=hypot(e.aimX,e.aimY);if(al>.001){e.aimX/=al;e.aimY/=al}else{e.aimX=1;e.aimY=0}
     e.mode=['chase','windup','charge','orbit','dart','return','beamWindup','beam','slamWindup','slam','bossChase','bossChargeWindup','bossCharge','bossSlamWindup','bossSlam','bossRingWindup','bossArmWindup','bossArmStrike','bossInkWindup','bossInkBurst','bossRecover','bossDefeated'].includes(e.mode)?e.mode:(e.type==='warden'?'bossChase':'chase');
@@ -829,7 +830,7 @@ function completeLevel(){
   if(game.level<FINAL_LEVEL)loadLevel(game.level+1);
   else end(true)
 }
-function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',socket:null,roomCode:'',clientToken:'',connectionId:'',localId:0,ownerId:-1,connected:false,reconnectTimer:0,reconnectAttempt:0,manualClose:false,roster:new Map(),members:[],timer:0,uiTimer:0,heartbeatTimer:0,staleSyncAt:0,stateEpoch:1,pendingEpoch:0,lastStateSeq:0,lastMotionSeq:0,lastEventSeq:0,lastFireSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashCooldown:0,clientDashPendingSeq:0,clientDashDir:{x:1,y:0},clientFireIds:new Set(),fireSeq:0,lobbyStage:'idle',lobbyNotice:'',lobbyNoticeTone:'info',lobbyNoticeUntil:0,lobbyRevision:0,lobbyReady:new Map(),localReady:false,pingMs:0,lastPongAt:0,transitionKey:'',transitionAt:0,transitionSyncAt:0,lastServerAt:0}}
+function netState(){return{session:Math.random().toString(36).slice(2),role:'solo',socket:null,roomCode:'',clientToken:'',connectionId:'',localId:-1,ownerId:-1,connected:false,reconnectTimer:0,reconnectAttempt:0,manualClose:false,roster:new Map(),members:[],timer:0,uiTimer:0,heartbeatTimer:0,staleSyncAt:0,stateEpoch:1,pendingEpoch:0,lastStateSeq:0,lastMotionSeq:0,lastEventSeq:0,lastFireSeq:0,motionFrames:[],motionClockOffset:NaN,clientTarget:null,clientDashTime:0,clientDashCooldown:0,clientDashPendingSeq:0,clientDashDir:{x:1,y:0},clientFireIds:new Set(),fireSeq:0,lobbyStage:'idle',lobbyNotice:'',lobbyNoticeTone:'info',lobbyNoticeUntil:0,lobbyRevision:0,lobbyReady:new Map(),localReady:false,pingMs:0,lastPongAt:0,transitionKey:'',transitionAt:0,transitionSyncAt:0,lastServerAt:0}}
 function onlineSession(){return net.role==='host'||net.role==='client'}
 function dedicatedSession(){return onlineSession()&&!!net.socket}
 function isLobbyOwner(){return onlineSession()?(net.ownerId>=0?net.localId===net.ownerId:net.role==='host'):false}
@@ -1198,27 +1199,32 @@ function gainSuperEnergy(p,amount,style='survival'){
   if(p.superMeter>=100)forgeSuper(p);
 }
 
-function cryoShatter(p){
-  let ranked=game.enemies.map(e=>({e,d:hypot(e.x-p.x,e.y-p.y)})).sort((a,b)=>a.d-b.d);
-  let targets=ranked.filter(item=>item.d<=CRYO_RADIUS);
-  if(!targets.length&&ranked[0]&&ranked[0].d<=CRYO_RADIUS*1.7)targets=[ranked[0]];
-  for(const item of targets){
-    let e=item.e,falloff=clamp(1-item.d/(CRYO_RADIUS*1.15),.45,1);
-    let duration=e.type==='warden'?WARDEN_CRYO_LOCK*(.82+falloff*.18):CRYO_LOCK*(.86+falloff*.14);
-    e.cryo=Math.max(num(e.cryo),duration);
+function applyCryoAura(p){
+  if(!p||!p.alive||num(p.freezeAura)<=0)return 0;
+  let targets=0;
+  for(const e of game.enemies){
+    if(e.defeated)continue;
+    let distance=hypot(e.x-p.x,e.y-p.y);
+    if(distance>CRYO_RADIUS+num(e.r))continue;
+    e.cryo=Math.max(num(e.cryo),e.type==='warden'?WARDEN_CRYO_AURA_LOCK:CRYO_AURA_LOCK);
     e.stun=0;
-    e.vx*=.08;e.vy*=.08;
+    e.vx*=.2;e.vy*=.2;
     if(e.type==='brute'&&e.armor>0){e.armor=0;e.armorTimer=3.6}
+    targets++;
   }
-  p.freezeAura=POWER_TIMERS.freeze;
+  return targets;
+}
+function startCryoAura(p){
+  p.freezeAura=Math.max(num(p.freezeAura),POWER_TIMERS.freeze);
+  let targets=applyCryoAura(p);
   game.shake=Math.max(game.shake,.09);
-  return targets.length;
+  return targets;
 }
 function applyPower(p,type){
   if(type==='shield')p.shield=1;
   else if(type==='magnet')p.magnet=Math.max(p.magnet,8);
   else if(type==='boost')p.boost=Math.max(p.boost,7);
-  else if(type==='freeze'){cryoShatter(p);gameSound('freeze',p);return}
+  else if(type==='freeze'){startCryoAura(p);gameSound('freeze',p);return}
   else if(type==='repair'){if(p.hp<p.maxHp)p.hp=Math.min(p.maxHp,p.hp+2);else p.shield=1}
   gameSound(type==='shield'?'shieldPickup':type,p);
 }
@@ -1891,11 +1897,12 @@ if(p.boost>0&&hypot(p.vx,p.vy)>45&&p.fireTrailCd<=0){
   addFirePatch(p.x-ux*(p.r+8),p.y-uy*(p.r+8),p.id,false,p.dt>0?24:19,p.dt>0?2.15:1.65);
   p.fireTrailCd=p.dt>0?.07:.12;
 }
+if(p.freezeAura>0)applyCryoAura(p);
 updateHazardsForPlayer(p,dt,levelConfig(game.level));
 for(const coin of game.coins)if(!coin.taken&&hypot(p.x-coin.x,p.y-coin.y)<p.r+coin.r+4)collectCoin(p,coin);
 for(const item of game.powerups)if(!item.taken&&playerTouchesPower(p,item))collectPower(p,item);
 for(const e of game.enemies){if(e.defeated)continue;let d=hypot(p.x-e.x,p.y-e.y);
-	if(d<p.r+e.r){if(p.dt>0)dashSmash(p,e);else enemyHitPlayer(p,e,e.type==='warden'?54:e.type==='brute'?40:28)}}}
+	if(d<p.r+e.r){if(p.dt>0)dashSmash(p,e);else if(num(e.cryo)<=0)enemyHitPlayer(p,e,e.type==='warden'?54:e.type==='brute'?40:28)}}}
 
 for(const coin of game.coins)if(!coin.taken){
   let best=null,bd=190;for(const p of game.players)if(p.alive&&p.magnet>0){let d=hypot(p.x-coin.x,p.y-coin.y);if(d<bd){bd=d;best=p}}
@@ -2320,9 +2327,11 @@ function drawPowerGlyph(ctx,type,scale=1){
     ctx.beginPath();ctx.moveTo(0,-15);ctx.lineTo(11,-8);ctx.lineTo(9,7);ctx.lineTo(0,15);ctx.lineTo(-9,7);ctx.lineTo(-11,-8);ctx.closePath();ctx.fill();ctx.stroke();
     ctx.strokeStyle='#ffffff';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(0,-11);ctx.lineTo(0,11);ctx.moveTo(-7,-3);ctx.lineTo(7,-3);ctx.stroke();
   }else if(type==='magnet'){
-    ctx.strokeStyle=d.color;ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(-9,-8);ctx.lineTo(-9,4);ctx.arc(0,4,9,Math.PI,0,false);ctx.lineTo(9,-8);ctx.stroke();
-    ctx.fillStyle='#fff';ctx.fillRect(-12,-13,5,7);ctx.fillRect(7,-13,5,7);
-    ctx.fillStyle='#ffd7ff';ctx.fillRect(-12,-8,5,3);ctx.fillStyle='#cfe8ff';ctx.fillRect(7,-8,5,3);
+    ctx.strokeStyle='#dbe5ed';ctx.lineWidth=12;ctx.beginPath();ctx.moveTo(-10,-11);ctx.lineTo(-10,3);ctx.arc(0,3,10,Math.PI,0,false);ctx.lineTo(10,-11);ctx.stroke();
+    ctx.strokeStyle='#ef4d5c';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(-10,-11);ctx.lineTo(-10,2);ctx.stroke();
+    ctx.strokeStyle='#36c9ff';ctx.beginPath();ctx.moveTo(10,2);ctx.lineTo(10,-11);ctx.stroke();
+    ctx.fillStyle='#ffffff';ctx.strokeStyle='#24313b';ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(-15,-16,10,7,2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.roundRect(5,-16,10,7,2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#07101a';ctx.beginPath();ctx.arc(0,3,4.2,0,Math.PI*2);ctx.fill();
   }else if(type==='boost'){
     ctx.fillStyle='#fff4cf';ctx.strokeStyle='#ffb35a';ctx.lineWidth=2.5;
     ctx.beginPath();ctx.moveTo(3,-16);ctx.lineTo(-7,-2);ctx.lineTo(0,-2);ctx.lineTo(-4,15);ctx.lineTo(11,-4);ctx.lineTo(3,-4);ctx.closePath();ctx.fill();ctx.stroke();
@@ -2513,10 +2522,8 @@ function drawToolModule(ctx,type,ready=true,phase=0){
 }
 function drawCryoDiameterIndicator(p,bodyY,now){
   if(num(p.freezeAura)<=0)return;
-  let remaining=clamp(p.freezeAura/POWER_TIMERS.freeze,0,1),elapsed=1-remaining;
-  let reveal=1-Math.pow(1-clamp(elapsed*8,0,1),3),radius=CRYO_RADIUS*reveal;
-  if(radius<2)return;
-  let alpha=clamp(remaining*1.35,0,1),pulse=.86+.14*Math.sin(now*.018);
+  let remaining=clamp(p.freezeAura/POWER_TIMERS.freeze,0,1),elapsed=1-remaining,radius=CRYO_RADIUS;
+  let appear=clamp(elapsed*8,0,1),fade=clamp(p.freezeAura*2.5,0,1),alpha=appear*fade,pulse=.9+.1*Math.sin(now*.018);
   cx.save();
   let fill=cx.createRadialGradient(p.x,bodyY,0,p.x,bodyY,radius);
   fill.addColorStop(0,'#6af4ff22');fill.addColorStop(.72,'#6af4ff14');fill.addColorStop(1,'#6af4ff05');
@@ -4045,9 +4052,11 @@ function stopRoomBrowserRefresh(){if(roomBrowser.timer)clearTimeout(roomBrowser.
 function scheduleRoomBrowserRefresh(){stopRoomBrowserRefresh();if(pairView!=='browser')return;roomBrowser.timer=setTimeout(()=>refreshRoomBrowser(),12000)}
 function normalizeRoomListing(value){if(!value||typeof value!=='object')return null;let code=normalizeRoomCode(value.code),players=Math.max(0,Math.min(ROOM_JOINERS+1,Math.round(num(value.players))));if(code.length!==ROOM_CODE_LENGTH||players<1)return null;let phase=['lobby','playing','results'].includes(value.phase)?value.phase:'lobby';return{code,players,capacity:Math.max(players,Math.round(num(value.capacity,ROOM_JOINERS+1))),phase,level:Math.max(1,Math.round(num(value.level,1))),difficulty:['easy','normal','hard'].includes(value.difficulty)?value.difficulty:'normal',joinable:value.joinable!==false&&players<ROOM_JOINERS+1,updatedAt:num(value.updatedAt)}}
 function refreshRoomBrowser(){let requestId=++roomBrowser.requestId;roomBrowser.loading=true;roomBrowser.error='';ui(true);return fetch(ONLINE_API+'/rooms',{method:'GET',cache:'no-store'}).then(async response=>{if(!response.ok)throw Error('Server list unavailable');let data=await response.json();if(requestId!==roomBrowser.requestId)return;roomBrowser.rooms=(Array.isArray(data&&data.rooms)?data.rooms:[]).map(normalizeRoomListing).filter(Boolean);roomBrowser.updatedAt=Date.now()}).catch(error=>{if(requestId!==roomBrowser.requestId)return;roomBrowser.error='Could not load active servers.';console.error(error)}).finally(()=>{if(requestId!==roomBrowser.requestId)return;roomBrowser.loading=false;scheduleRoomBrowserRefresh();ui(true)})}
-function openMultiplayer(){stopRoomBrowserRefresh();clearInviteCodeFromUrl();if(onlineSession())resetNetwork('solo');pairView='browser';uiState.roomCode='';setSetupStatus('Choose an active server or create your own.');refreshRoomBrowser();ui(true)}
+function openMultiplayer(){stopRoomBrowserRefresh();clearInviteCodeFromUrl();pairView='browser';if(onlineSession())resetNetwork('solo');uiState.roomCode='';setSetupStatus('Choose an active server or create your own.');refreshRoomBrowser();ui(true)}
 function closeMultiplayer(){stopRoomBrowserRefresh();roomBrowser.requestId++;roomBrowser.loading=false;pairView='intro';ui(true)}
-function joinActiveRoom(value){let code=normalizeRoomCode(value);if(code.length!==ROOM_CODE_LENGTH)return;stopRoomBrowserRefresh();resetNetwork('client');pairMode('join');uiState.roomCode=code;setLobbyStage('locating','JOINING ROOM '+code,'pending',3200);setSetupStatus('Joining room '+code+'…');useInvite()}
+function beginPairFlow(role,view){stopRoomBrowserRefresh();pairView=view;resetNetwork(role);uiState.roomCode='';ui(true);return net.session}
+function pairFlowCurrent(session){return !!session&&net.session===session&&!net.manualClose}
+function joinActiveRoom(value){let code=normalizeRoomCode(value);if(code.length!==ROOM_CODE_LENGTH)return;let session=beginPairFlow('client','join');uiState.roomCode=code;setLobbyStage('locating','JOINING ROOM '+code,'pending',3200);setSetupStatus('Joining room '+code+'…');useInvite(session)}
 function roomBrowserPhase(room){return room.phase==='lobby'?'LOBBY':room.phase==='results'?'RESULTS':'IN GAME'}
 
 function applyLobbyState(o){
@@ -4121,20 +4130,20 @@ async function connectServerSocket(role,code,attempts=4){
     try{return await openServerSocket(role,code,false)}catch(e){error=e instanceof Error?e:error;if(/versions do not match/i.test(error.message))throw error;if(attempt<attempts-1){setLobbyStage('connecting','CONNECTION RETRY '+(attempt+2)+' OF '+attempts,'pending',2200);await new Promise(resolve=>setTimeout(resolve,connectionRetryDelay(attempt)))}}
   }throw error
 }
-function safePair(work,target='setup'){return Promise.resolve().then(work).catch(e=>{let reason=String(e&&e.message||''),msg=reason==='Missing code'?'Enter the four-character room code.':/versions do not match/i.test(reason)?'Game versions do not match. Refresh every device.':'Could not connect to the room.';setLobbyStage('error',msg,'error',6200);(target==='menu'?setMenuStatus:setSetupStatus)(msg);console.error(e)})}
-function invite(){stopRoomBrowserRefresh();return safePair(async()=>{resetNetwork('host');pairMode('host');setLobbyStage('creating');setSetupStatus('Creating online room…');let ownerToken=newClientToken();net.clientToken=ownerToken;net.roomCode=await createRoomCode(ownerToken);saveClientToken(net.roomCode,ownerToken);uiState.roomCode=net.roomCode;await connectServerSocket('host',net.roomCode);setLobbyStage('waiting','ROOM READY · SHARE THE LINK','success',4200);setSetupStatus('Waiting for players. Copy the invite link to share.');ui(true)})}
-function join(){stopRoomBrowserRefresh();resetNetwork('client');pairMode('join');setLobbyStage('code');setSetupStatus('Enter the room code.')}
-function useInvite(){return safePair(async()=>{let code=normalizeRoomCode(uiState.roomCode);if(code.length!==ROOM_CODE_LENGTH)throw Error('Missing code');uiState.roomCode=code;setLobbyStage('locating');setSetupStatus('Finding room…');net.roomCode=code;await connectServerSocket('player',code);ui(true)})}
+function safePair(work,target='setup',session=net.session){return Promise.resolve().then(work).catch(e=>{if(!pairFlowCurrent(session))return false;let reason=String(e&&e.message||''),msg=reason==='Missing code'?'Enter the four-character room code.':/versions do not match/i.test(reason)?'Game versions do not match. Refresh every device.':'Could not connect to the room.';setLobbyStage('error',msg,'error',6200);(target==='menu'?setMenuStatus:setSetupStatus)(msg);console.error(e);return false})}
+function invite(){let session=beginPairFlow('host','host');setLobbyStage('creating','CREATING ONLINE ROOM','pending',3600);setSetupStatus('Creating online room…');return safePair(async()=>{let ownerToken=newClientToken();net.clientToken=ownerToken;let code=await createRoomCode(ownerToken);if(!pairFlowCurrent(session))return false;net.roomCode=code;saveClientToken(code,ownerToken);uiState.roomCode=code;setLobbyStage('connecting','ROOM CREATED · CONNECTING','pending',3200);await connectServerSocket('host',code);if(!pairFlowCurrent(session))return false;setLobbyStage('waiting','ROOM READY · SHARE THE LINK','success',4200);setSetupStatus('Waiting for players. Copy the invite link to share.');ui(true);return true},'setup',session)}
+function join(){let session=beginPairFlow('client','join');setLobbyStage('code');setSetupStatus('Enter the room code.');return session}
+function useInvite(session=net.session){return safePair(async()=>{if(!pairFlowCurrent(session))return false;let code=normalizeRoomCode(uiState.roomCode);if(code.length!==ROOM_CODE_LENGTH)throw Error('Missing code');uiState.roomCode=code;setLobbyStage('locating');setSetupStatus('Finding room…');net.roomCode=code;await connectServerSocket('player',code);if(!pairFlowCurrent(session))return false;ui(true);return true},'setup',session)}
 function autoJoinInvite(){
   let code=inviteCodeFromUrl();if(code.length!==ROOM_CODE_LENGTH)return false;
-  stopRoomBrowserRefresh();resetNetwork('client');pairMode('join');uiState.roomCode=code;setLobbyStage('locating','INVITE LINK FOUND · JOINING ROOM','pending',3200);setSetupStatus('Joining room '+code+'…');useInvite();return true
+  let session=beginPairFlow('client','join');uiState.roomCode=code;setLobbyStage('locating','INVITE LINK FOUND · JOINING ROOM','pending',3200);setSetupStatus('Joining room '+code+'…');useInvite(session);return true
 }
 function closeNet(){net.manualClose=true;clearReconnect();if(net.socket)try{net.socket.onclose=null;net.socket.close()}catch(e){}net.socket=null;net.connected=false;net.motionFrames=[];net.clientTarget=null;net.clientFireIds.clear();resetChatSession()}
 function resetNetwork(role='solo'){closeNet();net=netState();net.role=role;net.clientToken=getClientToken();net.manualClose=false;resetClientEpochState(1);ui(true)}
 function saveClientToken(roomCode,token){let code=normalizeRoomCode(roomCode),value=safeClientToken(token);if(!code||!value)return;try{localStorage.setItem('coinDashClientToken:'+code,value)}catch(e){}}
 function safeClientToken(value){return /^[a-zA-Z0-9_-]{8,80}$/.test(String(value||''))?String(value):''}
 function getClientToken(roomCode=''){let code=normalizeRoomCode(roomCode),key='coinDashClientToken'+(code?':'+code:'');try{let t=localStorage.getItem(key);if(!t){t=newClientToken();localStorage.setItem(key,t)}return t}catch(e){return newClientToken()}}
-function closePairing(){if(onlineSession()&&net.localId>=0)pairView='none';else{clearInviteCodeFromUrl();resetNetwork('solo');pairView='browser';uiState.roomCode='';setSetupStatus('Choose an active server or create your own.');refreshRoomBrowser()}ui(true)}
+function closePairing(){if(onlineSession()&&net.connected&&net.localId>=0)pairView='none';else{clearInviteCodeFromUrl();pairView='browser';resetNetwork('solo');uiState.roomCode='';setSetupStatus('Choose an active server or create your own.');refreshRoomBrowser()}ui(true)}
 function pairMode(mode,preserve=false){pairView=mode;if(!preserve)uiState.roomCode='';if(mode==='host'&&net.roomCode)uiState.roomCode=net.roomCode;ui(true)}
 function finishLeaveSession(){stopRoomBrowserRefresh();clearInviteCodeFromUrl();pendingStartRequest=null;helpOpen=false;resetNetwork('solo');selectedLevel=savedSelectedLevel();game=makeGame(selectedDifficulty,selectedLevel);menuOpen=false;endMenuDismissed=false;pairView='intro';uiState.screen='home';setSetupStatus('Ready.');ui(true)}
 function leaveSession(){
@@ -4150,7 +4159,7 @@ function lobbyUnreadyIds(){return lobbyConnectedIds().filter(id=>id!==net.ownerI
 function allLobbyPlayersReady(){return isLobbyOwner()&&lobbyUnreadyIds().length===0}
 function setLocalReady(ready){if(isLobbyOwner()||!connectedClient())return;net.localReady=!!ready;net.lobbyReady.set(net.localId,net.localReady);sendServer({t:'ready',pv:PROTOCOL_VERSION,ready:net.localReady});notifyLobby(net.localReady?'YOU ARE READY':'READY CANCELED',net.localReady?'success':'info',2800,false);ui(true)}
 function lobbyUiKey(){return[net.lobbyStage,net.lobbyRevision,net.connected?1:0,net.members.map(m=>[m.id,m.connected?1:0,m.ready?1:0,m.reserved?1:0].join(':')).join(','),Math.ceil(Math.max(0,num(net.lobbyNoticeUntil)-performance.now())/1000)].join('|')}
-function lobbySummary(){if(isLobbyOwner()){let unready=lobbyUnreadyIds();if(unready.length)return'WAITING FOR '+unready.map(id=>'P'+(id+1)).join(', ')+' TO READY UP';if(lobbyConnectedCount()>1)return'EVERYONE READY · START THE GAME';return net.connected?'LOBBY OPEN · INVITE PLAYERS OR START ALONE':'RECONNECTING TO SERVER'}if(onlineSession()){if(connectedClient())return net.localReady?'READY · WAITING FOR OWNER':'CONNECTED · READY UP WHEN PREPARED';return'CONNECTING TO SERVER'}return''}
+function lobbySummary(){if(isLobbyOwner()){if(!net.connected){if(net.lobbyStage==='creating')return'CREATING ONLINE ROOM';if(net.lobbyStage==='connecting'||net.lobbyStage==='handshake')return'CONNECTING TO ONLINE ROOM';if(net.lobbyStage==='error')return'ROOM SETUP FAILED';return'RECONNECTING TO SERVER'}let unready=lobbyUnreadyIds();if(unready.length)return'WAITING FOR '+unready.map(id=>'P'+(id+1)).join(', ')+' TO READY UP';if(lobbyConnectedCount()>1)return'EVERYONE READY · START THE GAME';return'LOBBY OPEN · INVITE PLAYERS OR START ALONE'}if(onlineSession()){if(connectedClient())return net.localReady?'READY · WAITING FOR OWNER':'CONNECTED · READY UP WHEN PREPARED';return'CONNECTING TO SERVER'}return''}
 function lobbyRows(){let byId=new Map(net.members.map(member=>[member.id,member])),rows=[];for(let id=0;id<=ROOM_JOINERS;id++){let member=byId.get(id),mine=id===net.localId,owner=!!(member&&member.owner);if(member&&member.connected)rows.push({id,label:'P'+(id+1),detail:owner?'OWNER':mine?'YOU':'PLAYER',state:owner?'OWNER':member.ready?'READY':'NOT READY',tone:owner?'host':member.ready?'success':'pending'});else if(member&&member.reserved)rows.push({id,label:'P'+(id+1),detail:owner?'OWNER OFFLINE':'RESERVED',state:'OFFLINE',tone:'offline'});else rows.push({id,label:'P'+(id+1),detail:'OPEN SLOT',state:'OPEN',tone:'open'})}return rows}
 function monitorOnlineTransition(){
   if(!dedicatedSession())return;let timed=['count','level','clear'].includes(game.phase),key=net.stateEpoch+'|'+game.level+'|'+game.phase,now=performance.now();
@@ -4312,7 +4321,7 @@ function prepareGameplayDisplay(){if(canvasTouchDevice&&!document.fullscreenElem
 
 
 /* Canvas-only application shell. Every visible control is painted and hit-tested here. */
-const CANVAS_APP_VERSION='1.5.7';
+const CANVAS_APP_VERSION='1.5.8';
 const canvasHits=[];
 const sceneFrame=document.createElement('canvas');
 const sceneFrameCx=sceneFrame.getContext('2d',{alpha:false});
@@ -4478,7 +4487,7 @@ function canvasDrawLobbyNotice(x,y,w,fallback=''){let message=activeLobbyNotice(
 function canvasDrawRoomCode(code,x,y,w,{editable=false,copy=false}={}){let copyW=copy?54:0,fieldW=w-copyW-(copy?10:0);canvasBox(x,y,fieldW,50,{fill:'#020711',stroke:canvasIsFocused('code-field')?UI.cyanSoft:UI.cyan,r:13,line:canvasIsFocused('code-field')?2.6:1.6});let shown=code||'-'.repeat(ROOM_CODE_LENGTH);if(editable&&canvasInputMode==='code')shown=canvasInputBuffer+(Math.floor(visualNowMs()/450)%2?'|':'');canvasText(shown,x+fieldW/2,y+25,28,'center',UI.cyanSoft,1000,fieldW-30);if(editable)canvasHit('code-field',x,y,fieldW,50,()=>canvasOpenInput('code',uiState.roomCode||''));if(copy)canvasIconButton('copy-code','copy',x+fieldW+10,y,copyW,50,()=>copyInviteLink(),{accent:UI.cyan})}
 function canvasDrawJoinTimeline(x,y,w){let steps=[['CODE','link'],['HOST','host'],['LINK','wifi'],['READY','check']],stage=net.lobbyStage,index=stage==='code'?0:stage==='locating'||stage==='waiting'?1:stage==='connecting'||stage==='handshake'?2:stage==='connected'?3:0,gap=w/(steps.length-1);canvasRule(x,y,x+w,y,UI.line,4);steps.forEach(([label,icon],i)=>{let px=x+i*gap,done=i<index,current=i===index,color=done?UI.green:current?stage==='error'?UI.red:UI.yellow:UI.dim;cx.fillStyle='#07101a';cx.beginPath();cx.arc(px,y,23,0,Math.PI*2);cx.fill();cx.strokeStyle=color;cx.lineWidth=current?4:2;cx.stroke();cx.save();cx.translate(px,y);drawUiGlyph(cx,done?'check':current&&i<3?'spinner':icon,.52,color);cx.restore();canvasText(label,px,y+40,10,'center',color,1000,72)})}
 function canvasDrawSetup(){
-  let hosting=isLobbyOwner(),joined=onlineSession()&&net.connected;if(hosting||joined)return canvasDrawLobby();if(pairView==='browser')return canvasDrawMultiplayer();if(pairView==='join')return canvasDrawPairing();canvasSetFocusScope('home','solo');let f=canvasScreenShell();canvasScreenTitle(f,'FORGE CONSOLE','CHOOSE MODE');let x=f.x+60,y=f.y+122,gap=24,w=(f.w-120-gap)/2,h=294;canvasModeCard('solo','SOLO','15 forge levels','1 PLAYER','play',x,y,w,h,UI.orange,()=>openLevelSelect('home'),{primary:true});canvasModeCard('multiplayer','MULTIPLAYER','Browse or create servers','UP TO 5','host',x+w+gap,y,w,h,UI.cyan,()=>openMultiplayer())
+  let joined=onlineSession()&&net.connected;if(joined||pairView==='host'&&net.role==='host')return canvasDrawLobby();if(pairView==='browser')return canvasDrawMultiplayer();if(pairView==='join')return canvasDrawPairing();canvasSetFocusScope('home','solo');let f=canvasScreenShell();canvasScreenTitle(f,'FORGE CONSOLE','CHOOSE MODE');let x=f.x+60,y=f.y+122,gap=24,w=(f.w-120-gap)/2,h=294;canvasModeCard('solo','SOLO','15 forge levels','1 PLAYER','play',x,y,w,h,UI.orange,()=>openLevelSelect('home'),{primary:true});canvasModeCard('multiplayer','MULTIPLAYER','Browse or create servers','UP TO 5','host',x+w+gap,y,w,h,UI.cyan,()=>openMultiplayer())
 }
 function canvasDrawMultiplayer(){
   canvasSetFocusScope('multiplayer',roomBrowser.rooms[0]&&roomBrowser.rooms[0].joinable?'server-'+roomBrowser.rooms[0].code:'create-server');let f=canvasScreenShell();canvasScreenTitle(f,'ONLINE','MULTIPLAYER','ACTIVE SERVERS',{backAction:()=>closeMultiplayer(),accent:UI.cyan});let lx=f.x+28,top=f.y+118,lw=566,rowH=56,gap=8,rooms=roomBrowser.rooms.slice(0,4);canvasBox(lx,top,lw,270,{fill:'#06101a',stroke:UI.line,r:15,line:1.2});
